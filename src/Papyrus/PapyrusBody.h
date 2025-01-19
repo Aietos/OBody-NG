@@ -1,3 +1,4 @@
+// ReSharper disable CppPassValueParameterByConstReference
 #pragma once
 
 #include "Body/Body.h"
@@ -6,89 +7,71 @@
 
 namespace PapyrusBody {
     using VM = RE::BSScript::IVirtualMachine;
+    inline auto& obody{Body::OBody::GetInstance()};
 
-    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        auto obody = Body::OBody::GetInstance();
-        obody->GenerateActorBody(a_actor);
+    static void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) { obody.GenerateActorBody(a_actor); }
+
+    static void SetORefit(RE::StaticFunctionTag*, const bool a_enabled) { obody.setRefit = a_enabled; }
+
+    static void SetNippleSlidersORefitEnabled(RE::StaticFunctionTag*, const bool a_enabled) {
+        obody.setNippleSlidersRefitEnabled = a_enabled;
     }
 
-    void SetORefit(RE::StaticFunctionTag*, bool a_enabled) {
-        auto obody = Body::OBody::GetInstance();
-        obody->setRefit = a_enabled;
+    static void SetNippleRand(RE::StaticFunctionTag*, const bool a_enabled) { obody.setNippleRand = a_enabled; }
+
+    static void SetGenitalRand(RE::StaticFunctionTag*, const bool a_enabled) { obody.setGenitalRand = a_enabled; }
+
+    static void SetPerformanceMode(RE::StaticFunctionTag*, const bool a_enabled) {
+        obody.setPerformanceMode = a_enabled;
     }
 
-	void SetNippleSlidersORefitEnabled(RE::StaticFunctionTag*, bool a_enabled) {
-        auto obody = Body::OBody::GetInstance();
-        obody->setNippleSlidersRefitEnabled = a_enabled;
+    static void SetDistributionKey(RE::StaticFunctionTag*, const std::string a_distributionKey) {
+        obody.distributionKey = a_distributionKey;
     }
 
-    void SetNippleRand(RE::StaticFunctionTag*, bool a_enabled) {
-        auto obody = Body::OBody::GetInstance();
-        obody->setNippleRand = a_enabled;
+    static int GetFemaleDatabaseSize(RE::StaticFunctionTag*) {
+        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
+        return static_cast<int>(presetContainer.femalePresets.size());
     }
 
-    void SetGenitalRand(RE::StaticFunctionTag*, bool a_enabled) {
-        auto obody = Body::OBody::GetInstance();
-        obody->setGenitalRand = a_enabled;
+    static int GetMaleDatabaseSize(RE::StaticFunctionTag*) {
+        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
+        return static_cast<int>(presetContainer.malePresets.size());
     }
 
-    void SetPerformanceMode(RE::StaticFunctionTag*, bool a_enabled) {
-        auto obody = Body::OBody::GetInstance();
-        obody->setPerformanceMode = a_enabled;
-    }
-
-    void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey) {
-        auto obody = Body::OBody::GetInstance();
-        obody->distributionKey = a_distributionKey;
-    }
-
-    int GetFemaleDatabaseSize(RE::StaticFunctionTag*) {
-        auto presetContainer = PresetManager::PresetContainer::GetInstance();
-        return static_cast<int>(presetContainer->femalePresets.size());
-    }
-
-    int GetMaleDatabaseSize(RE::StaticFunctionTag*) {
-        auto presetContainer = PresetManager::PresetContainer::GetInstance();
-        return static_cast<int>(presetContainer->malePresets.size());
-    }
-
-    void RegisterForOBodyEvent(RE::StaticFunctionTag*, RE::TESQuest* a_quest) {
+    static void RegisterForOBodyEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
         Body::OnActorGenerated.Register(a_quest);
     }
 
-    void RegisterForOBodyNakedEvent(RE::StaticFunctionTag*, RE::TESQuest* a_quest) {
+    static void RegisterForOBodyNakedEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
         Body::OnActorNaked.Register(a_quest);
     }
 
-    void RegisterForOBodyRemovingClothesEvent(RE::StaticFunctionTag*, RE::TESQuest* a_quest) {
+    static void RegisterForOBodyRemovingClothesEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
         Body::OnActorRemovingClothes.Register(a_quest);
     }
 
-    void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor, std::string a_name) {
-        auto obody = Body::OBody::GetInstance();
-        obody->GenerateBodyByName(a_actor, a_name);
+    static void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_name) {
+        obody.GenerateBodyByName(a_actor, a_name);
     }
 
-    void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        auto obody = Body::OBody::GetInstance();
-        obody->ApplyClothePreset(a_actor);
-        obody->ApplyMorphs(a_actor, true);
+    static void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        obody.ApplyClothePreset(a_actor);
+        obody.ApplyMorphs(a_actor, true);
     }
 
-    void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        auto obody = Body::OBody::GetInstance();
-        obody->ClearActorMorphs(a_actor);
+    static void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) { obody.ClearActorMorphs(a_actor); }
+
+    static bool presetNameComparison(std::string a, std::string b) {
+        boost::algorithm::to_lower(a);
+        boost::algorithm::to_lower(b);
+        return a < b;
     }
 
-	bool presetNameComparison(std::string a, std::string b) {
-        return boost::algorithm::to_lower_copy(a) < boost::algorithm::to_lower_copy(b);
-    } 
+    static auto GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
 
-    auto GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        std::vector<std::string> ret;
-        auto presetContainer = PresetManager::PresetContainer::GetInstance();
-        auto obody = Body::OBody::GetInstance();
-        auto presetDistributionConfig = Parser::JSONParser::GetInstance()->presetDistributionConfig;
+        const auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
 
         bool showBlacklistedPresets = false;
 
@@ -104,28 +87,20 @@ namespace PapyrusBody {
                 "in OBody menu.");
             showBlacklistedPresets = true;
         }
+        auto presets_to_show =
+            (obody.IsFemale(a_actor)
+                 ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
+                 : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets)) |
+            std::views::transform(&PresetManager::Preset::name);
 
-        if (obody->IsFemale(a_actor)) {
-            if (showBlacklistedPresets) {
-                for (auto& preset : presetContainer->allFemalePresets) ret.push_back(preset.name);
-            } else {
-                for (auto& preset : presetContainer->femalePresets) ret.push_back(preset.name);
-            }
-        } else {
-            if (showBlacklistedPresets) {
-                for (auto& preset : presetContainer->allMalePresets) ret.push_back(preset.name);
-            } else {
-                for (auto& preset : presetContainer->malePresets) ret.push_back(preset.name);
-            }
-        }
-
-		std::sort(ret.begin(), ret.end(), presetNameComparison);
+        std::vector<std::string> ret(presets_to_show.begin(), presets_to_show.end());
+        std::ranges::sort(ret, presetNameComparison);
 
         return ret;
     }
 
-    bool Bind(VM* a_vm) {
-        const auto obj = "OBodyNative"sv;
+    static bool Bind(VM* a_vm) {
+        constexpr auto obj = "OBodyNative"sv;
 
         BIND(GenActor);
         BIND(ApplyPresetByName);

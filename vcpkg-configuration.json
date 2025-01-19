@@ -1,22 +1,26 @@
 {
-    "default-registry": {
-        "kind": "git",
-        "repository": "https://github.com/microsoft/vcpkg.git",
-        "baseline": "5b081066f0740e54bdcbe4d0772d85dbb1d8e266"
+  "default-registry": {
+    "kind": "git",
+    "baseline": "cf035d9916a0a23042b41fcae7ee0386d245af08",
+    "repository": "https://github.com/microsoft/vcpkg.git"
+  },
+  "registries": [
+    {
+      "kind": "git",
+      "baseline": "c6d868d34b65ebd9119d0a2698bf50a85c7ec7c8",
+      "repository": "https://github.com/ThirdEyeSqueegee/CommonLibSSE-NG-vcpkg",
+      "packages": [
+        "commonlibsse-ng"
+      ]
     },
-    "registries": [
-        {
-            "kind": "git",
-            "repository": "https://gitlab.com/colorglass/vcpkg-colorglass",
-            "baseline": "6309841a1ce770409708a67a9ba5c26c537d2937",
-            "packages": [
-                "articuno",
-                "bethesda-skyrim-scripts",
-                "commonlibsse-ng",
-                "gluino",
-                "script-extender-common",
-                "skse"
-            ]
-        }
-    ]
+    {
+      "kind": "git",
+      "baseline": "f77b98856f76ef2b57928d8f62b3aee497fd6ad8",
+      "repository": "https://github.com/ThirdEyeSqueegee/vcpkg-ports",
+      "packages": [
+        "openvr",
+        "spdlog"
+      ]
+    }
+  ]
 }

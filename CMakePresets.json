@@ -78,7 +78,9 @@
                 "CMAKE_BUILD_TYPE": {
                     "type": "STRING",
                     "value": "Debug"
-                }
+                },
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+                "VCPKG_HOST_TRIPLET": "x64-windows-static-md"
             }
         },
         {
@@ -98,7 +100,9 @@
                 "CMAKE_BUILD_TYPE": {
                     "type": "STRING",
                     "value": "Release"
-                }
+                },
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-release",
+                "VCPKG_HOST_TRIPLET": "x64-windows-static-md-release"
             }
         }
     ],

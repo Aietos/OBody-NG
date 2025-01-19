@@ -10,41 +10,46 @@ namespace Body {
 
     class OBody {
     public:
-        OBody() = default;
-        static OBody* GetInstance();
+        OBody(OBody&&) = delete;
+        OBody(const OBody&) = delete;
+
+        OBody& operator=(OBody&&) = delete;
+        OBody& operator=(const OBody&) = delete;
+
+        static OBody& GetInstance();
 
         bool SetMorphInterface(SKEE::IBodyMorphInterface* a_morphInterface);
 
-        void SetMorph(RE::Actor* a_actor, const char* a_morphName, const char* a_key, float a_value);
-        float GetMorph(RE::Actor* a_actor, const char* a_morphName);
-        void ApplyMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer, bool applyProcessedMorph = true);
+        void SetMorph(RE::Actor* a_actor, const char* a_morphName, const char* a_key, float a_value) const;
+        float GetMorph(RE::Actor* a_actor, const char* a_morphName) const;
+        void ApplyMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer, bool applyProcessedMorph = true) const;
 
-        void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, RE::TESForm* a_equippedArmor);
+        void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) const;
 
-        void GenerateActorBody(RE::Actor* a_actor);
-        void GenerateBodyByName(RE::Actor* a_actor, std::string a_name);
-        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer);
+        void GenerateActorBody(RE::Actor* a_actor) const;
+        void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const;
+        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer) const;
 
-        void ApplySlider(RE::Actor* a_actor, PresetManager::Slider& a_slider, const char* a_key, float a_weight);
-        void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key);
-        void ApplyClothePreset(RE::Actor* a_actor);
-        void RemoveClothePreset(RE::Actor* a_actor);
-        void ClearActorMorphs(RE::Actor* a_actor);
+        void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key, float a_weight) const;
+        void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
+        void ApplyClothePreset(RE::Actor* a_actor) const;
+        void RemoveClothePreset(RE::Actor* a_actor) const;
+        void ClearActorMorphs(RE::Actor* a_actor) const;
 
-        float GetWeight(RE::Actor* a_actor);
+        static float GetWeight(RE::Actor* a_actor);
 
-        bool IsClotheActive(RE::Actor* a_actor);
-        bool IsNaked(RE::Actor* a_actor, bool a_removingArmor, RE::TESForm* a_equippedArmor);
-        bool IsRemovingClothes(RE::Actor* a_actor, bool a_removingArmor, RE::TESForm* a_equippedArmor);
-        bool IsFemale(RE::Actor* a_actor);
-        bool IsProcessed(RE::Actor* a_actor);
-        bool IsBlacklisted(RE::Actor* a_actor);
+        bool IsClotheActive(RE::Actor* a_actor) const;
+        static bool IsNaked(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
+        static bool IsRemovingClothes(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
+        static bool IsFemale(RE::Actor* a_actor);
+        bool IsProcessed(RE::Actor* a_actor) const;
+        bool IsBlacklisted(RE::Actor* a_actor) const;
 
-        PresetManager::SliderSet GenerateRandomNippleSliders();
-        PresetManager::SliderSet GenerateRandomGenitalSliders();
-        PresetManager::SliderSet GenerateClotheSliders(RE::Actor* a_actor);
+        static PresetManager::SliderSet GenerateRandomNippleSliders();
+        static PresetManager::SliderSet GenerateRandomGenitalSliders();
+        PresetManager::SliderSet GenerateClotheSliders(RE::Actor* a_actor) const;
 
-        PresetManager::Slider DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target);
+        PresetManager::Slider DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const;
 
 		bool synthesisInstalled = false;
 
@@ -56,6 +61,10 @@ namespace Body {
 
         std::string distributionKey;
 
-        SKEE::IBodyMorphInterface* morphInterface;
+        SKEE::IBodyMorphInterface* morphInterface{};
+    private:
+        static OBody instance;
+
+        OBody() = default;
     };
 }  // namespace Body

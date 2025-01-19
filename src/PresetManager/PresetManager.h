@@ -10,8 +10,8 @@ namespace PresetManager {
         ~Slider() = default;
 
         std::string name;
-        float min = 0;
-        float max = 0;
+        float min = 0.f;
+        float max = 0.f;
     };
 
     using SliderSet = std::unordered_map<std::string, Slider>;
@@ -22,7 +22,7 @@ namespace PresetManager {
         Preset(std::string a_name, std::string a_body) : name(std::move(a_name)), body(std::move(a_body)) {}
         ~Preset() = default;
 
-        std::string name = "";
+        std::string name;
         std::string body;
         SliderSet sliders;
     };
@@ -31,6 +31,12 @@ namespace PresetManager {
 
     class PresetContainer {
     public:
+        PresetContainer(PresetContainer&&) = delete;
+        PresetContainer(const PresetContainer&) = delete;
+
+        PresetContainer& operator=(PresetContainer&&) = delete;
+        PresetContainer& operator=(const PresetContainer&) = delete;
+
         std::vector<std::string> defaultSliders;
 
         PresetSet femalePresets;
@@ -42,25 +48,28 @@ namespace PresetManager {
         PresetSet allFemalePresets;
         PresetSet allMalePresets;
 
-        PresetContainer() = default;
+        static PresetContainer& GetInstance();
 
-        static PresetContainer* GetInstance();
+    private:
+        static PresetContainer instance;
+
+        PresetContainer() = default;
     };
 
-    bool IsFemalePreset(Preset a_preset);
+    bool IsFemalePreset(const Preset& a_preset);
     bool IsClothedSet(std::string a_set);
 
     Preset GetPresetByName(PresetSet a_presetSet, std::string a_name, bool female);
     Preset GetRandomPreset(PresetSet a_presetSet);
-    Preset GetRandomPresetByName(PresetSet a_presetSet, std::vector<std::string> a_presetNames, bool female);
+    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string> a_presetNames, bool female);
 
-    Preset GetPresetByNameForRandom(PresetSet a_presetSet, std::string a_name, bool female);
+    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string a_name, bool female);
 
     void GeneratePresets();
     std::optional<Preset> GeneratePreset(pugi::xml_node a_node);
 
-    SliderSet SliderSetFromNode(pugi::xml_node& a_node, BodyType a_body);
-    void AddSliderToSet(SliderSet& a_sliderSet, Slider a_slider, bool a_inverted = false);
+    SliderSet SliderSetFromNode(const pugi::xml_node& a_node, BodyType a_body);
+    void AddSliderToSet(SliderSet& a_sliderSet, Slider&& a_slider, bool a_inverted = false);
 
-    BodyType GetBodyType(std::string a_body);
+    BodyType GetBodyType(std::string_view a_body);
 }  // namespace PresetManager

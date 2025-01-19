@@ -1,25 +1,18 @@
 #pragma once
 
-#include <codecvt>
-
 namespace stl {
-    static bool contains(std::string const& a_text, std::string const& a_sub) {
+    static bool contains(std::string_view const a_text, std::string_view const a_sub) {
         if (a_sub.length() > a_text.length()) return false;
 
-        auto it = std::search(a_text.begin(), a_text.end(), a_sub.begin(), a_sub.end(),
-                              [](char ch1, char ch2) { return std::toupper(ch1) == std::toupper(ch2); });
+        auto it = std::ranges::search(a_text, a_sub, [](const char ch1, const char ch2) {
+                      return std::toupper(ch1) == std::toupper(ch2);
+                  }).begin();
 
         return it != a_text.end();
     }
 
-    static std::string ws2s(const std::wstring& wstr) {
-        using convert_typeX = std::codecvt_utf8<wchar_t>;
-        std::wstring_convert<convert_typeX, wchar_t> converterX;
-
-        return converterX.to_bytes(wstr);
-    }
-
-    static bool contains(std::string const& a_text, std::vector<std::string> const& a_subs) {
+    template <class T, std::size_t N>
+    static bool contains(std::string_view const a_text, std::array<T, N> const& a_subs) {
         for (auto& sub : a_subs) {
             if (contains(a_text, sub)) return true;
         }
@@ -27,42 +20,59 @@ namespace stl {
         return false;
     }
 
-    static void files(const fs::path& a_path, std::vector<std::string>& a_files, const char* a_ext = 0) {
-        for (const auto& entry : fs::directory_iterator(a_path)) {
-            auto path = entry.path();
-            if (a_ext) {
-                auto ext = path.extension().string();
-                if (ext != a_ext) continue;
+    static bool cmp(const std::string_view a_str1, const std::string_view a_str2) {
+        return std::ranges::equal(a_str1, a_str2, [](const char a, const char b) { return tolower(a) == tolower(b); });
+    }
+
+    // static bool cmp(const char* a_str1, const char* a_str2) { return cmp(std::string{a_str1}, std::string{a_str2}); }
+
+    // ReSharper disable once CppNotAllPathsReturnValue
+    template <class T>
+        requires std::is_integral_v<T> || std::is_floating_point_v<T>
+    T random(T min, T max) {  // non-inclusive i.e., [min, max)
+        if (min >= max) {
+            char errorMessage[256];
+            if constexpr (std::is_floating_point_v<T>) {
+                sprintf_s(errorMessage, std::size(errorMessage),
+                          "The Value of min: '%f' must be lesser than the value of max: '%f'", min, max);
+            } else {
+                sprintf_s(errorMessage, std::size(errorMessage),
+                          "The Value of min: '%lld' must be lesser than the value of max: '%lld'",
+                          static_cast<long long>(min), static_cast<long long>(max));
             }
-            a_files.push_back(ws2s(path.wstring()));
+            throw std::invalid_argument(errorMessage);
+        }
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        if constexpr (std::is_integral_v<T>) {
+            std::uniform_int_distribution<T> distrib(min, max - 1);
+            return distrib(gen);
+        } else if constexpr (std::is_floating_point_v<T>) {
+            std::uniform_real_distribution<T> distrib(min, max);
+            T res = distrib(gen);
+            while (res == max) res = distrib(gen);  // to get around rounding issue with floating point numbers
+            return res;
         }
     }
 
-    static bool cmp(std::string a_str1, std::string a_str2) {
-        return std::equal(a_str1.begin(), a_str1.end(), a_str2.begin(), a_str2.end(),
-                          [](char a, char b) { return tolower(a) == tolower(b); });
-    }
-
-    static bool cmp(const char* a_str1, const char* a_str2) { return cmp(std::string{a_str1}, std::string{a_str2}); }
-
-    static float random(float a_val1, float a_val2) {
-        // non-inclusive
-        float random = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
-        float diff = a_val2 - a_val1;
-        float r = random * diff;
-        return a_val1 + r;
-    }
-
-    static int random(int a_val1, int a_val2) {
-        // non-inclusive
-        int random = std::rand() / RAND_MAX;
-        int diff = a_val2 - a_val1;
-        int r = random * diff;
-        return a_val1 + r;
-    }
-
     static bool chance(int a_chance) {
-        float roll = random(0.0f, 99.0f);
+        auto roll = random(0.0f, 99.0f);
         return roll <= static_cast<float>(a_chance);
+    }
+
+    template <typename T, std::size_t N>
+    constexpr std::array<T, N> to_set(std::initializer_list<T> const& input) {
+        std::array<T, N> elements{};
+        std::size_t size = 0;
+
+        for (auto& value : input) {
+            if (std::find(elements.begin(), elements.begin() + size, value) == elements.begin() + size) {
+                if (size >= N) throw "Set is full, not enough space";
+                elements[size++] = value;
+            }
+        }
+
+        if (size != N) throw std::out_of_range("Not the smallest possible set");
+        return elements;
     }
 }  // namespace stl

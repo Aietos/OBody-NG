@@ -6,8 +6,7 @@
 
 namespace Papyrus {
     void Bind() {
-        auto papyrus = SKSE::GetPapyrusInterface();
-        if (papyrus) {
+        if (const auto papyrus = SKSE::GetPapyrusInterface()) {
             papyrus->Register(PapyrusBody::Bind);
         }
     }
