@@ -7,25 +7,23 @@
 
 namespace {
     void InitializeLogging() {
-        auto path{ logger::log_directory() };
+        // ReSharper disable once CppLocalVariableMayBeConst
+        auto path{logger::log_directory()};
         if (!path) {
             SKSE::stl::report_and_fail("Unable to lookup SKSE logs directory.");
         }
-        *path /= SKSE::PluginDeclaration::GetSingleton()->GetName();
-        *path += ".log";
+        *path /= std::format("{}.log", SKSE::PluginDeclaration::GetSingleton()->GetName());
 
-        std::shared_ptr<spdlog::logger> log;
-        if (IsDebuggerPresent()) {
-            log = std::make_shared<spdlog::logger>("Global", std::make_shared<spdlog::sinks::msvc_sink_mt>());
-        } else {
-            log = std::make_shared<spdlog::logger>(
-                "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
-        }
+        std::shared_ptr<spdlog::logger> log =
+            (IsDebuggerPresent() != 0)
+                ? std::make_shared<spdlog::logger>("Global", std::make_shared<spdlog::sinks::msvc_sink_mt>())
+                : std::make_shared<spdlog::logger>(
+                    "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
+
         log->set_level(spdlog::level::info);
         log->flush_on(spdlog::level::info);
-
+        log->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
         spdlog::set_default_logger(std::move(log));
-        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
     }
 
     // ReSharper disable once CppParameterMayBeConstPtrOrRef
@@ -36,8 +34,8 @@ namespace {
             // On kPostPostLoad, we can try to fetch the Racemenu interface
             case SKSE::MessagingInterface::kPostPostLoad: {
                 SKEE::InterfaceExchangeMessage msg;
-                auto intfc = SKSE::GetMessagingInterface();
-                intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, (void*)&msg,
+                const auto* const intfc = SKSE::GetMessagingInterface();
+                intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, &msg,
                                 sizeof(SKEE::InterfaceExchangeMessage*), "skee");
                 if (!msg.interfaceMap) {
                     logger::critical("Couldn't get interface map!");
@@ -125,18 +123,19 @@ namespace {
                 return;
         }
     }
-}  // namespace
+} // namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
     InitializeLogging();
 
-    auto* plugin = SKSE::PluginDeclaration::GetSingleton();
+    const auto* const plugin = SKSE::PluginDeclaration::GetSingleton();
     logger::info("{} {} is loading...", plugin->GetName(), plugin->GetVersion().string("."));
 
-    Init(a_skse);
+    Init(a_skse, false); // Passing 'false' prevents Init from setting up its own logging, allowing us to use our custom setup
 
-    auto message = SKSE::GetMessagingInterface();
-    if (!message->RegisterListener(MessageHandler)) return false;
+    if (const auto* const message{SKSE::GetMessagingInterface()}; !message->RegisterListener(MessageHandler)) {
+        return false;
+    }
 
     Papyrus::Bind();
 

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Body/Body.h"
-
-namespace Event {
+namespace Event
+{
     class OBodyEventHandler final : public RE::BSTEventSink<RE::TESInitScriptEvent>,
                                     public RE::BSTEventSink<RE::TESLoadGameEvent>,
-                                    public RE::BSTEventSink<RE::TESEquipEvent> {
+                                    public RE::BSTEventSink<RE::TESEquipEvent>
+    {
     public:
         static OBodyEventHandler* GetSingleton() { return &singleton; }
         static void Register();
@@ -18,7 +18,6 @@ namespace Event {
 
     private:
         static OBodyEventHandler singleton;
-        static Body::OBody& obody;
 
         RE::BSEventNotifyControl ProcessEvent(const RE::TESInitScriptEvent* a_event,
                                               RE::BSTEventSource<RE::TESInitScriptEvent>*) override;
@@ -26,9 +25,9 @@ namespace Event {
         RE::BSEventNotifyControl ProcessEvent(const RE::TESLoadGameEvent* a_event,
                                               RE::BSTEventSource<RE::TESLoadGameEvent>*) override;
 
-      RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* a_event,
+        RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* a_event,
                                               RE::BSTEventSource<RE::TESEquipEvent>*) override;
 
         OBodyEventHandler() = default;
     };
-}  // namespace Event
+} // namespace Event

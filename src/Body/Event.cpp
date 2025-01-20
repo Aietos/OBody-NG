@@ -1,14 +1,12 @@
-//
-// Created by judah on 19-01-2025.
-//
 #include "Body/Event.h"
+
+#include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
 
 Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
-Body::OBody& Event::OBodyEventHandler::obody = Body::OBody::GetInstance();
 
 void Event::OBodyEventHandler::Register() {
-    if (const auto events{RE::ScriptEventSourceHolder::GetSingleton()}) {
+    if (auto* const events{RE::ScriptEventSourceHolder::GetSingleton()}) {
         events->AddEventSink<RE::TESInitScriptEvent>(&singleton);
         events->AddEventSink<RE::TESLoadGameEvent>(&singleton);
         events->AddEventSink<RE::TESEquipEvent>(&singleton);
@@ -19,9 +17,9 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
                                                                 RE::BSTEventSource<RE::TESInitScriptEvent>*) {
     if (!a_event || !a_event->objectInitialized->Is3DLoaded()) return RE::BSEventNotifyControl::kContinue;
 
-    if (RE::Actor* actor{ a_event->objectInitialized->As<RE::Actor>() };
-        actor && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
-        obody.GenerateActorBody(actor);
+    if (RE::Actor* actor{a_event->objectInitialized->As<RE::Actor>()};
+        (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
+        Body::OBody::GetInstance().GenerateActorBody(actor);
     }
 
     return RE::BSEventNotifyControl::kContinue;
@@ -61,7 +59,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEqu
 
     if (form->Is(RE::FormType::Armor) || form->Is(RE::FormType::Armature)) {
         if (actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
-            obody.ProcessActorEquipEvent(actor, !a_event->equipped, form);
+            Body::OBody::GetInstance().ProcessActorEquipEvent(actor, !a_event->equipped, form);
         }
     }
 

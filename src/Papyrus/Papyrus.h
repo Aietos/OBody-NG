@@ -2,4 +2,4 @@
 
 namespace Papyrus {
     void Bind();
-}
+} // namespace Papyrus

@@ -21,6 +21,7 @@ namespace Parser {
         void ProcessNPCsFormIDBlacklist();
         void ProcessOutfitsFormIDBlacklist();
         void ProcessOutfitsForceRefitFormIDBlacklist();
+        void FilterOutNonLoaded();
 
         void ProcessJSONCategories();
 
@@ -40,12 +41,12 @@ namespace Parser {
         PresetManager::Preset GetNPCFactionPreset(const RE::TESNPC* a_actor, bool female);
 
         PresetManager::Preset GetNPCPreset(const char* actorName, uint32_t formID, bool female);
-        PresetManager::Preset GetNPCPluginPreset(const RE::TESNPC* a_actor, std::string actorName, bool female);
+        PresetManager::Preset GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName, bool female);
         PresetManager::Preset GetNPCRacePreset(const char* actorRace, bool female);
 
         nlohmann::ordered_json presetDistributionConfig;
-        bool presetDistributionConfigValid;
-        bool bodyslidePresetsParsingValid;
+        bool presetDistributionConfigValid{};
+        bool bodyslidePresetsParsingValid{};
 
         std::vector<categorizedList> blacklistedCharacterCategorySet;
         std::vector<categorizedList> characterCategorySet;
@@ -57,4 +58,4 @@ namespace Parser {
         JSONParser() = default;
         static JSONParser instance;
     };
-}  // namespace Parser
+} // namespace Parser

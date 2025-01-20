@@ -5,10 +5,10 @@
 
 using namespace PresetManager;
 
-Body::OBody Body::OBody::instance;
+Body::OBody Body::OBody::instance_;
 
 namespace Body {
-    OBody& OBody::GetInstance() { return instance; }
+    OBody& OBody::GetInstance() { return instance_; }
 
     bool OBody::SetMorphInterface(SKEE::IBodyMorphInterface* a_morphInterface) {
         return (morphInterface = a_morphInterface->GetVersion() ? a_morphInterface : nullptr);
@@ -33,7 +33,7 @@ namespace Body {
         if (updateMorphsWithoutTimer || !setPerformanceMode) {
             if (RE::Actor* actor = actorHandle.get().get()) {
                 if (applyProcessedMorph) {
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0f);
+                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
                 }
 
                 // ReSharper disable once CppDFAConstantConditions
@@ -50,7 +50,7 @@ namespace Body {
             const unsigned long seed{
                 static_cast<unsigned long>(std::chrono::system_clock::now().time_since_epoch().count())};
             std::mt19937 rng{seed};
-            std::uniform_int_distribution<int> gen{3, 7};
+            std::uniform_int_distribution gen{3, 7};
 
             auto sleepFor = gen(rng);
             // ReSharper restore CppDFAUnusedValue
@@ -65,7 +65,7 @@ namespace Body {
                 if (actor != nullptr) {
                     logger::info("Actor {} is valid, updating morphs now", actorName);
 
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0f);
+                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
 
                     // ReSharper disable once CppDFAConstantConditions
                     if (actor && actor->Is3DLoaded() &&
@@ -105,7 +105,7 @@ namespace Body {
         const bool naked = IsNaked(a_actor, a_removingArmor, a_equippedArmor);
         const bool clotheActive = IsClotheActive(a_actor);
 
-        if (!(naked) && (a_removingArmor)) {
+        if (!naked && a_removingArmor) {
             // Fires when removing their armor
             OnActorNaked.SendEvent(a_actor);
         }
@@ -150,8 +150,8 @@ namespace Body {
 
         // If NPC is blacklisted, set him as processed
         if (jsonParser.IsNPCBlacklisted(actorName, actorID)) {
-            SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0f);
-            SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0f);
+            SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
+            SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0F);
             return;
         }
 
@@ -159,12 +159,12 @@ namespace Body {
         preset = jsonParser.GetNPCPreset(actorName, actorID, female);
 
         if (preset.name.empty()) {
-            auto actorRace = actorBase->GetRace()->GetFormEditorID();
+            auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
-            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace, female)) {
-                SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0f);
-                SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0f);
+            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), female)) {
+                SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
+                SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0F);
                 return;
             }
 
@@ -178,18 +178,15 @@ namespace Body {
 
             // And if that also fails, we check if we have a preset in the NPC's race
             if (preset.name.empty()) {
-                preset = jsonParser.GetNPCRacePreset(actorRace, female);
+                preset = jsonParser.GetNPCRacePreset(actorRace.c_str(), female);
             }
         }
 
         // If we got here without a preset, then we just fetch one randomly
         if (preset.name.empty()) {
             logger::info("No preset defined for this actor, getting it randomly");
-            if (female) {
-                preset = PresetManager::GetRandomPreset(presetContainer.femalePresets);
-            } else {
-                preset = PresetManager::GetRandomPreset(presetContainer.malePresets);
-            }
+            preset = PresetManager::GetRandomPreset(
+                female ? presetContainer.femalePresets : presetContainer.malePresets);
         }
 
         logger::info("Preset {} will be applied to {}", preset.name, actorName);
@@ -198,18 +195,15 @@ namespace Body {
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const {
-        PresetManager::Preset preset;
-        auto& presetContainer = PresetManager::PresetContainer::GetInstance();
+        const auto& presetContainer = PresetContainer::GetInstance();
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
         if (synthesisInstalled && a_actor != nullptr) {
-            SetMorph(a_actor, "obody_synthebd", "OBody", 1.0f);
+            SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
         }
 
-        if (IsFemale(a_actor))
-            preset = PresetManager::GetPresetByName(presetContainer.allFemalePresets, a_name, true);
-        else
-            preset = PresetManager::GetPresetByName(presetContainer.allMalePresets, a_name, false);
+        Preset preset = GetPresetByName(
+            IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_name, true);
 
         GenerateBodyByPreset(a_actor, preset, true);
     }
@@ -254,7 +248,7 @@ namespace Body {
     }
 
     void OBody::ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
-                            float a_weight) const {
+                            const float a_weight) const {
         const float val = ((a_slider.max - a_slider.min) * a_weight) + a_slider.min;
         morphInterface->SetMorph(a_actor, a_slider.name.c_str(), a_key, val);
     }
@@ -277,11 +271,11 @@ namespace Body {
 
     void OBody::RemoveClothePreset(RE::Actor* a_actor) const { morphInterface->ClearBodyMorphKeys(a_actor, "OClothe"); }
 
-    float OBody::GetWeight(RE::Actor* a_actor) { return a_actor->GetActorBase()->GetWeight() / 100.0f; }
+    float OBody::GetWeight(RE::Actor* a_actor) { return a_actor->GetActorBase()->GetWeight() / 100.0F; }
 
     bool OBody::IsClotheActive(RE::Actor* a_actor) const { return morphInterface->HasBodyMorphKey(a_actor, "OClothe"); }
 
-    bool OBody::IsNaked(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) {
+    bool OBody::IsNaked(RE::Actor* a_actor, const bool a_removingArmor, const RE::TESForm* a_equippedArmor) {
         auto& jsonParser = Parser::JSONParser::GetInstance();
 
         auto outfitBody = a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kBody);
@@ -301,11 +295,9 @@ namespace Body {
         }
 
         // if outfit is blacklisted from ORefit, we assume as not having the outfit so ORefit is not applied
-        bool hasBodyOutfit = outfitBody == nullptr ? false : !jsonParser.IsOutfitBlacklisted(*outfitBody);
-        bool hasOutergarment =
-            outergarmentChest == nullptr ? false : !jsonParser.IsOutfitBlacklisted(*outergarmentChest);
-        bool hasUndergarment =
-            undergarmentChest == nullptr ? false : !jsonParser.IsOutfitBlacklisted(*undergarmentChest);
+        const bool hasBodyOutfit = !outfitBody ? false : !jsonParser.IsOutfitBlacklisted(*outfitBody);
+        const bool hasOutergarment = !outergarmentChest ? false : !jsonParser.IsOutfitBlacklisted(*outergarmentChest);
+        const bool hasUndergarment = !undergarmentChest ? false : !jsonParser.IsOutfitBlacklisted(*undergarmentChest);
 
         // Actor counts as naked if:
         // he has no clothing in the slots defined above / they are blacklisted from ORefit
@@ -411,10 +403,10 @@ namespace Body {
             AddSliderToSet(set, Slider{"Labiaprotrude", stl::random(0.0f, 0.5f)});
             AddSliderToSet(set, Slider{"Labiaprotrude2", stl::random(0.0f, 0.1f)});
             AddSliderToSet(set, Slider{"Labiaprotrudeback", stl::random(0.0f, 0.1f)});
-            AddSliderToSet(set, Slider{"Labiaspread", 0.0f});
+            AddSliderToSet(set, Slider{"Labiaspread", 0.0F});
             AddSliderToSet(set, Slider{"LabiaCrumpled_v2", stl::random(0.0f, 0.3f)});
-            AddSliderToSet(set, Slider{"LabiaBulgogi_v2", 0.0f});
-            AddSliderToSet(set, Slider{"LabiaNeat_v2", 0.0f});
+            AddSliderToSet(set, Slider{"LabiaBulgogi_v2", 0.0F});
+            AddSliderToSet(set, Slider{"LabiaNeat_v2", 0.0F});
             AddSliderToSet(set, Slider{"VaginaHole", stl::random(-0.2f, 0.05f)});
             AddSliderToSet(set, Slider{"Clit", stl::random(-0.4f, 0.25f)});
         } else if (stl::chance(75)) {
@@ -435,13 +427,13 @@ namespace Body {
 
                 if (stl::chance(60)) AddSliderToSet(set, Slider{"LabiaBulgogi_v2", stl::random(0.0f, 0.1f)});
             } else {
-                AddSliderToSet(set, Slider{"Labiaspread", 0.0f});
+                AddSliderToSet(set, Slider{"Labiaspread", 0.0F});
                 AddSliderToSet(set, Slider{"LabiaCrumpled_v2", stl::random(0.0f, 0.2f)});
 
                 if (stl::chance(45)) AddSliderToSet(set, Slider{"LabiaBulgogi_v2", stl::random(0.0f, 0.3f)});
             }
 
-            AddSliderToSet(set, Slider{"LabiaNeat_v2", 0.0f});
+            AddSliderToSet(set, Slider{"LabiaNeat_v2", 0.0F});
             AddSliderToSet(set, Slider{"VaginaHole", stl::random(-0.2f, 0.40f)});
             AddSliderToSet(set, Slider{"Clit", stl::random(-0.2f, 0.25f)});
         } else {
@@ -478,7 +470,7 @@ namespace Body {
         AddSliderToSet(set, Slider{"AnalPosition_v2", stl::random(0.0f, 1.0f)});
         AddSliderToSet(set, Slider{"AnalTexPos_v2", stl::random(0.0f, 1.0f)});
         AddSliderToSet(set, Slider{"AnalTexPosRe_v2", stl::random(0.0f, 1.0f)});
-        AddSliderToSet(set, Slider{"AnalLoose_v2", -0.1f});
+        AddSliderToSet(set, Slider{"AnalLoose_v2", -0.1F});
 
         return set;
     }
@@ -487,60 +479,60 @@ namespace Body {
         PresetManager::SliderSet set;
         // breasts
         // make area on sides behind breasts not sink in
-        AddSliderToSet(set, DeriveSlider(a_actor, "BreastSideShape", 0.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "BreastSideShape", 0.0F));
         // make area under breasts not sink in
-        AddSliderToSet(set, DeriveSlider(a_actor, "BreastUnderDepth", 0.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "BreastUnderDepth", 0.0F));
         // push breasts together
-        AddSliderToSet(set, DeriveSlider(a_actor, "BreastCleavage", 1.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "BreastCleavage", 1.0F));
         // push up smaller breasts more
-        AddSliderToSet(set, Slider{"BreastGravity2", -0.1f, -0.05f});
+        AddSliderToSet(set, Slider{"BreastGravity2", -0.1F, -0.05F});
         // Make top of breast rise higher
-        AddSliderToSet(set, Slider{"BreastTopSlope", -0.2f, -0.35f});
+        AddSliderToSet(set, Slider{"BreastTopSlope", -0.2F, -0.35F});
         // push breasts together
-        AddSliderToSet(set, Slider{"BreastsTogether", 0.3f, 0.35f});
+        AddSliderToSet(set, Slider{"BreastsTogether", 0.3F, 0.35F});
         // push breasts up
         // AddSliderToSet(set, Slider{ "PushUp", 0.6f, 0.4f });
         // Shrink breasts slightly
-        AddSliderToSet(set, Slider{"Breasts", -0.05f});
+        AddSliderToSet(set, Slider{"Breasts", -0.05F});
         // Move breasts up on body slightly
-        AddSliderToSet(set, Slider{"BreastHeight", 0.15f});
+        AddSliderToSet(set, Slider{"BreastHeight", 0.15F});
 
         // butt
         // remove butt impressions
-        AddSliderToSet(set, DeriveSlider(a_actor, "ButtDimples", 0.0f));
-        AddSliderToSet(set, DeriveSlider(a_actor, "ButtUnderFold", 0.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "ButtDimples", 0.0F));
+        AddSliderToSet(set, DeriveSlider(a_actor, "ButtUnderFold", 0.0F));
         // shrink ass slightly
-        AddSliderToSet(set, Slider{"AppleCheeks", -0.05f});
-        AddSliderToSet(set, Slider{"Butt", -0.05f});
+        AddSliderToSet(set, Slider{"AppleCheeks", -0.05F});
+        AddSliderToSet(set, Slider{"Butt", -0.05F});
 
         // Torso
         // remove definition on clavical bone
-        AddSliderToSet(set, DeriveSlider(a_actor, "Clavicle_v2", 0.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "Clavicle_v2", 0.0F));
         // Push out navel
-        AddSliderToSet(set, DeriveSlider(a_actor, "NavelEven", 1.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "NavelEven", 1.0F));
 
         // hip
         // remove defintion on hip bone
-        AddSliderToSet(set, DeriveSlider(a_actor, "HipCarved", 0.0f));
+        AddSliderToSet(set, DeriveSlider(a_actor, "HipCarved", 0.0F));
 
         if (setNippleSlidersRefitEnabled) {
             // nipple
             // sublte change to tip shape
-            AddSliderToSet(set, DeriveSlider(a_actor, "NippleDip", 0.0f));
-            AddSliderToSet(set, DeriveSlider(a_actor, "NippleTip", 0.0f));
+            AddSliderToSet(set, DeriveSlider(a_actor, "NippleDip", 0.0F));
+            AddSliderToSet(set, DeriveSlider(a_actor, "NippleTip", 0.0F));
             // flatten areola
-            AddSliderToSet(set, DeriveSlider(a_actor, "NipplePuffy_v2", 0.0f));
+            AddSliderToSet(set, DeriveSlider(a_actor, "NipplePuffy_v2", 0.0F));
             // shrink areola
-            AddSliderToSet(set, DeriveSlider(a_actor, "AreolaSize", -0.3f));
+            AddSliderToSet(set, DeriveSlider(a_actor, "AreolaSize", -0.3F));
             // flatten nipple
-            AddSliderToSet(set, DeriveSlider(a_actor, "NipBGone", 1.0f));
+            AddSliderToSet(set, DeriveSlider(a_actor, "NipBGone", 1.0F));
             // AddSliderToSet(set, DeriveSlider(a_actor, "NippleManga", -0.75f));
             //  push nipples together
-            AddSliderToSet(set, Slider{"NippleDistance", 0.05f, 0.08f});
+            AddSliderToSet(set, Slider{"NippleDistance", 0.05F, 0.08F});
             // Lift large breasts up
-            AddSliderToSet(set, Slider{"NippleDown", 0.0f, -0.1f});
+            AddSliderToSet(set, Slider{"NippleDown", 0.0F, -0.1F});
             // Flatten nipple + areola
-            AddSliderToSet(set, DeriveSlider(a_actor, "NipplePerkManga", -0.25f));
+            AddSliderToSet(set, DeriveSlider(a_actor, "NipplePerkManga", -0.25F));
             // Flatten nipple
             // AddSliderToSet(set, DeriveSlider(a_actor, "NipplePerkiness", 0.0f));
         }
@@ -551,4 +543,4 @@ namespace Body {
     Slider OBody::DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const {
         return Slider{a_morph, a_target - GetMorph(a_actor, a_morph)};
     }
-}  // namespace Body
+} // namespace Body

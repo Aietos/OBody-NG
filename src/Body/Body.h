@@ -51,7 +51,7 @@ namespace Body {
 
         PresetManager::Slider DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const;
 
-		bool synthesisInstalled = false;
+        bool synthesisInstalled = false;
 
         bool setRefit = true;
         bool setNippleSlidersRefitEnabled = true;
@@ -62,9 +62,11 @@ namespace Body {
         std::string distributionKey;
 
         SKEE::IBodyMorphInterface* morphInterface{};
+
     private:
-        static OBody instance;
+        static OBody instance_;
 
         OBody() = default;
+        ~OBody() = default;
     };
-}  // namespace Body
+} // namespace Body

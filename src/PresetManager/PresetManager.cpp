@@ -28,8 +28,10 @@ namespace PresetManager {
 
         auto presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
 
-        auto blacklistedPresetsBegin = presetDistributionConfig["blacklistedPresetsFromRandomDistribution"].begin();
-        auto blacklistedPresetsEnd = presetDistributionConfig["blacklistedPresetsFromRandomDistribution"].end();
+        auto& blacklistedPresets = presetDistributionConfig["blacklistedPresetsFromRandomDistribution"];
+        stl::RemoveDuplicatesInJsonArray(blacklistedPresets);
+        auto blacklistedPresetsBegin = blacklistedPresets.begin();
+        auto blacklistedPresetsEnd = blacklistedPresets.end();
 
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
