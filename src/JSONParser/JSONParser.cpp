@@ -610,10 +610,10 @@ namespace Parser {
 
         const std::vector characterBodyslidePresets{
             ((!character.bodyslidePresets.empty())
-                 ? character.bodyslidePresets
+                 ? std::vector<std::string_view>(character.bodyslidePresets.begin(), character.bodyslidePresets.end())
                  : (presetDistributionConfig.contains("npc") && presetDistributionConfig["npc"].contains(actorName)
-                        ? presetDistributionConfig["npc"][actorName].get<std::vector<std::string>>()
-                        : std::vector<std::string>()))};
+                        ? presetDistributionConfig["npc"][actorName].get<std::vector<std::string_view>>()
+                        : std::vector<std::string_view>()))};
         return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
     }
 

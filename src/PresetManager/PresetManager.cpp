@@ -125,7 +125,7 @@ namespace PresetManager {
 
         Preset presetRet;
 
-        for (auto& preset : a_presetSet) {
+        for (const auto& preset : a_presetSet) {
             if (stl::cmp(boost::to_upper_copy(preset.name), a_name)) {
                 presetRet = preset;
                 break;
@@ -135,7 +135,7 @@ namespace PresetManager {
         return presetRet;
     }
 
-    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string> a_presetNames,
+    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
                                  const bool female) {
         if (a_presetNames.empty()) {
             logger::info("Preset names size is empty, returning a random one");
@@ -145,7 +145,7 @@ namespace PresetManager {
 
         static_assert(std::is_same_v<decltype(0llu), decltype(a_presetNames.size())>,
                       "Ensure that below literal is of type std::size_t");
-        const std::string chosenPreset = a_presetNames[stl::random(0llu, a_presetNames.size())];
+        const std::string chosenPreset = a_presetNames[stl::random(0llu, a_presetNames.size())].data();
 
         Preset preset = GetPresetByNameForRandom(a_presetSet, chosenPreset, female);
 

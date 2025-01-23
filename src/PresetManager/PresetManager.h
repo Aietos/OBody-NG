@@ -9,6 +9,12 @@ namespace PresetManager {
         Slider(std::string a_name, float a_min, float a_max) : name(std::move(a_name)), min(a_min), max(a_max) {}
         ~Slider() = default;
 
+        Slider(const Slider& a_other) = default;
+        Slider(Slider&& a_other) = default;
+
+        Slider& operator=(const Slider& a_other) = default;
+        Slider& operator=(Slider&& a_other) = default;
+
         std::string name;
         float min = 0.f;
         float max = 0.f;
@@ -61,7 +67,7 @@ namespace PresetManager {
 
     Preset GetPresetByName(PresetSet a_presetSet, std::string a_name, bool female);
     Preset GetRandomPreset(PresetSet a_presetSet);
-    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string> a_presetNames, bool female);
+    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames, bool female);
 
     Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string a_name, bool female);
 
