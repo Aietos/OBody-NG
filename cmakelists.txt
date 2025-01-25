@@ -39,6 +39,8 @@ source_group(
 ########################################################################################################################
 ## Configure target DLL
 ########################################################################################################################
+set(PROJECT_AUTHOR "Aietos")
+
 find_package(pugixml REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(CommonLibSSE CONFIG REQUIRED)
@@ -46,7 +48,7 @@ find_package(ryml CONFIG REQUIRED)
 find_package(boost_algorithm CONFIG REQUIRED)
 find_package(boost_stl_interfaces CONFIG REQUIRED)
 
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES ${sources})
+add_commonlibsse_plugin(${PROJECT_NAME} SOURCES ${sources} AUTHOR ${PROJECT_AUTHOR})
 add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS "${PROJECT_NAME}")
 
 target_include_directories(${PROJECT_NAME}
@@ -79,15 +81,40 @@ install(TARGETS
         DESTINATION
         "${CMAKE_INSTALL_LIBDIR}")
 
-foreach (DEPLOY_TARGET $ENV{SkyrimPluginTargets})    #set your "SkyrimPluginTargets" environment variable to your MO2's Mods Folder
+set(DISTRIBUTION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/")
+set(CONTRIB_IMAGES_DIR "${DISTRIBUTION_DIR}Images/")
+set(CONTRIB_PROJECT_DIR "${DISTRIBUTION_DIR}/Plugin - ${CMAKE_BUILD_TYPE}/")
+set(CONTRIB_CONFIGURATION_GLOBAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Configuration/Global/")
+set(CONTRIB_CONFIGURATION_MY_CONFIG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Configuration/My Config/")
+set(CONTRIB_COMMON_DIR "${DISTRIBUTION_DIR}/Common/")
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CONTRIB_PROJECT_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CONTRIB_IMAGES_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${PROJECT_NAME}> "${CONTRIB_PROJECT_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Images/OBody NG Image.png" "${CONTRIB_IMAGES_DIR}")
+
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CONTRIB_PROJECT_DIR}")
+endif ()
+
+foreach (DEPLOY_TARGET $ENV{SkyrimPluginTargets})
     set(DEPLOY_TARGET_COMMON_DIR "${DEPLOY_TARGET}/${PROJECT_NAME} - ${CMAKE_BUILD_TYPE}/SKSE/Plugins/")
+    message(STATUS "Adding deployment target ${DEPLOY_TARGET}.")
 
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "${DEPLOY_TARGET_COMMON_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${PROJECT_NAME}> "${DEPLOY_TARGET_COMMON_DIR}/")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DEPLOY_TARGET_COMMON_DIR}")
 
     if (${CMAKE_BUILD_TYPE} STREQUAL Debug OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_PDB_FILE:${PROJECT_NAME}> "${DEPLOY_TARGET_COMMON_DIR}/")
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DEPLOY_TARGET_COMMON_DIR}")
     endif ()
 endforeach ()
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/skse-fomod.cmake)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/compress-artifact.cmake)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/automatic-github-workflow-setup.cmake)

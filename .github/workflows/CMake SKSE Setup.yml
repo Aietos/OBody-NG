@@ -1,0 +1,57 @@
+name: CMake SKSE Setup
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  PROJECT_NAME: OBody
+  PROJECT_VERSION: 4.3.0.0
+
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup cmake
+      uses: lukka/get-cmake@latest
+
+    - name: Restore from cache and setup vcpkg executable and data files.
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: '${{ github.workspace }}/vcpkg.json'
+
+    - name: Configure and Run CMake Preset for "Debug" preset
+      uses: lukka/run-cmake@v10
+      with:
+        configurePreset: 'release-msvc'
+        buildPreset: 'build-release-msvc'
+
+    - name: Configure and Run CMake Preset for "Release" preset
+      uses: lukka/run-cmake@v10
+      with:
+        configurePreset: 'debug-msvc'
+        buildPreset: 'build-debug-msvc'
+    - name: Deploy Aritfact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        path: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z
+
+    - name: Upload files to a GitHub release
+      uses: ncipollo/release-action@v1.14.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        artifacts: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z
+        tag: ${{ env.PROJECT_VERSION }}
+        commit: main
+        generateReleaseNotes: true
+        artifactErrorsFailBuild: true
+        makeLatest: "latest"
+        name: ${{ env.PROJECT_NAME }} ${{ env.PROJECT_VERSION }}
