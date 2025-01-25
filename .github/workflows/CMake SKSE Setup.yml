@@ -8,7 +8,7 @@ on:
 
 env:
   PROJECT_NAME: OBody
-  PROJECT_VERSION: 4.3.0.0
+  PROJECT_VERSION: 4.3.0.1
 
 
 jobs:
@@ -31,20 +31,23 @@ jobs:
     - name: Configure and Run CMake Preset for "Debug" preset
       uses: lukka/run-cmake@v10
       with:
-        configurePreset: 'release-msvc'
-        buildPreset: 'build-release-msvc'
+        configurePreset: 'debug-msvc'
+        buildPreset: 'build-debug-msvc'
 
     - name: Configure and Run CMake Preset for "Release" preset
       uses: lukka/run-cmake@v10
       with:
-        configurePreset: 'debug-msvc'
-        buildPreset: 'build-debug-msvc'
+        configurePreset: 'release-msvc'
+        buildPreset: 'build-release-msvc'
+
     - name: Deploy Aritfact
       uses: actions/upload-artifact@v4.3.3
       with:
-        path: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z
+        name: ${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}
+        path: ${{ github.workspace }}/contrib/Distribution/
 
     - name: Upload files to a GitHub release
+      if: github.event_name == 'push'
       uses: ncipollo/release-action@v1.14.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
