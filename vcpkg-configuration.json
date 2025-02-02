@@ -1,7 +1,7 @@
 {
   "default-registry": {
     "kind": "git",
-    "baseline": "57c08a3223a1ec03c3a31986ee38d32e90b6039c",
+    "baseline": "0ca64b4e1c70fa6d9f53b369b8f3f0843797c20c",
     "repository": "https://github.com/microsoft/vcpkg.git"
   },
   "registries": [
@@ -15,7 +15,7 @@
     },
     {
       "kind": "git",
-      "baseline": "f77b98856f76ef2b57928d8f62b3aee497fd6ad8",
+      "baseline": "6abaa8a737b8e8318ee7597fee5c5d5e639f8ad0",
       "repository": "https://github.com/ThirdEyeSqueegee/vcpkg-ports",
       "packages": [
         "openvr",

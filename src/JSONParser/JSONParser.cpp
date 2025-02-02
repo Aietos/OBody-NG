@@ -9,7 +9,7 @@ namespace Parser {
     JSONParser& JSONParser::GetInstance() { return instance; }
 
     bool GetHasSourceFileArray(const RE::TESForm* form) {
-        return form->sourceFiles.array; // Check if the source files array exists
+        return form->sourceFiles.array;  // Check if the source files array exists
     }
 
     std::string GetNthFormLocationName(const RE::TESForm* form, const uint32_t n) {
@@ -21,11 +21,10 @@ namespace Parser {
         }
 
         // fix for weird bug where refs first defined in Skyrim.Esm aren't always detected properly
-        if (((form->formID & 0xFF000000) ==
-             0) // Refs from Skyrim.ESM will have 00 for the first two hexadecimal digits
-            && formName != "Skyrim.esm") // And refs from all other mods will have a non-zero value, so a bitwise && of
+        // Refs from Skyrim.ESM will have 00 for the first two hexadecimal digits
+        // And refs from all other mods will have a non-zero value, so a bitwise && of
         // those two digits with FF will be nonzero for all non Skyrim.ESM mods
-        {
+        if (((form->formID & 0xFF000000) == 0) && formName != "Skyrim.esm") {
             return "Skyrim.esm";
         }
 
@@ -97,21 +96,24 @@ namespace Parser {
     }
 
     void JSONParser::ProcessNPCsFormID() {
-        if (presetDistributionConfig.contains("npcFormID")) {
+        if (presetDistributionConfig.HasMember("npcFormID")) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            for (auto& [owningMod, value] : presetDistributionConfig["npcFormID"].items()) {
-                if (!data_handler->LookupModByName(owningMod)) {
-                    logger::info("removed '{}' from NPC FormID(Plugin file Not Loaded)", owningMod);
+            auto& npcFormID = presetDistributionConfig["npcFormID"];
+            for (auto itr = npcFormID.MemberBegin(); itr != npcFormID.MemberEnd(); ++itr) {
+                auto& [owningMod, value] = *itr;
+                if (!data_handler->LookupModByName(owningMod.GetString())) {
+                    logger::info("removed '{}' from NPC FormID(Plugin file Not Loaded)", owningMod.GetString());
                     continue;
                 }
-                for (auto& [formKey, formValue] : value.items()) {
-                    stl::RemoveDuplicatesInJsonArray(formValue);
-                    std::string formID = DiscardFormDigits(formKey);
+                for (auto valueItr = value.MemberBegin(); valueItr != value.MemberEnd(); ++valueItr) {
+                    auto& [formKey, formValue] = *valueItr;
+                    stl::RemoveDuplicatesInJsonArray(formValue, presetDistributionConfig.GetAllocator());
+                    std::string formID = DiscardFormDigits(formKey.GetString());
 
                     uint32_t hexnumber;
                     sscanf_s(formID.c_str(), "%x", &hexnumber);
 
-                    const auto actorform = data_handler->LookupForm(hexnumber, owningMod);
+                    const auto actorform = data_handler->LookupForm(hexnumber, owningMod.GetString());
 
                     if (!actorform) {
                         logger::info("{} is not a valid key!", formID);
@@ -120,28 +122,34 @@ namespace Parser {
 
                     // We have to use this full-length ID in order to identify them.
                     auto ID = actorform->GetFormID();
+                    std::vector<std::string> bodyslidePresets(formValue.GetArray().Size());
+                    for (const auto& item : formValue.GetArray()) {
+                        bodyslidePresets.emplace_back(item.GetString());
+                    }
 
-                    characterCategorySet.emplace_back(owningMod, ID, formValue);
+                    characterCategorySet.emplace_back(owningMod.GetString(), ID, std::move(bodyslidePresets));
                 }
             }
         }
     }
 
     void JSONParser::ProcessNPCsFormIDBlacklist() {
-        if (presetDistributionConfig.contains("blacklistedNpcsFormID")) {
+        if (presetDistributionConfig.HasMember("blacklistedNpcsFormID")) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            for (auto& [plugin, val] : presetDistributionConfig["blacklistedNpcsFormID"].items()) {
-                if (!data_handler->LookupModByName(plugin)) {
-                    logger::info("removed '{}' from NPC Blacklist(Plugin file Not Loaded)", plugin);
+            auto& blacklistedNpcsFormID = presetDistributionConfig["blacklistedNpcsFormID"];
+            for (auto itr = blacklistedNpcsFormID.MemberBegin(); itr != blacklistedNpcsFormID.MemberEnd(); ++itr) {
+                auto& [plugin, val] = *itr;
+                if (!data_handler->LookupModByName(plugin.GetString())) {
+                    logger::info("removed '{}' from NPC Blacklist(Plugin file Not Loaded)", plugin.GetString());
                     continue;
                 }
-                stl::RemoveDuplicatesInJsonArray(val);
-                for (const std::string_view formIDRaw : val) {
-                    std::string formID{DiscardFormDigits(formIDRaw)};
+                stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
+                for (const auto& formIDRaw : val.GetArray()) {
+                    std::string formID{DiscardFormDigits(formIDRaw.GetString())};
                     uint32_t hexnumber;
                     sscanf_s(formID.c_str(), "%x", &hexnumber);
 
-                    const auto actorform = data_handler->LookupForm(hexnumber, plugin);
+                    const auto actorform = data_handler->LookupForm(hexnumber, plugin.GetString());
 
                     if (!actorform) {
                         logger::info("{} is not a valid key!", formID);
@@ -151,27 +159,31 @@ namespace Parser {
                     // We have to use this full-length ID in order to identify them.
                     auto ID = actorform->GetFormID();
 
-                    blacklistedCharacterCategorySet.emplace_back(plugin, ID);
+                    blacklistedCharacterCategorySet.emplace_back(plugin.GetString(), ID);
                 }
             }
         }
     }
 
     void JSONParser::ProcessOutfitsFormIDBlacklist() {
-        if (presetDistributionConfig.contains("blacklistedOutfitsFromORefitFormID")) {
+        if (presetDistributionConfig.HasMember("blacklistedOutfitsFromORefitFormID")) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            for (auto& [plugin, val] : presetDistributionConfig["blacklistedOutfitsFromORefitFormID"].items()) {
-                if (!data_handler->LookupModByName(plugin)) {
-                    logger::info("removed '{}' from Outfit FormID Blacklist(Plugin file Not Loaded)", plugin);
+            auto& blacklistedOutfitsFromORefitFormID = presetDistributionConfig["blacklistedOutfitsFromORefitFormID"];
+            for (auto itr = blacklistedOutfitsFromORefitFormID.MemberBegin();
+                 itr != blacklistedOutfitsFromORefitFormID.MemberEnd(); ++itr) {
+                auto& [plugin, val] = *itr;
+                if (!data_handler->LookupModByName(plugin.GetString())) {
+                    logger::info("removed '{}' from Outfit FormID Blacklist(Plugin file Not Loaded)",
+                                 plugin.GetString());
                     continue;
                 }
-                stl::RemoveDuplicatesInJsonArray(val);
-                for (const std::string_view formIDRaw : val) {
-                    std::string formID = DiscardFormDigits(formIDRaw);
+                stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
+                for (const auto& formIDRaw : val.GetArray()) {
+                    std::string formID = DiscardFormDigits(formIDRaw.GetString());
                     uint32_t hexnumber;
                     sscanf_s(formID.c_str(), "%x", &hexnumber);
 
-                    const auto outfitform = data_handler->LookupForm(hexnumber, plugin);
+                    const auto outfitform = data_handler->LookupForm(hexnumber, plugin.GetString());
 
                     if (!outfitform) {
                         logger::info("{} is not a valid key!", formID);
@@ -181,28 +193,30 @@ namespace Parser {
                     // We have to use this full-length ID in order to identify them.
                     auto ID = outfitform->GetFormID();
 
-                    blacklistedOutfitCategorySet.emplace_back(plugin, ID);
+                    blacklistedOutfitCategorySet.emplace_back(plugin.GetString(), ID);
                 }
             }
         }
     }
 
     void JSONParser::ProcessOutfitsForceRefitFormIDBlacklist() {
-        if (presetDistributionConfig.contains("outfitsForceRefitFormID")) {
+        if (presetDistributionConfig.HasMember("outfitsForceRefitFormID")) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            for (auto& [plugin, val] : presetDistributionConfig["outfitsForceRefitFormID"].items()) {
-                if (!data_handler->LookupModByName(plugin)) {
+            auto& outfitsForceRefitFormID = presetDistributionConfig["outfitsForceRefitFormID"];
+            for (auto itr = outfitsForceRefitFormID.MemberBegin(); itr != outfitsForceRefitFormID.MemberEnd(); ++itr) {
+                auto& [plugin, val] = *itr;
+                if (!data_handler->LookupModByName(plugin.GetString())) {
                     logger::info("removed '{}' from Outfits Force Refit FormID Blacklist(Plugin file Not Loaded)",
-                                 plugin);
+                                 plugin.GetString());
                     continue;
                 }
-                stl::RemoveDuplicatesInJsonArray(val);
-                for (const std::string_view formIDRaw : val) {
-                    std::string formID = DiscardFormDigits(formIDRaw);
+                stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
+                for (const auto& formIDRaw : val.GetArray()) {
+                    std::string formID = DiscardFormDigits(formIDRaw.GetString());
                     uint32_t hexnumber;
                     sscanf_s(formID.c_str(), "%x", &hexnumber);
 
-                    const auto outfitform = data_handler->LookupForm(hexnumber, plugin);
+                    const auto outfitform = data_handler->LookupForm(hexnumber, plugin.GetString());
 
                     if (!outfitform) {
                         logger::info("{} is not a valid key!", formID);
@@ -212,17 +226,17 @@ namespace Parser {
                     // We have to use this full-length ID in order to identify them.
                     auto ID = outfitform->GetFormID();
 
-                    forceRefitOutfitCategorySet.emplace_back(plugin, ID);
+                    forceRefitOutfitCategorySet.emplace_back(plugin.GetString(), ID);
                 }
             }
         }
     }
 
     inline bool ValidateActor(const RE::Actor* const actor) {
-        if (actor == nullptr || (actor->formFlags & RE::TESForm::RecordFlags::kDeleted) || (
-                actor->inGameFormFlags & RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted) || (
-                actor->inGameFormFlags & RE::TESForm::InGameFormFlag::kWantsDelete) || actor->GetFormID() == 0 || (
-                actor->formFlags & RE::TESForm::RecordFlags::kDisabled))
+        if (actor == nullptr || (actor->formFlags & RE::TESForm::RecordFlags::kDeleted) ||
+            (actor->inGameFormFlags & RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted) ||
+            (actor->inGameFormFlags & RE::TESForm::InGameFormFlag::kWantsDelete) || actor->GetFormID() == 0 ||
+            (actor->formFlags & RE::TESForm::RecordFlags::kDisabled))
             return false;
 
         return true;
@@ -231,8 +245,8 @@ namespace Parser {
     void JSONParser::FilterOutNonLoaded() {
         logger::info("{:-^47}", "Starting: Removing Not-Loaded Items");
         auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-        if (presetDistributionConfig.contains("npc") || presetDistributionConfig.contains("blacklistedNpcs")) {
-            std::set<std::string_view> npc_names;
+        if (presetDistributionConfig.HasMember("npc") || presetDistributionConfig.HasMember("blacklistedNpcs")) {
+            std::set<std::string> npc_names;
             {
                 const auto& [hashtable, lock]{RE::TESForm::GetAllForms()};
                 const RE::BSReadLockGuard locker{lock};
@@ -246,215 +260,211 @@ namespace Parser {
                     }
                 }
             }
-            // for (auto [it,i]{std::make_pair(npc_names.begin(), 1llu)}; it != npc_names.end();) {
-            //     logger::info("{}: {}", i++, *(it++));
-            // }
-            if (presetDistributionConfig.contains("npc")) {
+            if (presetDistributionConfig.HasMember("npc")) {
                 logger::info("{:-^47}", "npc");
                 auto& original = presetDistributionConfig["npc"];
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!npc_names.contains(it.key())) {
-                        logger::info("removed '{}'", it.key());
-                        it = original.erase(it);
+                for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                    if (!npc_names.contains(it->name.GetString())) {
+                        logger::info("removed '{}'", it->name.GetString());
+                        it = original.EraseMember(it);
                     } else {
-                        stl::RemoveDuplicatesInJsonArray(it.value());
+                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                         ++it;
                     }
                 }
             }
-            if (presetDistributionConfig.contains("blacklistedNpcs")) {
+            if (presetDistributionConfig.HasMember("blacklistedNpcs")) {
                 logger::info("{:-^47}", "blacklistedNpcs");
                 auto& original = presetDistributionConfig["blacklistedNpcs"];
-                stl::RemoveDuplicatesInJsonArray(original);
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!npc_names.contains(*it)) {
-                        logger::info("removed '{}'", it->get<std::string>());
-                        it = original.erase(it);
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!npc_names.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
                     } else {
                         ++it;
                     }
                 }
             }
         }
-        if (presetDistributionConfig.contains("factionFemale")) {
+        if (presetDistributionConfig.HasMember("factionFemale")) {
             logger::info("{:-^47}", "factionFemale");
             auto& original = presetDistributionConfig["factionFemale"];
-            for (auto it = original.begin(); it != original.end();) {
-                if (!RE::TESForm::LookupByEditorID(it.key())) {
-                    logger::info("removed '{}'", it.key());
-                    it = original.erase(it);
+            for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                if (!RE::TESForm::LookupByEditorID(it->name.GetString())) {
+                    logger::info("removed '{}'", it->name.GetString());
+                    it = original.EraseMember(it);
                 } else {
-                    stl::RemoveDuplicatesInJsonArray(it.value());
+                    stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("factionMale")) {
+        if (presetDistributionConfig.HasMember("factionMale")) {
             logger::info("{:-^47}", "factionMale");
             auto& original = presetDistributionConfig["factionMale"];
-            for (auto it = original.begin(); it != original.end();) {
-                if (!RE::TESForm::LookupByEditorID(it.key())) {
-                    logger::info("removed '{}'", it.key());
-                    it = original.erase(it);
+            for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                if (!RE::TESForm::LookupByEditorID(it->name.GetString())) {
+                    logger::info("removed '{}'", it->name.GetString());
+                    it = original.EraseMember(it);
                 } else {
-                    stl::RemoveDuplicatesInJsonArray(it.value());
+                    stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("npcPluginFemale")) {
+        if (presetDistributionConfig.HasMember("npcPluginFemale")) {
             logger::info("{:-^47}", "npcPluginFemale");
             auto& original = presetDistributionConfig["npcPluginFemale"];
-            for (auto it = original.begin(); it != original.end();) {
-                if (!data_handler->LookupModByName(it.key())) {
-                    logger::info("removed '{}'", it.key());
-                    it = original.erase(it);
+            for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                if (!data_handler->LookupModByName(it->name.GetString())) {
+                    logger::info("removed '{}'", it->name.GetString());
+                    it = original.EraseMember(it);
                 } else {
-                    stl::RemoveDuplicatesInJsonArray(it.value());
+                    stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("npcPluginMale")) {
+        if (presetDistributionConfig.HasMember("npcPluginMale")) {
             logger::info("{:-^47}", "npcPluginMale");
             auto& original = presetDistributionConfig["npcPluginMale"];
-            for (auto it = original.begin(); it != original.end();) {
-                if (!data_handler->LookupModByName(it.key())) {
-                    logger::info("removed '{}'", it.key());
-                    it = original.erase(it);
+            for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                if (!data_handler->LookupModByName(it->name.GetString())) {
+                    logger::info("removed '{}'", it->name.GetString());
+                    it = original.EraseMember(it);
                 } else {
-                    stl::RemoveDuplicatesInJsonArray(it.value());
+                    stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("raceFemale")
-            || presetDistributionConfig.contains("raceMale")
-            || presetDistributionConfig.contains("blacklistedRacesFemale")
-            || presetDistributionConfig.contains("blacklistedRacesMale")) {
+        if (presetDistributionConfig.HasMember("raceFemale") || presetDistributionConfig.HasMember("raceMale") ||
+            presetDistributionConfig.HasMember("blacklistedRacesFemale") ||
+            presetDistributionConfig.HasMember("blacklistedRacesMale")) {
             auto d = data_handler->GetFormArray<RE::TESRace>() | std::views::transform([&](const RE::TESRace* race) {
-                return stl::get_editorID(race->As<RE::TESForm>());
-            });
+                         return stl::get_editorID(race->As<RE::TESForm>());
+                     });
             const std::set<std::string> d_set(d.begin(), d.end());
-            if (presetDistributionConfig.contains("raceFemale")) {
+            if (presetDistributionConfig.HasMember("raceFemale")) {
                 logger::info("{:-^47}", "raceFemale");
                 auto& original = presetDistributionConfig["raceFemale"];
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(it.key())) {
-                        logger::info("removed '{}'", it.key());
-                        it = original.erase(it);
+                for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                    if (!d_set.contains(it->name.GetString())) {
+                        logger::info("removed '{}'", it->name.GetString());
+                        it = original.EraseMember(it);
                     } else {
-                        stl::RemoveDuplicatesInJsonArray(it.value());
+                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                         ++it;
                     }
                 }
             }
-            if (presetDistributionConfig.contains("raceMale")) {
+            if (presetDistributionConfig.HasMember("raceMale")) {
                 logger::info("{:-^47}", "raceMale");
                 auto& original = presetDistributionConfig["raceMale"];
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(it.key())) {
-                        logger::info("removed '{}'", it.key());
-                        it = original.erase(it);
+                for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                    if (!d_set.contains(it->name.GetString())) {
+                        logger::info("removed '{}'", it->name.GetString());
+                        it = original.EraseMember(it);
                     } else {
-                        stl::RemoveDuplicatesInJsonArray(it.value());
+                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
                         ++it;
                     }
                 }
             }
-            if (presetDistributionConfig.contains("blacklistedRacesFemale")) {
+            if (presetDistributionConfig.HasMember("blacklistedRacesFemale")) {
                 logger::info("{:-^47}", "blacklistedRacesFemale");
                 auto& original = presetDistributionConfig["blacklistedRacesFemale"];
-                stl::RemoveDuplicatesInJsonArray(original);
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(*it)) {
-                        logger::info("removed '{}'", it->get<std::string>());
-                        it = original.erase(it);
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
                     } else {
                         ++it;
                     }
                 }
             }
-            if (presetDistributionConfig.contains("blacklistedRacesMale")) {
+            if (presetDistributionConfig.HasMember("blacklistedRacesMale")) {
                 logger::info("{:-^47}", "blacklistedRacesMale");
                 auto& original = presetDistributionConfig["blacklistedRacesMale"];
-                stl::RemoveDuplicatesInJsonArray(original);
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(*it)) {
-                        logger::info("removed '{}'", it->get<std::string>());
-                        it = original.erase(it);
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
                     } else {
                         ++it;
                     }
                 }
             }
         }
-        if (presetDistributionConfig.contains("blacklistedNpcsPluginFemale")) {
+        if (presetDistributionConfig.HasMember("blacklistedNpcsPluginFemale")) {
             logger::info("{:-^47}", "blacklistedNpcsPluginFemale");
             auto& original = presetDistributionConfig["blacklistedNpcsPluginFemale"];
-            stl::RemoveDuplicatesInJsonArray(original);
-            for (auto it = original.begin(); it != original.end();) {
-                if (!data_handler->LookupModByName(*it)) {
-                    logger::info("removed '{}'", it->get<std::string>());
-                    it = original.erase(it);
+            stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+            for (auto it = original.Begin(); it != original.End();) {
+                if (!data_handler->LookupModByName(it->GetString())) {
+                    logger::info("removed '{}'", it->GetString());
+                    it = original.Erase(it);
                 } else {
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("blacklistedNpcsPluginMale")) {
+        if (presetDistributionConfig.HasMember("blacklistedNpcsPluginMale")) {
             logger::info("{:-^47}", "blacklistedNpcsPluginMale");
             auto& original = presetDistributionConfig["blacklistedNpcsPluginMale"];
-            stl::RemoveDuplicatesInJsonArray(original);
-            for (auto it = original.begin(); it != original.end();) {
-                if (!data_handler->LookupModByName(*it)) {
-                    logger::info("removed '{}'", it->get<std::string>());
-                    it = original.erase(it);
+            stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+            for (auto it = original.Begin(); it != original.End();) {
+                if (!data_handler->LookupModByName(it->GetString())) {
+                    logger::info("removed '{}'", it->GetString());
+                    it = original.Erase(it);
                 } else {
                     ++it;
                 }
             }
         }
-        if (presetDistributionConfig.contains("blacklistedOutfitsFromORefit")
-            || presetDistributionConfig.contains("outfitsForceRefit")) {
+        if (presetDistributionConfig.HasMember("blacklistedOutfitsFromORefit") ||
+            presetDistributionConfig.HasMember("outfitsForceRefit")) {
             auto d = data_handler->GetFormArray<RE::TESObjectARMO>() |
                      std::views::transform([](const RE::TESObjectARMO* outfit) { return outfit->GetName(); });
             const std::set<std::string> d_set(d.begin(), d.end());
-            if (presetDistributionConfig.contains("blacklistedOutfitsFromORefit")) {
+            if (presetDistributionConfig.HasMember("blacklistedOutfitsFromORefit")) {
                 logger::info("{:-^47}", "blacklistedOutfitsFromORefit");
                 auto& original = presetDistributionConfig["blacklistedOutfitsFromORefit"];
-                stl::RemoveDuplicatesInJsonArray(original);
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(*it)) {
-                        logger::info("removed '{}'", it->get<std::string>());
-                        it = original.erase(it);
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
                     } else {
                         ++it;
                     }
                 }
             }
-            if (presetDistributionConfig.contains("outfitsForceRefit")) {
+            if (presetDistributionConfig.HasMember("outfitsForceRefit")) {
                 logger::info("{:-^47}", "outfitsForceRefit");
                 auto& original = presetDistributionConfig["outfitsForceRefit"];
-                stl::RemoveDuplicatesInJsonArray(original);
-                for (auto it = original.begin(); it != original.end();) {
-                    if (!d_set.contains(*it)) {
-                        logger::info("removed '{}'", it->get<std::string>());
-                        it = original.erase(it);
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
                     } else {
                         ++it;
                     }
                 }
             }
         }
-        if (presetDistributionConfig.contains("blacklistedOutfitsFromORefitPlugin")) {
+        if (presetDistributionConfig.HasMember("blacklistedOutfitsFromORefitPlugin")) {
             logger::info("{:-^47}", "blacklistedOutfitsFromORefitPlugin");
             auto& original = presetDistributionConfig["blacklistedOutfitsFromORefitPlugin"];
-            stl::RemoveDuplicatesInJsonArray(original);
-            for (auto it = original.begin(); it != original.end();) {
-                if (!data_handler->LookupModByName(*it)) {
-                    logger::info("removed '{}'", it->get<std::string>());
-                    it = original.erase(it);
+            stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+            for (auto it = original.Begin(); it != original.End();) {
+                if (!data_handler->LookupModByName(it->GetString())) {
+                    logger::info("removed '{}'", it->GetString());
+                    it = original.Erase(it);
                 } else {
                     ++it;
                 }
@@ -466,9 +476,8 @@ namespace Parser {
     void JSONParser::ProcessJSONCategories() {
         class timeit {
         public:
-            explicit timeit(const std::source_location& a_curr = std::source_location::current()): curr(
-                std::move(a_curr)) {
-            }
+            explicit timeit(const std::source_location& a_curr = std::source_location::current())
+                : curr(std::move(a_curr)) {}
 
             ~timeit() {
                 const auto stop = std::chrono::steady_clock::now() - start;
@@ -492,23 +501,27 @@ namespace Parser {
         ProcessOutfitsFormIDBlacklist();
         ProcessOutfitsForceRefitFormIDBlacklist();
         FilterOutNonLoaded();
-        logger::info("After Filtering: \n{}", presetDistributionConfig.dump(4));
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter writer(buffer);
+        presetDistributionConfig.Accept(writer);
+
+        logger::info("After Filtering: \n{}", buffer.GetString());
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
     bool JSONParser::IsStringInJsonConfigKey(std::string a_value, const char* key) {
         boost::trim(a_value);
 
-        return presetDistributionConfig.contains(key) &&
-               std::find(presetDistributionConfig[key].begin(), presetDistributionConfig[key].end(), a_value) !=
-               presetDistributionConfig[key].end();
+        return presetDistributionConfig.HasMember(key) &&
+               std::find(presetDistributionConfig[key].Begin(), presetDistributionConfig[key].End(), a_value.c_str()) !=
+                   presetDistributionConfig[key].End();
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
     bool JSONParser::IsSubKeyInJsonConfigKey(const char* key, std::string subKey) {
         boost::trim(subKey);
 
-        return presetDistributionConfig.contains(key) && presetDistributionConfig[key].contains(subKey);
+        return presetDistributionConfig.HasMember(key) && presetDistributionConfig[key].HasMember(subKey.c_str());
     }
 
     bool JSONParser::IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit) {
@@ -521,9 +534,9 @@ namespace Parser {
     bool JSONParser::IsAnyForceRefitItemEquipped(RE::Actor* a_actor, const bool a_removingArmor,
                                                  const RE::TESForm* a_equippedArmor) {
         auto inventory = a_actor->GetInventory() | std::views::transform([](const auto& pair) {
-            return std::pair<RE::TESBoundObject*, const std::unique_ptr<RE::InventoryEntryData>&>(
-                pair.first, pair.second.second); // Return the unique_ptr directly
-        });
+                             return std::pair<RE::TESBoundObject*, const std::unique_ptr<RE::InventoryEntryData>&>(
+                                 pair.first, pair.second.second);  // Return the unique_ptr directly
+                         });
 
         std::vector<std::string> wornItems;
 
@@ -536,7 +549,7 @@ namespace Parser {
 
                 if (const RE::FormType itemFormType = bound_obj->GetFormType();
                     (itemFormType == RE::FormType::Armor || itemFormType == RE::FormType::Armature) &&
-                    IsStringInJsonConfigKey(inventory_entry_data->GetDisplayName(), "outfitsForceRefit") ||
+                        IsStringInJsonConfigKey(inventory_entry_data->GetDisplayName(), "outfitsForceRefit") ||
                     IsOutfitInForceRefitCategorySet(bound_obj->GetFormID())) {
                     logger::info("Outfit {} is in force refit list", inventory_entry_data->GetDisplayName());
 
@@ -584,15 +597,21 @@ namespace Parser {
         }
 
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const PresetManager::PresetSet presetSet{female
-                                                     ? presetContainer.allFemalePresets
-                                                     : presetContainer.allMalePresets};
+        const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
+                                                        : presetContainer.allMalePresets};
 
-        const char* factionKey{female ? "factionFemale" : "factionMale"};
+        auto& a_faction = presetDistributionConfig[female ? "factionFemale" : "factionMale"];
 
-        for (auto& [key, value] : presetDistributionConfig[factionKey].items()) {
-            if (std::ranges::find(actorFactions, RE::TESFaction::LookupByEditorID(key)) != actorFactions.end()) {
-                return PresetManager::GetRandomPresetByName(presetSet, value, female);
+        for (auto itr = a_faction.MemberBegin(); itr != a_faction.MemberEnd(); ++itr) {
+            auto& [key, value] = *itr;
+            if (std::ranges::find(actorFactions, RE::TESFaction::LookupByEditorID(key.GetString())) !=
+                actorFactions.end()) {
+                std::vector<std::string_view> copy_of_value{value.Size()};
+                for (const auto& item : value.GetArray()) {
+                    copy_of_value.emplace_back(item.GetString());
+                }
+
+                return PresetManager::GetRandomPresetByName(presetSet, std::move(copy_of_value), female);
             }
         }
 
@@ -602,18 +621,25 @@ namespace Parser {
     PresetManager::Preset JSONParser::GetNPCPreset(const char* actorName, const uint32_t formID, const bool female) {
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
-        const PresetManager::PresetSet presetSet{female
-                                                     ? presetContainer.allFemalePresets
-                                                     : presetContainer.allMalePresets};
+        const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
+                                                        : presetContainer.allMalePresets};
 
         const auto character{GetNPCFromCategorySet(formID)};
 
-        const std::vector characterBodyslidePresets{
-            ((!character.bodyslidePresets.empty())
-                 ? std::vector<std::string_view>(character.bodyslidePresets.begin(), character.bodyslidePresets.end())
-                 : (presetDistributionConfig.contains("npc") && presetDistributionConfig["npc"].contains(actorName)
-                        ? presetDistributionConfig["npc"][actorName].get<std::vector<std::string_view>>()
-                        : std::vector<std::string_view>()))};
+        std::vector<std::string_view> characterBodyslidePresets;
+
+        if (!character.bodyslidePresets.empty()) {
+            characterBodyslidePresets =
+                std::vector<std::string_view>(character.bodyslidePresets.begin(), character.bodyslidePresets.end());
+        } else if (presetDistributionConfig.HasMember("npc") && presetDistributionConfig["npc"].HasMember(actorName)) {
+            characterBodyslidePresets.reserve(presetDistributionConfig["npc"][actorName].Size());
+            for (const auto& item : presetDistributionConfig["npc"][actorName].GetArray()) {
+                characterBodyslidePresets.emplace_back(item.GetString());
+            }
+
+        }  // else {
+        // }
+
         return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
     }
 
@@ -621,18 +647,24 @@ namespace Parser {
                                                          const bool female) {
         const char* keyForPreset{female ? "npcPluginFemale" : "npcPluginMale"};
 
-        if (presetDistributionConfig.contains(keyForPreset)) {
-            for (auto& [mod, presetList] : presetDistributionConfig[keyForPreset].items()) {
-                logger::info("Checking if actor {} is in mod {}", actorName, mod);
+        if (presetDistributionConfig.HasMember(keyForPreset)) {
+            auto& presets = presetDistributionConfig[keyForPreset];
+            for (auto itr = presets.MemberBegin(); itr != presets.MemberEnd(); ++itr) {
+                auto& [mod, presetList] = *itr;
+                logger::info("Checking if actor {} is in mod {}", actorName, mod.GetString());
 
-                if (IsActorInForm(a_actor, mod)) {
+                if (IsActorInForm(a_actor, mod.GetString())) {
                     const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
-                    const PresetManager::PresetSet presetSet{female
-                                                                 ? presetContainer.allFemalePresets
-                                                                 : presetContainer.allMalePresets};
+                    const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
+                                                                    : presetContainer.allMalePresets};
 
-                    return GetRandomPresetByName(presetSet, presetDistributionConfig[keyForPreset][mod], female);
+                    std::vector<std::string_view> presets_copy{presets[mod].Size()};
+                    for (const auto& item : presets[mod].GetArray()) {
+                        presets_copy.emplace_back(item.GetString());
+                    }
+
+                    return GetRandomPresetByName(presetSet, std::move(presets_copy), female);
                 }
             }
         }
@@ -646,13 +678,15 @@ namespace Parser {
         if (IsSubKeyInJsonConfigKey(key, actorRace)) {
             const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
-            const PresetManager::PresetSet presetSet{female
-                                                         ? presetContainer.allFemalePresets
-                                                         : presetContainer.allMalePresets};
-
-            return PresetManager::GetRandomPresetByName(presetSet, presetDistributionConfig[key][actorRace], female);
+            const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
+                                                            : presetContainer.allMalePresets};
+            std::vector<std::string_view> presets_copy{presetDistributionConfig[key][actorRace].Size()};
+            for (const auto& item : presetDistributionConfig[key][actorRace].GetArray()) {
+                presets_copy.emplace_back(item.GetString());
+            }
+            return PresetManager::GetRandomPresetByName(presetSet, std::move(presets_copy), female);
         }
 
         return {};
     }
-} // namespace Parser
+}  // namespace Parser

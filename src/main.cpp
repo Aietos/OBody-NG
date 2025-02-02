@@ -15,10 +15,10 @@ namespace {
         *path /= std::format("{}.log", SKSE::PluginDeclaration::GetSingleton()->GetName());
 
         std::shared_ptr<spdlog::logger> log =
-            (IsDebuggerPresent() != 0)
+            (REX::W32::IsDebuggerPresent())
                 ? std::make_shared<spdlog::logger>("Global", std::make_shared<spdlog::sinks::msvc_sink_mt>())
                 : std::make_shared<spdlog::logger>(
-                    "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
+                      "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
 
         log->set_level(spdlog::level::info);
         log->flush_on(spdlog::level::info);
@@ -58,14 +58,30 @@ namespace {
             // When data is all loaded (this is by the time the Main Menu is visible), we can parse the JSON and the
             // Bodyslide presets
             case SKSE::MessagingInterface::kDataLoaded: {
-                auto& parser = Parser::JSONParser::GetInstance();
+                auto& parser{Parser::JSONParser::GetInstance()};
 
-                std::ifstream f(L"Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
+                FILE* fp;
+                auto err =
+                    fopen_s(&fp, "Data/SKSE/Plugins/OBody_presetDistributionConfig.json", "rb");  // non-Windows use "r"
+                if (err != 0) {
+                    logger::info("Failed to open file: Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
+                    parser.presetDistributionConfigValid = false;
+                    return;
+                }
+                char readBuffer[65535];
+                rapidjson::FileReadStream bis(fp, readBuffer, std::size(readBuffer));
 
+                rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
                 try {
-                    f >> parser.presetDistributionConfig;
-                    parser.ProcessJSONCategories();
-                    parser.presetDistributionConfigValid = true;
+                    if (parser.presetDistributionConfig.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis)
+                            .HasParseError()) {
+                        logger::info("Error(offset {}): {}", parser.presetDistributionConfig.GetErrorOffset(),
+                                     rapidjson::GetParseError_En(parser.presetDistributionConfig.GetParseError()));
+                        parser.presetDistributionConfigValid = false;
+                    } else {
+                        parser.ProcessJSONCategories();
+                        parser.presetDistributionConfigValid = true;
+                    }
                 } catch (const std::runtime_error& re) {
                     logger::info("{} ", re.what());
                     parser.presetDistributionConfigValid = false;
@@ -76,7 +92,12 @@ namespace {
                     logger::info("An unknown error has occurred while parsing the JSON file.");
                     parser.presetDistributionConfigValid = false;
                 }
-
+                if (fp) {
+                    err = fclose(fp);
+                    if (err != 0) {
+                        logger::info("Failed to close file: Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
+                    }
+                }
                 try {
                     PresetManager::GeneratePresets();
                     parser.bodyslidePresetsParsingValid = true;
@@ -123,15 +144,15 @@ namespace {
                 return;
         }
     }
-} // namespace
+}  // namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
     InitializeLogging();
 
-    const auto* const plugin = SKSE::PluginDeclaration::GetSingleton();
+    const auto* const plugin{SKSE::PluginDeclaration::GetSingleton()};
     logger::info("{} {} is loading...", plugin->GetName(), plugin->GetVersion().string("."));
 
-    Init(a_skse, false); // Passing 'false' prevents Init from setting up its own logging, allowing us to use our custom setup
+    SKSE::Init(a_skse, false);
 
     if (const auto* const message{SKSE::GetMessagingInterface()}; !message->RegisterListener(MessageHandler)) {
         return false;

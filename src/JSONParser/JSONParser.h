@@ -44,7 +44,7 @@ namespace Parser {
         PresetManager::Preset GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName, bool female);
         PresetManager::Preset GetNPCRacePreset(const char* actorRace, bool female);
 
-        nlohmann::ordered_json presetDistributionConfig;
+        rapidjson::Document presetDistributionConfig;
         bool presetDistributionConfigValid{};
         bool bodyslidePresetsParsingValid{};
 

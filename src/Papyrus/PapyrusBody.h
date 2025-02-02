@@ -73,20 +73,20 @@ namespace PapyrusBody {
 
         const auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
 
-        bool showBlacklistedPresets = false;
+        bool showBlacklistedPresets = true;
 
         // For some reason, some users get CTDs when reading this value, even when everything else seems correct...
         // Also happens when used with Immersive Equipment displays. I have no idea why.
         // Catch the error, default to True in case something fails
-        try {
-            showBlacklistedPresets = presetDistributionConfig.contains("blacklistedPresetsShowInOBodyMenu") &&
-                                     presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"];
-        } catch (json::type_error) {
+        if (!(presetDistributionConfig.HasMember("blacklistedPresetsShowInOBodyMenu") &&
+              presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].IsBool())) {
             logger::info(
                 "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted presets "
                 "in OBody menu.");
-            showBlacklistedPresets = true;
+        } else {
+            showBlacklistedPresets = presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].GetBool();
         }
+
         auto presets_to_show =
             (obody.IsFemale(a_actor)
                  ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)

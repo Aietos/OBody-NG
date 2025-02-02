@@ -26,12 +26,12 @@ namespace PresetManager {
         auto& blacklistedFemalePresets = container.blacklistedFemalePresets;
         auto& blacklistedMalePresets = container.blacklistedMalePresets;
 
-        auto presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
+        auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
 
         auto& blacklistedPresets = presetDistributionConfig["blacklistedPresetsFromRandomDistribution"];
-        stl::RemoveDuplicatesInJsonArray(blacklistedPresets);
-        auto blacklistedPresetsBegin = blacklistedPresets.begin();
-        auto blacklistedPresetsEnd = blacklistedPresets.end();
+        stl::RemoveDuplicatesInJsonArray(blacklistedPresets, presetDistributionConfig.GetAllocator());
+        const auto blacklistedPresetsBegin = blacklistedPresets.Begin();
+        const auto blacklistedPresetsEnd = blacklistedPresets.End();
 
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
@@ -52,14 +52,14 @@ namespace PresetManager {
                 if (!preset) continue;
 
                 if (IsFemalePreset(*preset)) {
-                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name) !=
+                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
                         blacklistedPresetsEnd) {
                         blacklistedFemalePresets.push_back(*preset);
                     } else {
                         femalePresets.push_back(*preset);
                     }
                 } else {
-                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name) !=
+                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
                         blacklistedPresetsEnd) {
                         blacklistedMalePresets.push_back(*preset);
                     } else {
