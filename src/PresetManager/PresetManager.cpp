@@ -35,8 +35,8 @@ namespace PresetManager {
 
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
-            if (path.extension() != ".xml"sv) continue;
-            if (IsClothedSet(path.string())) continue;
+            if (path.extension().c_str() != L".xml"sv) continue;
+            if (IsClothedSet(path.wstring())) continue;
 
             pugi::xml_document doc;
             if (auto result = doc.load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
@@ -96,14 +96,14 @@ namespace PresetManager {
         return preset;
     }
 
-    Preset GetPresetByName(PresetSet a_presetSet, std::string a_name, bool female) {
+    Preset GetPresetByName(const PresetSet& a_presetSet, std::string a_name, bool female) {
         logger::info("Looking for preset: {}", a_name);
 
         boost::trim(a_name);
         boost::to_upper(a_name);
 
         for (auto& preset : a_presetSet) {
-            if (stl::cmp(boost::to_upper_copy(preset.name), a_name)) return preset;
+            if (stl::cmp(preset.name, a_name)) return preset;
         }
 
         logger::info("Preset not found, choosing a random one.");
@@ -168,9 +168,14 @@ namespace PresetManager {
     bool IsClothedSet(std::string a_set) {
         constexpr std::array clothed{"cloth"sv, "outfit"sv, "nevernude"sv, "bikini"sv, "feet"sv,
                                      "hands"sv, "push"sv,   "cleavage"sv,  "armor"sv};
+        boost::to_lower(a_set);
+        return stl::contains(a_set, clothed);
+    }
 
-        std::ranges::transform(a_set, a_set.begin(), [](const unsigned char c) { return std::tolower(c); });
-
+    bool IsClothedSet(std::wstring a_set) {
+        constexpr std::array clothed{L"cloth"sv, L"outfit"sv, L"nevernude"sv, L"bikini"sv, L"feet"sv,
+                                     L"hands"sv, L"push"sv,   L"cleavage"sv,  L"armor"sv};
+        boost::to_lower(a_set);
         return stl::contains(a_set, clothed);
     }
 

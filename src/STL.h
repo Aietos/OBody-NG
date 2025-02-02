@@ -4,8 +4,18 @@ namespace stl {
     static bool contains(std::string_view const a_text, std::string_view const a_sub) {
         if (a_sub.length() > a_text.length()) return false;
 
-        const auto it = std::ranges::search(a_text, a_sub, [](const char ch1, const char ch2) {
+        const auto it = std::ranges::search(a_text, a_sub, [](auto ch1, auto ch2) {
                             return std::toupper(ch1) == std::toupper(ch2);
+                        }).begin();
+
+        return it != a_text.end();
+    }
+
+    static bool contains(std::wstring_view const a_text, std::wstring_view const a_sub) {
+        if (a_sub.length() > a_text.length()) return false;
+
+        const auto it = std::ranges::search(a_text, a_sub, [](auto ch1, auto ch2) {
+                            return std::towupper(ch1) == std::towupper(ch2);
                         }).begin();
 
         return it != a_text.end();
@@ -20,9 +30,17 @@ namespace stl {
         return false;
     }
 
-    static bool cmp(const std::string_view a_str1, const std::string_view a_str2) {
-        return std::ranges::equal(a_str1, a_str2,
-                                  [](const char a, const char b) { return std::tolower(a) == std::tolower(b); });
+    template <class T, std::size_t N>
+    static bool contains(std::wstring_view const a_text, std::array<T, N> const& a_subs) {
+        for (auto& sub : a_subs) {
+            if (contains(a_text, sub)) return true;
+        }
+
+        return false;
+    }
+
+    inline bool cmp(const std::string_view a_str1, const std::string_view a_str2) {
+        return boost::algorithm::iequals(a_str1, a_str2);
     }
 
     // static bool cmp(const char* a_str1, const char* a_str2) { return cmp(std::string{a_str1}, std::string{a_str2}); }
@@ -57,8 +75,8 @@ namespace stl {
         }
     }
 
-    static bool chance(int a_chance) {
-        auto roll = random(0.0f, 99.0f);
+    inline bool chance(int a_chance) {
+        const auto roll = random(0.0f, 99.0f);
         return roll <= static_cast<float>(a_chance);
     }
 
@@ -69,7 +87,7 @@ namespace stl {
 
         for (auto& value : input) {
             if (std::find(elements.begin(), elements.begin() + size, value) == elements.begin() + size) {
-                if (size >= N) throw "Set is full, not enough space";
+                if (size >= N) throw std::exception("Set is full, not enough space");
                 elements[size++] = value;
             }
         }
@@ -79,7 +97,7 @@ namespace stl {
     }
 
     inline std::string get_editorID(const RE::TESForm* a_form) {
-        using _GetFormEditorID = const char* (*)(std::uint32_t);
+        using _GetFormEditorID = const char* (*)(std::uint32_t);  // NOLINT(*-reserved-identifier)
         switch (a_form->GetFormType()) {
             case RE::FormType::Keyword:
             case RE::FormType::LocationRefType:
@@ -120,8 +138,7 @@ namespace stl {
         }
     }
 
-    static void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array,
-                                        rapidjson::Value::AllocatorType& allocator) {
+    static void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array, rapidjson::Value::AllocatorType& allocator) {
         if (!json_array.IsArray()) return;
 
         std::unordered_set<std::string> seen;
