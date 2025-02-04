@@ -17,7 +17,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
                                                                 RE::BSTEventSource<RE::TESInitScriptEvent>*) {
     if (!a_event || !a_event->objectInitialized->Is3DLoaded()) return RE::BSEventNotifyControl::kContinue;
 
-    if (RE::Actor* actor{a_event->objectInitialized->As<RE::Actor>()};
+    if (RE::Actor * actor{a_event->objectInitialized->As<RE::Actor>()};
         (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
         Body::OBody::GetInstance().GenerateActorBody(actor);
     }
@@ -29,16 +29,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoa
                                                                 RE::BSTEventSource<RE::TESLoadGameEvent>*) {
     if (!a_event) return RE::BSEventNotifyControl::kContinue;
 
-    const auto& parser{Parser::JSONParser::GetInstance()};
-
-    if (!parser.presetDistributionConfigValid) {
-        RE::DebugMessageBox(
-            "The OBody NG JSON configuration file contains errors! OBody NG will not work properly. Please "
-            "exit the game now and refer to the OBody NG JSON Configuration Guide to validate your "
-            "configuration file.");
-    }
-
-    if (!parser.bodyslidePresetsParsingValid) {
+    if (!Parser::JSONParser::GetInstance().bodyslidePresetsParsingValid) {
         RE::DebugMessageBox(
             "A critical error has occurred while parsing the Bodyslide presets files. This most likely means "
             "you have a corrupt bodyslide preset, or a bodyslide preset where the name contains "
@@ -51,7 +42,9 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoa
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEquipEvent* a_event,
                                                                 RE::BSTEventSource<RE::TESEquipEvent>*) {
-    if (!a_event) return RE::BSEventNotifyControl::kContinue;
+    if (!a_event || !a_event->actor || !a_event->actor->As<RE::Actor>() || a_event->baseObject == 0) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
     const auto actor = a_event->actor->As<RE::Actor>();
     const auto form = RE::TESForm::LookupByID(a_event->baseObject);
 

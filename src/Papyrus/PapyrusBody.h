@@ -1,125 +1,39 @@
-// ReSharper disable CppPassValueParameterByConstReference
 #pragma once
-
-#include "Body/Body.h"
-#include "JSONParser/JSONParser.h"
-#include "PresetManager/PresetManager.h"
 
 namespace PapyrusBody {
     using VM = RE::BSScript::IVirtualMachine;
-    inline auto& obody{Body::OBody::GetInstance()};
 
-    static void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) { obody.GenerateActorBody(a_actor); }
+    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
-    static void SetORefit(RE::StaticFunctionTag*, const bool a_enabled) { obody.setRefit = a_enabled; }
+    void SetORefit(RE::StaticFunctionTag*, bool a_enabled);
 
-    static void SetNippleSlidersORefitEnabled(RE::StaticFunctionTag*, const bool a_enabled) {
-        obody.setNippleSlidersRefitEnabled = a_enabled;
-    }
+    void SetNippleSlidersORefitEnabled(RE::StaticFunctionTag*, bool a_enabled);
 
-    static void SetNippleRand(RE::StaticFunctionTag*, const bool a_enabled) { obody.setNippleRand = a_enabled; }
+    void SetNippleRand(RE::StaticFunctionTag*, bool a_enabled);
 
-    static void SetGenitalRand(RE::StaticFunctionTag*, const bool a_enabled) { obody.setGenitalRand = a_enabled; }
+    void SetGenitalRand(RE::StaticFunctionTag*, bool a_enabled);
 
-    static void SetPerformanceMode(RE::StaticFunctionTag*, const bool a_enabled) {
-        obody.setPerformanceMode = a_enabled;
-    }
+    void SetPerformanceMode(RE::StaticFunctionTag*, bool a_enabled);
 
-    static void SetDistributionKey(RE::StaticFunctionTag*, const std::string a_distributionKey) {
-        obody.distributionKey = a_distributionKey;
-    }
+    void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey);
 
-    static int GetFemaleDatabaseSize(RE::StaticFunctionTag*) {
-        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
-        return static_cast<int>(presetContainer.femalePresets.size());
-    }
+    int GetFemaleDatabaseSize(RE::StaticFunctionTag*);
 
-    static int GetMaleDatabaseSize(RE::StaticFunctionTag*) {
-        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
-        return static_cast<int>(presetContainer.malePresets.size());
-    }
+    int GetMaleDatabaseSize(RE::StaticFunctionTag*);
 
-    static void RegisterForOBodyEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
-        Body::OnActorGenerated.Register(a_quest);
-    }
+    void RegisterForOBodyEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest);
 
-    static void RegisterForOBodyNakedEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
-        Body::OnActorNaked.Register(a_quest);
-    }
+    void RegisterForOBodyNakedEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest);
 
-    static void RegisterForOBodyRemovingClothesEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
-        Body::OnActorRemovingClothes.Register(a_quest);
-    }
+    void RegisterForOBodyRemovingClothesEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest);
 
-    static void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_name) {
-        obody.GenerateBodyByName(a_actor, a_name);
-    }
+    void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor, std::string a_name);
 
-    static void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        obody.ApplyClothePreset(a_actor);
-        obody.ApplyMorphs(a_actor, true);
-    }
+    void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
-    static void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) { obody.ClearActorMorphs(a_actor); }
+    void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
-    static bool presetNameComparison(std::string a, std::string b) {
-        boost::algorithm::to_lower(a);
-        boost::algorithm::to_lower(b);
-        return a < b;
-    }
+    std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
-    static auto GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        const auto& presetContainer = PresetManager::PresetContainer::GetInstance();
-
-        const auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
-
-        bool showBlacklistedPresets = true;
-
-        // For some reason, some users get CTDs when reading this value, even when everything else seems correct...
-        // Also happens when used with Immersive Equipment displays. I have no idea why.
-        // Catch the error, default to True in case something fails
-        if (!(presetDistributionConfig.HasMember("blacklistedPresetsShowInOBodyMenu") &&
-              presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].IsBool())) {
-            logger::info(
-                "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted presets "
-                "in OBody menu.");
-        } else {
-            showBlacklistedPresets = presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].GetBool();
-        }
-
-        auto presets_to_show =
-            (obody.IsFemale(a_actor)
-                 ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
-                 : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets)) |
-            std::views::transform(&PresetManager::Preset::name);
-
-        std::vector<std::string> ret(presets_to_show.begin(), presets_to_show.end());
-        std::ranges::sort(ret, presetNameComparison);
-
-        return ret;
-    }
-
-    static bool Bind(VM* a_vm) {
-        constexpr auto obj = "OBodyNative"sv;
-
-        BIND(GenActor);
-        BIND(ApplyPresetByName);
-        BIND(GetAllPossiblePresets);
-        BIND(AddClothesOverlay);
-        BIND(RegisterForOBodyEvent);
-        BIND(RegisterForOBodyNakedEvent);
-        BIND(RegisterForOBodyRemovingClothesEvent);
-        BIND(GetFemaleDatabaseSize);
-        BIND(GetMaleDatabaseSize);
-        BIND(ResetActorOBodyMorphs);
-
-        BIND(SetORefit);
-        BIND(SetNippleSlidersORefitEnabled);
-        BIND(SetNippleRand);
-        BIND(SetGenitalRand);
-        BIND(SetPerformanceMode);
-        BIND(SetDistributionKey);
-
-        return true;
-    }
+    bool Bind(VM* a_vm);
 }  // namespace PapyrusBody

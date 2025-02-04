@@ -4,6 +4,7 @@
 #include "JSONParser/JSONParser.h"
 #include "PresetManager/PresetManager.h"
 #include "SKEE.h"
+#include "STL.h"
 
 namespace {
     void InitializeLogging() {
@@ -28,13 +29,13 @@ namespace {
 
     // ReSharper disable once CppParameterMayBeConstPtrOrRef
     void MessageHandler(SKSE::MessagingInterface::Message* a_msg) {
-        auto& obody = Body::OBody::GetInstance();
+        auto& obody{Body::OBody::GetInstance()};
 
         switch (a_msg->type) {
             // On kPostPostLoad, we can try to fetch the Racemenu interface
             case SKSE::MessagingInterface::kPostPostLoad: {
                 SKEE::InterfaceExchangeMessage msg;
-                const auto* const intfc = SKSE::GetMessagingInterface();
+                const auto* const intfc{SKSE::GetMessagingInterface()};
                 intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, &msg,
                                 sizeof(SKEE::InterfaceExchangeMessage*), "skee");
                 if (!msg.interfaceMap) {
@@ -55,49 +56,12 @@ namespace {
                 return;
             }
 
-            // When data is all loaded (this is by the time the Main Menu is visible), we can parse the JSON and the
+            // When data is all loaded (this is by the time the Main Menu is visible), we can process the JSON and the
             // Bodyslide presets
             case SKSE::MessagingInterface::kDataLoaded: {
                 auto& parser{Parser::JSONParser::GetInstance()};
+                parser.ProcessJSONCategories();
 
-                FILE* fp;
-                auto err =
-                    fopen_s(&fp, "Data/SKSE/Plugins/OBody_presetDistributionConfig.json", "rb");  // non-Windows use "r"
-                if (err != 0) {
-                    logger::info("Failed to open file: Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
-                    parser.presetDistributionConfigValid = false;
-                    return;
-                }
-                char readBuffer[65535];
-                rapidjson::FileReadStream bis(fp, readBuffer, std::size(readBuffer));
-
-                rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
-                try {
-                    if (parser.presetDistributionConfig.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis)
-                            .HasParseError()) {
-                        logger::info("Error(offset {}): {}", parser.presetDistributionConfig.GetErrorOffset(),
-                                     rapidjson::GetParseError_En(parser.presetDistributionConfig.GetParseError()));
-                        parser.presetDistributionConfigValid = false;
-                    } else {
-                        parser.ProcessJSONCategories();
-                        parser.presetDistributionConfigValid = true;
-                    }
-                } catch (const std::runtime_error& re) {
-                    logger::info("{} ", re.what());
-                    parser.presetDistributionConfigValid = false;
-                } catch (const std::exception& ex) {
-                    logger::info("{} ", ex.what());
-                    parser.presetDistributionConfigValid = false;
-                } catch (...) {
-                    logger::info("An unknown error has occurred while parsing the JSON file.");
-                    parser.presetDistributionConfigValid = false;
-                }
-                if (fp) {
-                    err = fclose(fp);
-                    if (err != 0) {
-                        logger::info("Failed to close file: Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
-                    }
-                }
                 try {
                     PresetManager::GeneratePresets();
                     parser.bodyslidePresetsParsingValid = true;
@@ -110,12 +74,6 @@ namespace {
                 } catch (...) {
                     logger::info("An unknown error has occurred while parsing the bodyslide presets files.");
                     parser.bodyslidePresetsParsingValid = false;
-                }
-
-                if (parser.presetDistributionConfigValid) {
-                    logger::info("OBody has finished parsing the JSON config file.");
-                } else {
-                    logger::info("There are errors in the OBody JSON config file! OBody will not work properly.");
                 }
 
                 RE::TESDataHandler* pDataHandler = RE::TESDataHandler::GetSingleton();
@@ -147,6 +105,7 @@ namespace {
 }  // namespace
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
+    [[maybe_unused]] stl::timeit const t;
     InitializeLogging();
 
     const auto* const plugin{SKSE::PluginDeclaration::GetSingleton()};
@@ -154,12 +113,59 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
 
     SKSE::Init(a_skse, false);
 
-    if (const auto* const message{SKSE::GetMessagingInterface()}; !message->RegisterListener(MessageHandler)) {
+    if (const auto* const message = SKSE::GetMessagingInterface(); !message->RegisterListener(MessageHandler)) {
         return false;
     }
 
     Papyrus::Bind();
+    auto& parser{Parser::JSONParser::GetInstance()};
+    rapidjson::Document sd;
+    {
+        stl::FilePtrManager file{"Data/SKSE/Plugins/OBody_presetDistributionConfig_schema.json"};
+        if (file.error() != 0) {
+            SKSE::stl::report_and_fail(
+                "Please Check the Obody.log. Seems like there is a issue with loading the schema");
+        }
+        char readBuffer[65535];
+        rapidjson::FileReadStream bis(file.get(), readBuffer, std::size(readBuffer));
 
+        rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);
+        if (sd.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis).HasParseError()) {
+            logger::info("Error(offset {}): {}", sd.GetErrorOffset(), rapidjson::GetParseError_En(sd.GetParseError()));
+            SKSE::stl::report_and_fail(
+                "Please Check the Obody.log. Seems like there is a issue with loading "
+                "OBody_presetDistributionConfig_schema.json");
+        }
+    }
+    stl::FilePtrManager file("Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
+    if (file.error() != 0) {
+        SKSE::stl::report_and_fail(
+            "Please Check the Obody.log. Seems like there is a issue with loading OBody_presetDistributionConfig.json");
+    }
+    rapidjson::SchemaDocument schema(sd);
+    char readBuffer[65535];
+    rapidjson::FileReadStream bis(file.get(), readBuffer, std::size(readBuffer));
+
+    rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);
+    if (parser.presetDistributionConfig.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis).HasParseError()) {
+        logger::info("Config Error(offset {}): {}", parser.presetDistributionConfig.GetErrorOffset(),
+                     rapidjson::GetParseError_En(parser.presetDistributionConfig.GetParseError()));
+        SKSE::stl::report_and_fail(
+            "Please Check the Obody.log. Seems like there is an error when parsing "
+            "OBody_presetDistributionConfig.json");
+    }
+    if (rapidjson::SchemaValidator validator(schema); !parser.presetDistributionConfig.Accept(validator)) {
+        rapidjson::StringBuffer sb;
+        validator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        logger::error("Invalid schema: {}", sb.GetString());
+        logger::error("Invalid keyword: {}", validator.GetInvalidSchemaKeyword());
+        sb.Clear();
+        validator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        logger::error("Invalid document: {}", sb.GetString());
+        SKSE::stl::report_and_fail(
+            "Please Check the Obody.log. Seems like there is an error when validating the json schema");
+    }
+    logger::info("Validated Data/SKSE/Plugins/OBody_presetDistributionConfig.json successfully");
     logger::info("{} has finished loading.", plugin->GetName());
 
     return true;

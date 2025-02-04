@@ -1,0 +1,348 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "npcFormID": {
+      "$ref": "#/definitions/npcFormID"
+    },
+    "npc": {
+      "$ref": "#/definitions/npc"
+    },
+    "factionFemale": {
+      "$ref": "#/definitions/factionFemale"
+    },
+    "factionMale": {
+      "$ref": "#/definitions/factionMale"
+    },
+    "npcPluginFemale": {
+      "$ref": "#/definitions/npcPluginFemale"
+    },
+    "npcPluginMale": {
+      "$ref": "#/definitions/npcPluginMale"
+    },
+    "raceFemale": {
+      "$ref": "#/definitions/raceFemale"
+    },
+    "raceMale": {
+      "$ref": "#/definitions/raceMale"
+    },
+    "blacklistedNpcs": {
+      "$ref": "#/definitions/blacklistedNpcs"
+    },
+    "blacklistedNpcsFormID": {
+      "$ref": "#/definitions/blacklistedNpcsFormID"
+    },
+    "blacklistedNpcsPluginFemale": {
+      "$ref": "#/definitions/blacklistedNpcsPluginFemale"
+    },
+    "blacklistedNpcsPluginMale": {
+      "$ref": "#/definitions/blacklistedNpcsPluginMale"
+    },
+    "blacklistedRacesFemale": {
+      "$ref": "#/definitions/blacklistedRacesFemale"
+    },
+    "blacklistedRacesMale": {
+      "$ref": "#/definitions/blacklistedRacesMale"
+    },
+    "blacklistedOutfitsFromORefitFormID": {
+      "$ref": "#/definitions/blacklistedOutfitsFromORefitFormID"
+    },
+    "blacklistedOutfitsFromORefit": {
+      "$ref": "#/definitions/blacklistedOutfitsFromORefit"
+    },
+    "blacklistedOutfitsFromORefitPlugin": {
+      "$ref": "#/definitions/blacklistedOutfitsFromORefitPlugin"
+    },
+    "outfitsForceRefitFormID": {
+      "$ref": "#/definitions/outfitsForceRefitFormID"
+    },
+    "outfitsForceRefit": {
+      "$ref": "#/definitions/outfitsForceRefit"
+    },
+    "blacklistedPresetsFromRandomDistribution": {
+      "$ref": "#/definitions/blacklistedPresetsFromRandomDistribution"
+    },
+    "blacklistedPresetsShowInOBodyMenu": {
+      "$ref": "#/definitions/blacklistedPresetsShowInOBodyMenu"
+    }
+  },
+  "title": "OBodyConfigModel",
+  "type": "object",
+  "definitions": {
+    "BSTFile": {
+      "pattern": "^ {0}[^.\\n\\r\\t]+\\.es[plm]$",
+      "type": "string"
+    },
+    "EditorID": {
+      "pattern": "^[^.\\n\\r\\t ]+$",
+      "type": "string"
+    },
+    "FormID": {
+      "pattern": "^(FE[0-9A-F]{6}|[0-9A-F]{8})$",
+      "type": "string"
+    },
+    "NPCName": {
+      "$ref": "#/definitions/NonEmptyString"
+    },
+    "NonEmptyString": {
+      "pattern": "^.+$",
+      "type": "string"
+    },
+    "OutfitName": {
+      "$ref": "#/definitions/NonEmptyString"
+    },
+    "PresetName": {
+      "$ref": "#/definitions/NonEmptyString"
+    },
+    "RaceName": {
+      "$ref": "#/definitions/EditorID"
+    },
+    "blacklistedNpcs": {
+      "default": [],
+      "description": "Same as blacklistedNpcsFormID, but you use NPC names instead of the FormID.",
+      "items": {
+        "$ref": "#/definitions/NPCName"
+      },
+      "type": "array"
+    },
+    "blacklistedNpcsFormID": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Set which NPCs by their FormID should be ignored by OBody. Works with modded NPCs. Useful if you want modded NPCs to have a custom body you want to handle separately.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "blacklistedNpcsPluginFemale": {
+      "default": [],
+      "description": "Here you can blacklist all female NPCs from an entire plugin/mod by simply writing the plugin name.",
+      "items": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "array"
+    },
+    "blacklistedNpcsPluginMale": {
+      "default": [],
+      "description": "Same as blacklistedNpcsPluginFemale, but for males.",
+      "items": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "array"
+    },
+    "blacklistedOutfitsFromORefit": {
+      "default": [
+        "LS Force Naked",
+        "OBody Nude 32"
+      ],
+      "items": {
+        "$ref": "#/definitions/OutfitName"
+      },
+      "type": "array"
+    },
+    "blacklistedOutfitsFromORefitFormID": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can write outfit FormIDs if you don't want ORefit to be applied to them. Further details and explanation is available further below.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "blacklistedOutfitsFromORefitPlugin": {
+      "default": [],
+      "description": "Same as blacklistedOutfitsFromORefitFormID, but you use filenames",
+      "items": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "array"
+    },
+    "blacklistedPresetsFromRandomDistribution": {
+      "default": [
+        "- Zeroed Sliders -",
+        "-Zeroed Sliders-",
+        "Zeroed Sliders",
+        "HIMBO Zero for OBody"
+      ],
+      "description": "Should be self explanatory. Set the presets you do NOT want OBody to distribute randomly.",
+      "items": {
+        "$ref": "#/definitions/PresetName"
+      },
+      "type": "array"
+    },
+    "blacklistedPresetsShowInOBodyMenu": {
+      "default": true,
+      "description": "Whether you want the blacklisted presets to show in the O menu or not.",
+      "type": "boolean"
+    },
+    "blacklistedRacesFemale": {
+      "default": [
+        "ElderRace"
+      ],
+      "description": "Here you can blacklist females of entire races instead of individual NPCs.",
+      "items": {
+        "$ref": "#/definitions/RaceName"
+      },
+      "type": "array"
+    },
+    "blacklistedRacesMale": {
+      "default": [
+        "ElderRace"
+      ],
+      "description": "Same as blacklistedRacesFemale, but for male NPCs.",
+      "items": {
+        "$ref": "#/definitions/RaceName"
+      },
+      "type": "array"
+    },
+    "factionFemale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can set which presets to distribute by faction for female NPCs.",
+      "propertyNames": {
+        "$ref": "#/definitions/EditorID"
+      },
+      "type": "object"
+    },
+    "factionMale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Same as factionFemale, but for male NPCs.",
+      "propertyNames": {
+        "$ref": "#/definitions/EditorID"
+      },
+      "type": "object"
+    },
+    "npc": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Same as npcFormID, but you use the NPC names instead of the FormID.",
+      "propertyNames": {
+        "$ref": "#/definitions/NPCName"
+      },
+      "type": "object"
+    },
+    "npcFormID": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "items": {
+            "$ref": "#/definitions/PresetName"
+          },
+          "type": "array"
+        },
+        "propertyNames": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "object"
+      },
+      "default": {},
+      "description": "Here you can set which presets should be applied to specific NPCs by their FormID. The FormID is their unique identifier. Works with modded NPCs!",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "npcPluginFemale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can set which presets should be applied to female NPCs from a specific plugin/mod.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "npcPluginMale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Same as npcPluginFemale but for male NPCs.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "outfitsForceRefit": {
+      "default": [],
+      "description": "Same as outfitsForceRefitFormID, but you use outfit names instead of their FormID.",
+      "items": {
+        "$ref": "#/definitions/OutfitName"
+      },
+      "type": "array"
+    },
+    "outfitsForceRefitFormID": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can write outfit FormIDs if you want to force ORefit to be applied to them, in case ORefit can't detect them. Further details and explanation is available further below. You will not need to write anything in this key 99% of the time.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "raceFemale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can define which presets should be applied to females of certain races. Works with custom races too! ONLY put female body presets here!",
+      "propertyNames": {
+        "$ref": "#/definitions/RaceName"
+      },
+      "type": "object"
+    },
+    "raceMale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Same as above, but for males. ONLY put male body presets here (if you don't have any, leave it empty)!",
+      "propertyNames": {
+        "$ref": "#/definitions/RaceName"
+      },
+      "type": "object"
+    }
+  }
+}

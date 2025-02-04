@@ -1,28 +1,16 @@
 #pragma once
 
 namespace stl {
-    static bool contains(std::string_view const a_text, std::string_view const a_sub) {
-        if (a_sub.length() > a_text.length()) return false;
-
-        const auto it = std::ranges::search(a_text, a_sub, [](auto ch1, auto ch2) {
-                            return std::toupper(ch1) == std::toupper(ch2);
-                        }).begin();
-
-        return it != a_text.end();
+    inline bool contains(const std::string_view a_text, const std::string_view a_sub) {
+        return boost::algorithm::icontains(a_text, a_sub);
     }
 
-    static bool contains(std::wstring_view const a_text, std::wstring_view const a_sub) {
-        if (a_sub.length() > a_text.length()) return false;
-
-        const auto it = std::ranges::search(a_text, a_sub, [](auto ch1, auto ch2) {
-                            return std::towupper(ch1) == std::towupper(ch2);
-                        }).begin();
-
-        return it != a_text.end();
+    inline bool contains(const std::wstring_view a_text, const std::wstring_view a_sub) {
+        return boost::algorithm::icontains(a_text, a_sub);
     }
 
     template <class T, std::size_t N>
-    static bool contains(std::string_view const a_text, std::array<T, N> const& a_subs) {
+    bool contains(const std::string_view a_text, std::array<T, N> const& a_subs) {
         for (auto& sub : a_subs) {
             if (contains(a_text, sub)) return true;
         }
@@ -31,7 +19,7 @@ namespace stl {
     }
 
     template <class T, std::size_t N>
-    static bool contains(std::wstring_view const a_text, std::array<T, N> const& a_subs) {
+    bool contains(std::wstring_view const a_text, std::array<T, N> const& a_subs) {
         for (auto& sub : a_subs) {
             if (contains(a_text, sub)) return true;
         }
@@ -42,8 +30,6 @@ namespace stl {
     inline bool cmp(const std::string_view a_str1, const std::string_view a_str2) {
         return boost::algorithm::iequals(a_str1, a_str2);
     }
-
-    // static bool cmp(const char* a_str1, const char* a_str2) { return cmp(std::string{a_str1}, std::string{a_str2}); }
 
     // ReSharper disable once CppNotAllPathsReturnValue
     template <class T>
@@ -75,7 +61,7 @@ namespace stl {
         }
     }
 
-    inline bool chance(int a_chance) {
+    inline bool chance(const int a_chance) {
         const auto roll = random(0.0f, 99.0f);
         return roll <= static_cast<float>(a_chance);
     }
@@ -128,8 +114,8 @@ namespace stl {
             case RE::FormType::SoundRecord:
                 return a_form->GetFormEditorID();
             default: {
-                static auto tweaks = GetModuleHandle(L"po3_Tweaks");
-                static auto func = reinterpret_cast<_GetFormEditorID>(GetProcAddress(tweaks, "GetFormEditorID"));
+                static auto tweaks{GetModuleHandleA("po3_Tweaks")};
+                static auto func{reinterpret_cast<_GetFormEditorID>(GetProcAddress(tweaks, "GetFormEditorID"))};
                 if (func) {
                     return func(a_form->formID);
                 }
@@ -156,4 +142,78 @@ namespace stl {
         json_array.Swap(uniqueArray);
     }
 
+    class FilePtrManager {
+    public:
+        explicit FilePtrManager(const char* path, const char* mode = "rb") noexcept : err(fopen_s(&fp, path, mode)) {
+            // ReSharper disable CppDeprecatedEntity
+            if (err != 0) {
+                logger::error("Warning: Failed to open file '{}' pointer. Error: {}", path, strerror(err));
+            }
+        }
+
+        explicit FilePtrManager(const wchar_t* path, const wchar_t* mode = L"rb") noexcept
+            : err(_wfopen_s(&fp, path, mode)) {
+            if (err != 0) {
+                wchar_t buffer[1024];
+                swprintf_s(buffer, std::size(buffer), L"Failed to open file '%s' pointer. Error: %hs", path,
+                           strerror(err));
+                SPDLOG_ERROR(buffer);
+            }
+        }
+
+        ~FilePtrManager() {
+            if (fp && (err = fclose(fp)) != 0) {
+                logger::error("Warning: Failed to close file pointer: {}", strerror(err));
+                // ReSharper restore CppDeprecatedEntity
+            }
+        }
+
+        FilePtrManager(const FilePtrManager&) = delete;
+        FilePtrManager& operator=(const FilePtrManager&) = delete;
+
+        FilePtrManager(FilePtrManager&& other) noexcept : fp(other.fp), err(other.err) {
+            other.fp = nullptr;
+            other.err = 0;
+        }
+
+        FilePtrManager& operator=(FilePtrManager&& other) noexcept {
+            if (this != &other) {
+                if (fp && fp != other.fp) fclose(fp);
+                fp = other.fp;
+                err = other.err;
+                other.fp = nullptr;
+                other.err = 0;
+            }
+            return *this;
+        }
+
+        [[nodiscard]] FILE* get() noexcept { return fp; }
+        [[nodiscard]] FILE* get() const noexcept { return fp; }
+        [[nodiscard]] errno_t error() const noexcept { return err; }
+
+    private:
+        FILE* fp{};
+        errno_t err{};
+    };
+
+    class timeit {
+    public:
+        explicit timeit(const std::source_location& a_curr = std::source_location::current())
+            : curr(std::move(a_curr)) {}
+
+        ~timeit() {
+            const auto stop = std::chrono::steady_clock::now() - start;
+            logger::info(
+                "Time Taken in '{}' is {} nanoseconds or {} microseconds or {} milliseconds or {} seconds or "
+                "{} minutes",
+                curr.function_name(), stop.count(), std::chrono::duration_cast<std::chrono::microseconds>(stop).count(),
+                std::chrono::duration_cast<std::chrono::milliseconds>(stop).count(),
+                std::chrono::duration_cast<std::chrono::seconds>(stop).count(),
+                std::chrono::duration_cast<std::chrono::minutes>(stop).count());
+        }
+
+    private:
+        std::source_location curr;
+        std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
+    };
 }  // namespace stl

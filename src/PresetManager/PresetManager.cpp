@@ -96,43 +96,34 @@ namespace PresetManager {
         return preset;
     }
 
-    Preset GetPresetByName(const PresetSet& a_presetSet, std::string a_name, bool female) {
+    Preset GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name, const bool female) {
         logger::info("Looking for preset: {}", a_name);
-
-        boost::trim(a_name);
-        boost::to_upper(a_name);
 
         for (auto& preset : a_presetSet) {
             if (stl::cmp(preset.name, a_name)) return preset;
         }
 
         logger::info("Preset not found, choosing a random one.");
-        const auto& container = PresetManager::PresetContainer::GetInstance();
+        const auto& container{PresetManager::PresetContainer::GetInstance()};
         return GetRandomPreset(female ? container.femalePresets : container.malePresets);
     }
 
-    Preset GetRandomPreset(PresetSet a_presetSet) {
+    Preset GetRandomPreset(const PresetSet& a_presetSet) {
         static_assert(std::is_same_v<decltype(0llu), decltype(a_presetSet.size())>,
                       "Ensure that below literal is of type std::size_t");
         return a_presetSet[stl::random(0llu, a_presetSet.size())];
     }
 
-    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string a_name, bool /*female*/) {
+    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name, bool /*female*/) {
         logger::info("Looking for preset: {}", a_name);
 
-        boost::trim(a_name);
-        boost::to_upper(a_name);
-
-        Preset presetRet;
-
         for (const auto& preset : a_presetSet) {
-            if (stl::cmp(boost::to_upper_copy(preset.name), a_name)) {
-                presetRet = preset;
-                break;
+            if (stl::cmp(preset.name, a_name)) {
+                return preset;
             }
         }
 
-        return presetRet;
+        return {};
     }
 
     Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
@@ -145,7 +136,7 @@ namespace PresetManager {
 
         static_assert(std::is_same_v<decltype(0llu), decltype(a_presetNames.size())>,
                       "Ensure that below literal is of type std::size_t");
-        const std::string chosenPreset = a_presetNames[stl::random(0llu, a_presetNames.size())].data();
+        const std::string_view chosenPreset = a_presetNames[stl::random(0llu, a_presetNames.size())].data();
 
         Preset preset = GetPresetByNameForRandom(a_presetSet, chosenPreset, female);
 
@@ -165,17 +156,15 @@ namespace PresetManager {
         return !stl::contains(a_preset.body, body);
     }
 
-    bool IsClothedSet(std::string a_set) {
+    bool IsClothedSet(const std::string_view a_set) {
         constexpr std::array clothed{"cloth"sv, "outfit"sv, "nevernude"sv, "bikini"sv, "feet"sv,
                                      "hands"sv, "push"sv,   "cleavage"sv,  "armor"sv};
-        boost::to_lower(a_set);
         return stl::contains(a_set, clothed);
     }
 
-    bool IsClothedSet(std::wstring a_set) {
+    bool IsClothedSet(const std::wstring_view a_set) {
         constexpr std::array clothed{L"cloth"sv, L"outfit"sv, L"nevernude"sv, L"bikini"sv, L"feet"sv,
                                      L"hands"sv, L"push"sv,   L"cleavage"sv,  L"armor"sv};
-        boost::to_lower(a_set);
         return stl::contains(a_set, clothed);
     }
 

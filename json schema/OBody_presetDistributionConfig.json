@@ -1,0 +1,35 @@
+{
+  "npcFormID": {},
+  "npc": {},
+  "factionFemale": {},
+  "factionMale": {},
+  "npcPluginFemale": {},
+  "npcPluginMale": {},
+  "raceFemale": {},
+  "raceMale": {},
+  "blacklistedNpcs": [],
+  "blacklistedNpcsFormID": {},
+  "blacklistedNpcsPluginFemale": [],
+  "blacklistedNpcsPluginMale": [],
+  "blacklistedRacesFemale": [
+    "ElderRace"
+  ],
+  "blacklistedRacesMale": [
+    "ElderRace"
+  ],
+  "blacklistedOutfitsFromORefitFormID": {},
+  "blacklistedOutfitsFromORefit": [
+    "LS Force Naked",
+    "OBody Nude 32"
+  ],
+  "blacklistedOutfitsFromORefitPlugin": [],
+  "outfitsForceRefitFormID": {},
+  "outfitsForceRefit": [],
+  "blacklistedPresetsFromRandomDistribution": [
+    "- Zeroed Sliders -",
+    "-Zeroed Sliders-",
+    "Zeroed Sliders",
+    "HIMBO Zero for OBody"
+  ],
+  "blacklistedPresetsShowInOBodyMenu": true
+}

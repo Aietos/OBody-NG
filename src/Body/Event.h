@@ -1,11 +1,9 @@
 #pragma once
 
-namespace Event
-{
+namespace Event {
     class OBodyEventHandler final : public RE::BSTEventSink<RE::TESInitScriptEvent>,
                                     public RE::BSTEventSink<RE::TESLoadGameEvent>,
-                                    public RE::BSTEventSink<RE::TESEquipEvent>
-    {
+                                    public RE::BSTEventSink<RE::TESEquipEvent> {
     public:
         static OBodyEventHandler* GetSingleton() { return &singleton; }
         static void Register();
@@ -30,4 +28,4 @@ namespace Event
 
         OBodyEventHandler() = default;
     };
-} // namespace Event
+}  // namespace Event

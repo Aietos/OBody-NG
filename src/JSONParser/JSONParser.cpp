@@ -1,6 +1,4 @@
-#include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
-
 #include "STL.h"
 
 Parser::JSONParser Parser::JSONParser::instance;
@@ -85,14 +83,11 @@ namespace Parser {
         return {};
     }
 
-    std::string DiscardFormDigits(const std::string_view formID) {
-        std::string newFormID{formID};
-
-        if (formID.size() == 8) {
-            newFormID.erase(0, 2);
+    inline std::string_view DiscardFormDigits(const std::string_view formID) {
+        if (formID.starts_with("FE")) {
+            return formID.substr(5);
         }
-
-        return newFormID;
+        return formID.substr(2);
     }
 
     void JSONParser::ProcessNPCsFormID() {
@@ -108,10 +103,10 @@ namespace Parser {
                 for (auto valueItr = value.MemberBegin(); valueItr != value.MemberEnd(); ++valueItr) {
                     auto& [formKey, formValue] = *valueItr;
                     stl::RemoveDuplicatesInJsonArray(formValue, presetDistributionConfig.GetAllocator());
-                    std::string formID = DiscardFormDigits(formKey.GetString());
+                    std::string_view formID{DiscardFormDigits(formKey.GetString())};
 
                     uint32_t hexnumber;
-                    sscanf_s(formID.c_str(), "%x", &hexnumber);
+                    sscanf_s(formID.data(), "%x", &hexnumber);
 
                     const auto actorform = data_handler->LookupForm(hexnumber, owningMod.GetString());
 
@@ -179,9 +174,9 @@ namespace Parser {
                 }
                 stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
                 for (const auto& formIDRaw : val.GetArray()) {
-                    std::string formID = DiscardFormDigits(formIDRaw.GetString());
+                    std::string_view formID{ DiscardFormDigits(formIDRaw.GetString()) };
                     uint32_t hexnumber;
-                    sscanf_s(formID.c_str(), "%x", &hexnumber);
+                    sscanf_s(formID.data(), "%x", &hexnumber);
 
                     const auto outfitform = data_handler->LookupForm(hexnumber, plugin.GetString());
 
@@ -212,9 +207,9 @@ namespace Parser {
                 }
                 stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
                 for (const auto& formIDRaw : val.GetArray()) {
-                    std::string formID = DiscardFormDigits(formIDRaw.GetString());
+                    std::string_view formID{ DiscardFormDigits(formIDRaw.GetString()) };
                     uint32_t hexnumber;
-                    sscanf_s(formID.c_str(), "%x", &hexnumber);
+                    sscanf_s(formID.data(), "%x", &hexnumber);
 
                     const auto outfitform = data_handler->LookupForm(hexnumber, plugin.GetString());
 
@@ -474,28 +469,7 @@ namespace Parser {
     }
 
     void JSONParser::ProcessJSONCategories() {
-        class timeit {
-        public:
-            explicit timeit(const std::source_location& a_curr = std::source_location::current())
-                : curr(std::move(a_curr)) {}
-
-            ~timeit() {
-                const auto stop = std::chrono::steady_clock::now() - start;
-                logger::info(
-                    "Time Taken in '{}' is {} nanoseconds or {} microseconds or {} milliseconds or {} seconds or "
-                    "{} minutes",
-                    curr.function_name(), stop.count(),
-                    std::chrono::duration_cast<std::chrono::microseconds>(stop).count(),
-                    std::chrono::duration_cast<std::chrono::milliseconds>(stop).count(),
-                    std::chrono::duration_cast<std::chrono::seconds>(stop).count(),
-                    std::chrono::duration_cast<std::chrono::minutes>(stop).count());
-            }
-
-        private:
-            std::source_location curr;
-            std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
-        };
-        timeit const t;
+        [[maybe_unused]] stl::timeit const t;
         ProcessNPCsFormIDBlacklist();
         ProcessNPCsFormID();
         ProcessOutfitsFormIDBlacklist();
@@ -629,8 +603,7 @@ namespace Parser {
         std::vector<std::string_view> characterBodyslidePresets;
 
         if (!character.bodyslidePresets.empty()) {
-            characterBodyslidePresets =
-                std::vector<std::string_view>(character.bodyslidePresets.begin(), character.bodyslidePresets.end());
+            characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character.bodyslidePresets);
         } else if (presetDistributionConfig.HasMember("npc") && presetDistributionConfig["npc"].HasMember(actorName)) {
             characterBodyslidePresets.reserve(presetDistributionConfig["npc"][actorName].Size());
             for (const auto& item : presetDistributionConfig["npc"][actorName].GetArray()) {

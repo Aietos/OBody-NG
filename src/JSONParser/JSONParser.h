@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PresetManager/PresetManager.h"
+
 namespace Parser {
     struct categorizedList {
         std::string owningMod;
@@ -45,7 +47,6 @@ namespace Parser {
         PresetManager::Preset GetNPCRacePreset(const char* actorRace, bool female);
 
         rapidjson::Document presetDistributionConfig;
-        bool presetDistributionConfigValid{};
         bool bodyslidePresetsParsingValid{};
 
         std::vector<categorizedList> blacklistedCharacterCategorySet;
@@ -58,4 +59,4 @@ namespace Parser {
         JSONParser() = default;
         static JSONParser instance;
     };
-} // namespace Parser
+}  // namespace Parser

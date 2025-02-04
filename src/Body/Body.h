@@ -28,9 +28,11 @@ namespace Body {
 
         void GenerateActorBody(RE::Actor* a_actor) const;
         void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const;
-        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer) const;
+        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
+                                  bool updateMorphsWithoutTimer) const;
 
-        void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key, float a_weight) const;
+        void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
+                         float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
         void ApplyClothePreset(RE::Actor* a_actor) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
@@ -69,4 +71,4 @@ namespace Body {
         OBody() = default;
         ~OBody() = default;
     };
-} // namespace Body
+}  // namespace Body

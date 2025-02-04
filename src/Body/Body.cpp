@@ -129,9 +129,9 @@ namespace Body {
             return;
         }
 
-        bool female = IsFemale(a_actor);
+        bool female{IsFemale(a_actor)};
 
-        auto& presetContainer = PresetManager::PresetContainer::GetInstance();
+        auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
         // If we have no presets at all for the actor's sex, then don't do anything
         if ((female && presetContainer.femalePresets.empty()) || !female && presetContainer.malePresets.empty()) {
@@ -140,11 +140,11 @@ namespace Body {
 
         PresetManager::Preset preset;
 
-        auto& jsonParser = Parser::JSONParser::GetInstance();
+        auto& jsonParser{Parser::JSONParser::GetInstance()};
 
-        auto actorBase = a_actor->GetActorBase();
-        auto actorName = actorBase->GetName();
-        auto actorID = actorBase->GetFormID();
+        auto actorBase{a_actor->GetActorBase()};
+        auto actorName{actorBase->GetName()};
+        auto actorID{actorBase->GetFormID()};
 
         logger::info("Trying to find and apply preset to {}", actorName);
 
@@ -185,8 +185,8 @@ namespace Body {
         // If we got here without a preset, then we just fetch one randomly
         if (preset.name.empty()) {
             logger::info("No preset defined for this actor, getting it randomly");
-            preset = PresetManager::GetRandomPreset(
-                female ? presetContainer.femalePresets : presetContainer.malePresets);
+            preset =
+                PresetManager::GetRandomPreset(female ? presetContainer.femalePresets : presetContainer.malePresets);
         }
 
         logger::info("Preset {} will be applied to {}", preset.name, actorName);
@@ -543,4 +543,4 @@ namespace Body {
     Slider OBody::DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const {
         return Slider{a_morph, a_target - GetMorph(a_actor, a_morph)};
     }
-} // namespace Body
+}  // namespace Body

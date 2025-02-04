@@ -6,7 +6,7 @@ message("Using toolchain file ${CMAKE_TOOLCHAIN_FILE}.")
 ########################################################################################################################
 project(
         OBody
-        VERSION 4.3.1.0
+        VERSION 4.3.2.0
         DESCRIPTION ""
         LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
@@ -22,12 +22,13 @@ configure_file(
         @ONLY)
 
 set(sources
-        src/Body/Body.cpp
-        src/Body/Event.cpp
-        src/Papyrus/Papyrus.cpp
-        src/JSONParser/JSONParser.cpp
-        src/PresetManager/PresetManager.cpp
-        src/main.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Body.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/Papyrus.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/PapyrusBody.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/JSONParser/JSONParser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PresetManager/PresetManager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
 
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
@@ -84,15 +85,15 @@ install(TARGETS
 set(DISTRIBUTION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/")
 set(CONTRIB_IMAGES_DIR "${DISTRIBUTION_DIR}Images/")
 set(CONTRIB_PROJECT_DIR "${DISTRIBUTION_DIR}/Plugin - ${CMAKE_BUILD_TYPE}/")
-set(CONTRIB_CONFIGURATION_GLOBAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Configuration/Global/")
-set(CONTRIB_CONFIGURATION_MY_CONFIG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Configuration/My Config/")
 set(CONTRIB_COMMON_DIR "${DISTRIBUTION_DIR}/Common/")
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CONTRIB_PROJECT_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CONTRIB_IMAGES_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CONTRIB_COMMON_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${PROJECT_NAME}> "${CONTRIB_PROJECT_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Images/OBody NG Image.png" "${CONTRIB_IMAGES_DIR}")
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Images/OBody NG Image.png" "${CONTRIB_IMAGES_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/json schema/OBody_presetDistributionConfig_schema.json" "${CONTRIB_COMMON_DIR}")
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -105,7 +106,8 @@ foreach (DEPLOY_TARGET $ENV{SkyrimPluginTargets})
 
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "${DEPLOY_TARGET_COMMON_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DEPLOY_TARGET_COMMON_DIR}")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DEPLOY_TARGET_COMMON_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/json schema/OBody_presetDistributionConfig_schema.json" "${DEPLOY_TARGET_COMMON_DIR}")
 
     if (${CMAKE_BUILD_TYPE} STREQUAL Debug OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
