@@ -10,8 +10,8 @@
 #include <spdlog/sinks/msvc_sink.h>
 
 #include <fstream>
-// #define RAPIDJSON_SCHEMA_USE_INTERNALREGEX 0
-// #define RAPIDJSON_SCHEMA_USE_STDREGEX 1
+#define RAPIDJSON_SCHEMA_USE_INTERNALREGEX 0
+#define RAPIDJSON_SCHEMA_USE_STDREGEX 1
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/prettywriter.h>

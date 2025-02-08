@@ -69,32 +69,33 @@
   "type": "object",
   "definitions": {
     "BSTFile": {
-      "pattern": "^ {0}[^.\\n\\r\\t]+\\.es[plm]$",
+      "pattern": "^(?=\\S)(?=\\S.*\\.es[plm]$).*",
       "type": "string"
     },
     "EditorID": {
-      "pattern": "^[^.\\n\\r\\t ]+$",
+      "pattern": "^\\S+$",
       "type": "string"
     },
     "FormID": {
-      "pattern": "^(FE[0-9A-F]{6}|[0-9A-F]{8})$",
+      "pattern": "^[Ff][Ee][0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}$",
       "type": "string"
     },
     "NPCName": {
-      "$ref": "#/definitions/NonEmptyString"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
-    "NonEmptyString": {
-      "pattern": "^.+$",
+    "NonEmptyTrimmedString": {
+      "pattern": "^(?=\\S)(?=\\S.*\\S$).*",
       "type": "string"
     },
     "OutfitName": {
-      "$ref": "#/definitions/NonEmptyString"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "PresetName": {
-      "$ref": "#/definitions/NonEmptyString"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "RaceName": {
-      "$ref": "#/definitions/EditorID"
+      "pattern": "^\\S+Race(Vampire)?$",
+      "type": "string"
     },
     "blacklistedNpcs": {
       "default": [],

@@ -47,7 +47,7 @@ namespace PresetManager {
             }
 
             auto presets = doc.child("SliderPresets");
-            for (auto& node : presets) {
+            for (const auto& node : presets) {
                 auto preset = GeneratePreset(node);
                 if (!preset) continue;
 
@@ -81,19 +81,15 @@ namespace PresetManager {
                      blacklistedMalePresets.size());
     }
 
-    std::optional<Preset> GeneratePreset(pugi::xml_node a_node) {
-        std::string name{a_node.attribute("name").value()};
+    std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node) {
+        const std::string_view name{a_node.attribute("name").value()};
 
-        // Some preset names have dumb trailing whitespaces which may mess up the configuration file...
-        boost::trim(name);
         if (IsClothedSet(name)) return {};
 
-        std::string body = a_node.attribute("set").value();
-        auto sliderSet = SliderSetFromNode(a_node, GetBodyType(body));
+        const std::string_view body{a_node.attribute("set").value()};
+        const auto sliderSet{SliderSetFromNode(a_node, GetBodyType(body))};
 
-        Preset preset(name, body);
-        preset.sliders = sliderSet;
-        return preset;
+        return Preset{name.data(), body.data(), sliderSet};
     }
 
     Preset GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name, const bool female) {
@@ -130,7 +126,7 @@ namespace PresetManager {
                                  const bool female) {
         if (a_presetNames.empty()) {
             logger::info("Preset names size is empty, returning a random one");
-            const auto& container = PresetManager::PresetContainer::GetInstance();
+            const auto& container{PresetManager::PresetContainer::GetInstance()};
             return GetRandomPreset(female ? container.femalePresets : container.malePresets);
         }
 
@@ -174,7 +170,7 @@ namespace PresetManager {
         for (auto& node : a_node) {
             if (!stl::cmp(node.name(), "SetSlider")) continue;
 
-            std::string name = node.attribute("name").value();
+            std::string_view name{node.attribute("name").value()};
 
             bool inverted{false};
             if (a_body == BodyType::UNP) {
@@ -182,12 +178,12 @@ namespace PresetManager {
             }
 
             float min{0}, max{0};
-            float val = node.attribute("value").as_float() / 100.0f;
-            auto size = node.attribute("size").value();
+            const float val{node.attribute("value").as_float() / 100.0f};
+            const auto size{node.attribute("size").value()};
 
             (stl::cmp(size, "big") ? max : min) = inverted ? 1.0f - val : val;
 
-            AddSliderToSet(ret, Slider(name, min, max), inverted);
+            AddSliderToSet(ret, Slider(name.data(), min, max), inverted);
         }
 
         return ret;
@@ -195,7 +191,7 @@ namespace PresetManager {
 
     void AddSliderToSet(SliderSet& a_sliderSet, Slider&& a_slider, [[maybe_unused]] bool a_inverted) {
         if (const auto it = a_sliderSet.find(a_slider.name); it != a_sliderSet.end()) {
-            constexpr float val = 0;
+            constexpr float val{};
             auto& current = it->second;
             if ((current.min == val) && (a_slider.min != val)) current.min = a_slider.min;
             if ((current.max == val) && (a_slider.max != val)) current.max = a_slider.max;

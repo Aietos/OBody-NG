@@ -33,9 +33,9 @@ namespace Parser {
 
     bool IsActorInForm(const RE::TESNPC* form, const std::string_view target) {
         if (GetHasSourceFileArray(form) && !form->sourceFiles.array->empty()) {
-            RE::TESFile** sourceFiles = form->sourceFiles.array->data();
+            RE::TESFile** sourceFiles{form->sourceFiles.array->data()};
 
-            for (int i = 0; i < form->sourceFiles.array->size(); i++) {
+            for (int i{}; i < form->sourceFiles.array->size(); i++) {
                 if (sourceFiles[i]->fileName == target) {
                     return true;
                 }
@@ -93,7 +93,7 @@ namespace Parser {
     }
 
     void JSONParser::ProcessNPCsFormID() {
-        const auto npcFormIDItr{ presetDistributionConfig.FindMember("npcFormID") };
+        const auto npcFormIDItr{presetDistributionConfig.FindMember("npcFormID")};
         logger::info(TitleFormatSpecifier, npcFormIDItr->name.GetString());
         if (npcFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
@@ -135,7 +135,7 @@ namespace Parser {
     }
 
     void JSONParser::ProcessNPCsFormIDBlacklist() {
-        const auto blacklistedNpcsFormIDItr{ presetDistributionConfig.FindMember("blacklistedNpcsFormID") };
+        const auto blacklistedNpcsFormIDItr{presetDistributionConfig.FindMember("blacklistedNpcsFormID")};
         logger::info(TitleFormatSpecifier, blacklistedNpcsFormIDItr->name.GetString());
         if (blacklistedNpcsFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
@@ -171,7 +171,8 @@ namespace Parser {
     }
 
     void JSONParser::ProcessOutfitsFormIDBlacklist() {
-        const auto blacklistedOutfitsFromORefitFormIDItr{ presetDistributionConfig.FindMember("blacklistedOutfitsFromORefitFormID") };
+        const auto blacklistedOutfitsFromORefitFormIDItr{
+            presetDistributionConfig.FindMember("blacklistedOutfitsFromORefitFormID")};
         logger::info(TitleFormatSpecifier, blacklistedOutfitsFromORefitFormIDItr->name.GetString());
         if (blacklistedOutfitsFromORefitFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
@@ -208,7 +209,7 @@ namespace Parser {
     }
 
     void JSONParser::ProcessOutfitsForceRefitFormIDBlacklist() {
-        const auto outfitsForceRefitFormIDItr{ presetDistributionConfig.FindMember("outfitsForceRefitFormID") };
+        const auto outfitsForceRefitFormIDItr{presetDistributionConfig.FindMember("outfitsForceRefitFormID")};
         logger::info(TitleFormatSpecifier, outfitsForceRefitFormIDItr->name.GetString());
         if (outfitsForceRefitFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
@@ -545,20 +546,19 @@ namespace Parser {
         logger::info("After Filtering: \n{}", buffer.GetString());
     }
 
-    // ReSharper disable once CppPassValueParameterByConstReference
-    bool JSONParser::IsStringInJsonConfigKey(std::string a_value, const char* key) {
-        boost::trim(a_value);
-
-        return presetDistributionConfig.HasMember(key) &&
-               std::find(presetDistributionConfig[key].Begin(), presetDistributionConfig[key].End(), a_value.c_str()) !=
-                   presetDistributionConfig[key].End();
+    bool JSONParser::IsStringInJsonConfigKey(const std::string_view a_value, const char* key) {
+        const auto obj{presetDistributionConfig.FindMember(key)};
+        if (obj == presetDistributionConfig.MemberEnd()) {
+            return false;
+        }
+        const auto& objValue = obj->value;
+        return std::find(objValue.Begin(), objValue.End(), a_value.data()) != objValue.End();
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
-    bool JSONParser::IsSubKeyInJsonConfigKey(const char* key, std::string subKey) {
-        boost::trim(subKey);
-
-        return presetDistributionConfig.HasMember(key) && presetDistributionConfig[key].HasMember(subKey.c_str());
+    bool JSONParser::IsSubKeyInJsonConfigKey(const char* key, const std::string_view subKey) {
+        const auto obj{presetDistributionConfig.FindMember(key)};
+        return obj != presetDistributionConfig.MemberEnd() && obj->value.HasMember(subKey.data());
     }
 
     bool JSONParser::IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit) {
@@ -614,7 +614,7 @@ namespace Parser {
     }
 
     bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const bool female) {
-        auto actorOwningMod = GetNthFormLocationName(a_actor, 0);
+        const auto actorOwningMod{GetNthFormLocationName(a_actor, 0)};
 
         if (female) {
             return IsStringInJsonConfigKey(actorOwningMod, "blacklistedNpcsPluginFemale") ||

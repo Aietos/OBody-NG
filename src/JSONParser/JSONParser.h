@@ -32,8 +32,8 @@ namespace Parser {
         bool IsOutfitInForceRefitCategorySet(uint32_t formID) const;
 
         categorizedList GetNPCFromCategorySet(uint32_t formID) const;
-        bool IsStringInJsonConfigKey(std::string a_value, const char* key);
-        bool IsSubKeyInJsonConfigKey(const char* key, std::string subKey);
+        bool IsStringInJsonConfigKey(std::string_view a_value, const char* key);
+        bool IsSubKeyInJsonConfigKey(const char* key, std::string_view subKey);
 
         bool IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit);
         bool IsAnyForceRefitItemEquipped(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);

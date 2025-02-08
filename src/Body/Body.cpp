@@ -28,7 +28,7 @@ namespace Body {
         // amount of time. That is useful for undressing/redressing.
         // If performance mode is turned off, we also apply morphs randomly immediately no matter the context.
 
-        RE::ActorHandle actorHandle = a_actor->GetHandle();
+        RE::ActorHandle actorHandle{a_actor->GetHandle()};
 
         if (updateMorphsWithoutTimer || !setPerformanceMode) {
             if (RE::Actor* actor = actorHandle.get().get()) {
@@ -52,7 +52,7 @@ namespace Body {
             std::mt19937 rng{seed};
             std::uniform_int_distribution gen{3, 7};
 
-            auto sleepFor = gen(rng);
+            auto sleepFor{gen(rng)};
             // ReSharper restore CppDFAUnusedValue
             // ReSharper restore CppDFAUnreadVariable
 
@@ -60,9 +60,7 @@ namespace Body {
             std::thread([this, actorHandle, actorName, sleepFor] {
                 std::this_thread::sleep_for(std::chrono::seconds(sleepFor));
 
-                RE::Actor* actor = actorHandle.get().get();
-
-                if (actor != nullptr) {
+                if (RE::Actor * actor{actorHandle.get().get()}) {
                     logger::info("Actor {} is valid, updating morphs now", actorName);
 
                     SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
@@ -195,7 +193,7 @@ namespace Body {
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const {
-        const auto& presetContainer = PresetContainer::GetInstance();
+        const auto& presetContainer{PresetContainer::GetInstance()};
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
         if (synthesisInstalled && a_actor != nullptr) {
@@ -254,7 +252,7 @@ namespace Body {
     }
 
     void OBody::ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const {
-        const float weight = GetWeight(a_actor);
+        const float weight{GetWeight(a_actor)};
         for (const auto& slider : a_sliders | std::views::values) ApplySlider(a_actor, slider, a_key, weight);
     }
 
@@ -276,11 +274,11 @@ namespace Body {
     bool OBody::IsClotheActive(RE::Actor* a_actor) const { return morphInterface->HasBodyMorphKey(a_actor, "OClothe"); }
 
     bool OBody::IsNaked(RE::Actor* a_actor, const bool a_removingArmor, const RE::TESForm* a_equippedArmor) {
-        auto& jsonParser = Parser::JSONParser::GetInstance();
+        auto& jsonParser{Parser::JSONParser::GetInstance()};
 
-        auto outfitBody = a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kBody);
-        auto outergarmentChest = a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kModChestPrimary);
-        auto undergarmentChest = a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kModChestSecondary);
+        auto outfitBody{a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kBody)};
+        auto outergarmentChest{a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kModChestPrimary)};
+        auto undergarmentChest{a_actor->GetWornArmor(RE::BGSBipedObjectForm::BipedObjectSlot::kModChestSecondary)};
 
         // When the TES EquipEvent is sent, the inventory isn't updated yet
         // So we have to check if any of these armors is being removed...

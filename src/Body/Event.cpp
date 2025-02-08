@@ -3,7 +3,7 @@
 #include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
 
-Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
+constinit Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
 
 void Event::OBodyEventHandler::Register() {
     if (auto* const events{RE::ScriptEventSourceHolder::GetSingleton()}) {

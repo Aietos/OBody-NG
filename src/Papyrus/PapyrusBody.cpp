@@ -29,7 +29,8 @@ namespace PapyrusBody {
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
-    void SetDistributionKey(RE::StaticFunctionTag*, const std::string a_distributionKey) {
+    void SetDistributionKey(RE::StaticFunctionTag*,
+                            const std::string a_distributionKey) {  // NOLINT(*-unnecessary-value-param)
         Body::OBody::GetInstance().distributionKey = a_distributionKey;
     }
 
@@ -54,7 +55,8 @@ namespace PapyrusBody {
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
-    void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_name) {
+    void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor,
+                           const std::string a_name) {  // NOLINT(*-unnecessary-value-param)
         Body::OBody::GetInstance().GenerateBodyByName(a_actor, a_name);
     }
 
@@ -74,26 +76,24 @@ namespace PapyrusBody {
 
     std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const auto& obody{Body::OBody::GetInstance()};
 
-        const auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
+        const auto& presetDistributionConfig{Parser::JSONParser::GetInstance().presetDistributionConfig};
+        const auto showBlacklistedPresetsItr{presetDistributionConfig.FindMember("blacklistedPresetsShowInOBodyMenu")};
+        const auto end{presetDistributionConfig.MemberEnd()};
 
-        bool showBlacklistedPresets{true};
+        // Default to showing blacklisted presets if the key is missing or invalid
+        bool showBlacklistedPresets{false};
 
-        // For some reason, some users get CTDs when reading this value, even when everything else seems correct...
-        // Also happens when used with Immersive Equipment displays. I have no idea why.
-        // Catch the error, default to True in case something fails
-        if (!(presetDistributionConfig.HasMember("blacklistedPresetsShowInOBodyMenu") &&
-              presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].IsBool())) {
+        if (showBlacklistedPresetsItr != end && showBlacklistedPresetsItr->value.IsBool()) {
+            showBlacklistedPresets = showBlacklistedPresetsItr->value.GetBool();
+        } else {
             logger::info(
                 "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted presets "
                 "in OBody menu.");
-        } else {
-            showBlacklistedPresets = presetDistributionConfig["blacklistedPresetsShowInOBodyMenu"].GetBool();
         }
 
         auto presets_to_show =
-            (obody.IsFemale(a_actor)
+            (Body::OBody::IsFemale(a_actor)
                  ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
                  : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets)) |
             std::views::transform(&PresetManager::Preset::name);

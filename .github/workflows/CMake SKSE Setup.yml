@@ -8,7 +8,7 @@ on:
 
 env:
   PROJECT_NAME: OBody
-  PROJECT_VERSION: 4.3.3.0
+  PROJECT_VERSION: 4.3.4.0
 
 
 jobs:

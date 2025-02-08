@@ -43,7 +43,7 @@ namespace {
                     return;
                 }
 
-                auto morphInterface =
+                const auto morphInterface =
                     static_cast<SKEE::IBodyMorphInterface*>(msg.interfaceMap->QueryInterface("BodyMorph"));
                 if (!morphInterface) {
                     logger::critical("Couldn't get serialization MorphInterface!");
@@ -156,12 +156,26 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
     }
     if (rapidjson::SchemaValidator validator(schema); !parser.presetDistributionConfig.Accept(validator)) {
         rapidjson::StringBuffer sb;
-        validator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        const auto invalidSchemaPointer = validator.GetInvalidSchemaPointer();
+        invalidSchemaPointer.StringifyUriFragment(sb);
         logger::error("Invalid schema: {}", sb.GetString());
         logger::error("Invalid keyword: {}", validator.GetInvalidSchemaKeyword());
         sb.Clear();
-        validator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        const auto invalidDocumentPointer = validator.GetInvalidDocumentPointer();
+        invalidDocumentPointer.StringifyUriFragment(sb);
         logger::error("Invalid document: {}", sb.GetString());
+        sb.Clear();
+        if (auto* err_value_ptr = invalidDocumentPointer.Get(parser.presetDistributionConfig)) {
+            rapidjson::PrettyWriter writer(sb);
+            err_value_ptr->Accept(writer);
+            logger::error("Error at: {}", sb.GetString());
+            sb.Clear();
+        }
+        if (auto* err_values_schema_pointer = invalidSchemaPointer.Get(sd)) {
+            rapidjson::PrettyWriter writer(sb);
+            err_values_schema_pointer->Accept(writer);
+            logger::error("Schema Definition of Error: {}", sb.GetString());
+        }
         SKSE::stl::report_and_fail(
             "Please Check the Obody.log. Seems like there is an error when validating the json schema");
     }

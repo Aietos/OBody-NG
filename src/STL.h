@@ -132,7 +132,7 @@ namespace stl {
 
         for (auto& item : json_array.GetArray()) {
             if (item.IsString()) {  // Ensure item is a string before processing
-                std::string strValue = item.GetString();
+                std::string strValue{ item.GetString() };
                 if (seen.insert(strValue).second) {  // Insert succeeds only if not already in set
                     uniqueArray.PushBack(item, allocator);
                 }
