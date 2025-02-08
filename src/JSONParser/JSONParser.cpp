@@ -637,7 +637,7 @@ namespace Parser {
         const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
                                                         : presetContainer.allMalePresets};
 
-        auto& a_faction = presetDistributionConfig[female ? "factionFemale" : "factionMale"];
+        auto& a_faction{presetDistributionConfig[female ? "factionFemale" : "factionMale"]};
 
         for (auto itr = a_faction.MemberBegin(); itr != a_faction.MemberEnd(); ++itr) {
             auto& [key, value] = *itr;
@@ -667,16 +667,21 @@ namespace Parser {
 
         if (!character.bodyslidePresets.empty()) {
             characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character.bodyslidePresets);
-        } else if (presetDistributionConfig.HasMember("npc") && presetDistributionConfig["npc"].HasMember(actorName)) {
-            characterBodyslidePresets.reserve(presetDistributionConfig["npc"][actorName].Size());
-            for (const auto& item : presetDistributionConfig["npc"][actorName].GetArray()) {
+            return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
+        }
+        if (const auto npcItr{presetDistributionConfig.FindMember("npc")};
+            npcItr != presetDistributionConfig.MemberEnd()) {
+            const auto npcActorItr{npcItr->value.FindMember(actorName)};
+
+            if (npcActorItr == npcItr->value.MemberEnd()) return {};
+
+            characterBodyslidePresets.reserve(npcActorItr->value.Size());
+            for (const auto& item : npcActorItr->value.GetArray()) {
                 characterBodyslidePresets.emplace_back(item.GetString());
             }
-
-        }  // else {
-        // }
-
-        return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
+            return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
+        }
+        return {};
     }
 
     PresetManager::Preset JSONParser::GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName,
