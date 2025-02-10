@@ -28,13 +28,19 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoadGameEvent* a_event,
                                                                 RE::BSTEventSource<RE::TESLoadGameEvent>*) {
     if (!a_event) return RE::BSEventNotifyControl::kContinue;
-
-    if (!Parser::JSONParser::GetInstance().bodyslidePresetsParsingValid) {
+    const auto& parser{Parser::JSONParser::GetInstance()};
+    if (!parser.bodyslidePresetsParsingValid) {
         RE::DebugMessageBox(
             "A critical error has occurred while parsing the Bodyslide presets files. This most likely means "
             "you have a corrupt bodyslide preset, or a bodyslide preset where the name contains "
             "special/incompatible characters. As a result, the presets list in the OBody menu will be empty. "
             "Please exit the game now and refer to the OBody NG mod page for more information.");
+    }
+
+    if (parser.invalid_presets != 0) {
+        char message[256];
+        sprintf_s(message, std::size(message), "There are %zu invalid presets(s) with parsing errors, they wont be loaded in but are logged in OBody.log", parser.invalid_presets);
+        RE::DebugMessageBox(message);
     }
 
     return RE::BSEventNotifyControl::kContinue;

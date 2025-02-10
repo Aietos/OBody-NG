@@ -54,10 +54,8 @@ namespace stl {
             std::uniform_int_distribution<T> distrib(min, max - 1);
             return distrib(gen);
         } else if constexpr (std::is_floating_point_v<T>) {
-            std::uniform_real_distribution<T> distrib(min, max);
-            T res = distrib(gen);
-            while (res == max) res = distrib(gen);  // to get around rounding issue with floating point numbers
-            return res;
+            std::uniform_real_distribution<T> distrib(min, std::nextafter(max, min));
+            return distrib(gen);
         }
     }
 
@@ -82,8 +80,10 @@ namespace stl {
         return elements;
     }
 
+    using PO3_tweaks_GetFormEditorID = const char* (*)(std::uint32_t);  // NOLINT(*-reserved-identifier)
+    static PO3_tweaks_GetFormEditorID func{};
+
     inline std::string get_editorID(const RE::TESForm* a_form) {
-        using _GetFormEditorID = const char* (*)(std::uint32_t);  // NOLINT(*-reserved-identifier)
         switch (a_form->GetFormType()) {
             case RE::FormType::Keyword:
             case RE::FormType::LocationRefType:
@@ -114,8 +114,6 @@ namespace stl {
             case RE::FormType::SoundRecord:
                 return a_form->GetFormEditorID();
             default: {
-                static auto tweaks{GetModuleHandleA("po3_Tweaks")};
-                static auto func{reinterpret_cast<_GetFormEditorID>(GetProcAddress(tweaks, "GetFormEditorID"))};
                 if (func) {
                     return func(a_form->formID);
                 }
@@ -127,13 +125,13 @@ namespace stl {
     static void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array, rapidjson::Value::AllocatorType& allocator) {
         if (!json_array.IsArray()) return;
 
-        std::unordered_set<std::string> seen;
+        std::unordered_set<std::string_view> seen;
         rapidjson::Value uniqueArray(rapidjson::kArrayType);
 
         for (auto& item : json_array.GetArray()) {
-            if (item.IsString()) {  // Ensure item is a string before processing
-                std::string strValue{ item.GetString() };
-                if (seen.insert(strValue).second) {  // Insert succeeds only if not already in set
+            if (item.IsString()) {
+                if (const std::string_view strValue{item.GetString()};
+                    strValue.data() && seen.insert(strValue).second) {
                     uniqueArray.PushBack(item, allocator);
                 }
             }
@@ -202,7 +200,7 @@ namespace stl {
             : curr(std::move(a_curr)) {}
 
         ~timeit() {
-            const auto stop = std::chrono::steady_clock::now() - start;
+            const auto stop{std::chrono::steady_clock::now() - start};
             logger::info(
                 "Time Taken in '{}' is {} nanoseconds or {} microseconds or {} milliseconds or {} seconds or "
                 "{} minutes",

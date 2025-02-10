@@ -75,7 +75,7 @@ namespace Parser {
         return false;
     }
 
-    categorizedList JSONParser::GetNPCFromCategorySet(const uint32_t formID) const {
+    std::optional<categorizedList> JSONParser::GetNPCFromCategorySet(const uint32_t formID) const {
         for (const categorizedList& character : characterCategorySet) {
             if (character.formID == formID) {
                 return character;
@@ -624,7 +624,7 @@ namespace Parser {
                IsStringInJsonConfigKey(actorRace, "blacklistedRacesMale");
     }
 
-    PresetManager::Preset JSONParser::GetNPCFactionPreset(const RE::TESNPC* a_actor, const bool female) {
+    std::optional<PresetManager::Preset> JSONParser::GetNPCFactionPreset(const RE::TESNPC* a_actor, const bool female) {
         auto actorRanks{a_actor->factions | std::views::transform(&RE::FACTION_RANK::faction)};
 
         const std::vector<RE::TESFaction*> actorFactions{actorRanks.begin(), actorRanks.end()};
@@ -640,7 +640,7 @@ namespace Parser {
         auto& a_faction{presetDistributionConfig[female ? "factionFemale" : "factionMale"]};
 
         for (auto itr = a_faction.MemberBegin(); itr != a_faction.MemberEnd(); ++itr) {
-            auto& [key, value] = *itr;
+            auto& [key, value]{*itr};
             if (std::ranges::find(actorFactions, RE::TESFaction::LookupByEditorID(key.GetString())) !=
                 actorFactions.end()) {
                 std::vector<std::string_view> copy_of_value{value.Size()};
@@ -648,14 +648,15 @@ namespace Parser {
                     copy_of_value.emplace_back(item.GetString());
                 }
 
-                return PresetManager::GetRandomPresetByName(presetSet, std::move(copy_of_value), female);
+                return PresetManager::GetRandomPresetByName(presetSet, copy_of_value, female);
             }
         }
 
         return {};
     }
 
-    PresetManager::Preset JSONParser::GetNPCPreset(const char* actorName, const uint32_t formID, const bool female) {
+    std::optional<PresetManager::Preset> JSONParser::GetNPCPreset(const char* actorName, const uint32_t formID,
+                                                                  const bool female) {
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
         const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
@@ -665,9 +666,11 @@ namespace Parser {
 
         std::vector<std::string_view> characterBodyslidePresets;
 
-        if (!character.bodyslidePresets.empty()) {
-            characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character.bodyslidePresets);
-            return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
+        if (character.has_value()) {
+            if (!character->bodyslidePresets.empty()) {
+                characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character->bodyslidePresets);
+                return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
+            }
         }
         if (const auto npcItr{presetDistributionConfig.FindMember("npc")};
             npcItr != presetDistributionConfig.MemberEnd()) {
@@ -684,8 +687,8 @@ namespace Parser {
         return {};
     }
 
-    PresetManager::Preset JSONParser::GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName,
-                                                         const bool female) {
+    std::optional<PresetManager::Preset> JSONParser::GetNPCPluginPreset(const RE::TESNPC* a_actor,
+                                                                        const char* actorName, const bool female) {
         const char* keyForPreset{female ? "npcPluginFemale" : "npcPluginMale"};
 
         if (presetDistributionConfig.HasMember(keyForPreset)) {
@@ -705,7 +708,7 @@ namespace Parser {
                         presets_copy.emplace_back(item.GetString());
                     }
 
-                    return GetRandomPresetByName(presetSet, std::move(presets_copy), female);
+                    return GetRandomPresetByName(presetSet, presets_copy, female);
                 }
             }
         }
@@ -713,7 +716,7 @@ namespace Parser {
         return {};
     }
 
-    PresetManager::Preset JSONParser::GetNPCRacePreset(const char* actorRace, const bool female) {
+    std::optional<PresetManager::Preset> JSONParser::GetNPCRacePreset(const char* actorRace, const bool female) {
         const char* key{female ? "raceFemale" : "raceMale"};
 
         if (IsSubKeyInJsonConfigKey(key, actorRace)) {
@@ -725,7 +728,7 @@ namespace Parser {
             for (const auto& item : presetDistributionConfig[key][actorRace].GetArray()) {
                 presets_copy.emplace_back(item.GetString());
             }
-            return PresetManager::GetRandomPresetByName(presetSet, std::move(presets_copy), female);
+            return PresetManager::GetRandomPresetByName(presetSet, presets_copy, female);
         }
 
         return {};

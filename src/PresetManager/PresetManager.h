@@ -25,7 +25,7 @@ namespace PresetManager {
     struct Preset {
         Preset() = default;
         explicit Preset(const char* a_name) : name(a_name) {}
-        Preset(const char* a_name, const char* a_body, const SliderSet& a_sliders)
+        Preset(const char* a_name, const char* a_body, SliderSet&& a_sliders)
             : name(a_name), body(a_body), sliders(std::move(a_sliders)) {}
         ~Preset() = default;
 
@@ -72,7 +72,7 @@ namespace PresetManager {
     Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
                                  bool female);
 
-    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name, bool female);
+    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
 
     void GeneratePresets();
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node);

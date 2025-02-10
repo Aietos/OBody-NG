@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing import Dict, List, Annotated
 
-type BSTFile = Annotated[str, Field(pattern=r"^(?=\S)(?=\S.*\.es[plm]$).*")]  # NonEmptyTrimmedString but ends with .es[plm]
+type BSTFile = Annotated[str, Field(pattern=r"""^(?!.*(PRN|AUX|NUL|CO(N|M[0-9¹²³])|LPT[0-9¹²³]|[<>:"/\|?*]))(?=\S)(?=.+\S\.es[plm]$).*""")]  # NonEmptyTrimmedString but ends with .es[plm]
 
 type FormID = Annotated[str, Field(pattern=r'^[Ff][Ee][0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}$')]
 
@@ -13,7 +13,7 @@ type EditorID = Annotated[str, Field(pattern=r"^\S+$")]
 
 type RaceName = Annotated[str, Field(pattern=r"^\S+Race(Vampire)?$")]
 
-type NonEmptyTrimmedString = Annotated[str, Field(pattern=r"^(?=\S)(?=\S.*\S$).*")]
+type NonEmptyTrimmedString = Annotated[str, Field(pattern=r"^(?=\S)(?=.*\S$).*")]
 
 type PresetName = NonEmptyTrimmedString
 

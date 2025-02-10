@@ -17,18 +17,18 @@ namespace PresetManager {
 
         auto& container{PresetManager::PresetContainer::GetInstance()};
 
-        auto& femalePresets = container.femalePresets;
-        auto& malePresets = container.malePresets;
+        auto& femalePresets{container.femalePresets};
+        auto& malePresets{container.malePresets};
 
-        auto& allFemalePresets = container.allFemalePresets;
-        auto& allMalePresets = container.allMalePresets;
+        auto& allFemalePresets{container.allFemalePresets};
+        auto& allMalePresets{container.allMalePresets};
 
-        auto& blacklistedFemalePresets = container.blacklistedFemalePresets;
-        auto& blacklistedMalePresets = container.blacklistedMalePresets;
+        auto& blacklistedFemalePresets{container.blacklistedFemalePresets};
+        auto& blacklistedMalePresets{container.blacklistedMalePresets};
+        auto& parser{Parser::JSONParser::GetInstance()};
+        auto& presetDistributionConfig{parser.presetDistributionConfig};
 
-        auto& presetDistributionConfig = Parser::JSONParser::GetInstance().presetDistributionConfig;
-
-        auto& blacklistedPresets = presetDistributionConfig["blacklistedPresetsFromRandomDistribution"];
+        auto& blacklistedPresets{presetDistributionConfig["blacklistedPresetsFromRandomDistribution"]};
         stl::RemoveDuplicatesInJsonArray(blacklistedPresets, presetDistributionConfig.GetAllocator());
         const auto blacklistedPresetsBegin = blacklistedPresets.Begin();
         const auto blacklistedPresetsEnd = blacklistedPresets.End();
@@ -43,6 +43,7 @@ namespace PresetManager {
                 wchar_t buffer[1024];
                 swprintf_s(buffer, std::size(buffer), L"load failed: %s [%hs]", path.c_str(), result.description());
                 SPDLOG_WARN(buffer);
+                parser.invalid_presets++;
                 continue;
             }
 
@@ -75,8 +76,7 @@ namespace PresetManager {
         allMalePresets = malePresets;
         allMalePresets.insert_range(allMalePresets.end(), blacklistedMalePresets);
 
-        logger::info("Female presets: {}", femalePresets.size());
-        logger::info("Male presets: {}", malePresets.size());
+        logger::info("Female presets: {}, Male presets: {}", femalePresets.size(), malePresets.size());
         logger::info("Blacklisted: Female presets: {}, Male Presets: {}", blacklistedFemalePresets.size(),
                      blacklistedMalePresets.size());
     }
@@ -87,9 +87,8 @@ namespace PresetManager {
         if (IsClothedSet(name)) return {};
 
         const std::string_view body{a_node.attribute("set").value()};
-        const auto sliderSet{SliderSetFromNode(a_node, GetBodyType(body))};
 
-        return Preset{name.data(), body.data(), sliderSet};
+        return Preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
     }
 
     Preset GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name, const bool female) {
@@ -110,7 +109,7 @@ namespace PresetManager {
         return a_presetSet[stl::random(0llu, a_presetSet.size())];
     }
 
-    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name, bool /*female*/) {
+    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name) {
         logger::info("Looking for preset: {}", a_name);
 
         for (const auto& preset : a_presetSet) {
@@ -132,12 +131,12 @@ namespace PresetManager {
 
         static_assert(std::is_same_v<decltype(0llu), decltype(a_presetNames.size())>,
                       "Ensure that below literal is of type std::size_t");
-        const std::string_view chosenPreset = a_presetNames[stl::random(0llu, a_presetNames.size())].data();
+        const std::string_view chosenPreset{a_presetNames[stl::random(0llu, a_presetNames.size())]};
 
-        Preset preset = GetPresetByNameForRandom(a_presetSet, chosenPreset, female);
+        Preset preset{GetPresetByNameForRandom(a_presetSet, chosenPreset)};
 
         if (preset.name.empty()) {
-            if (const auto iterator = std::ranges::find(a_presetNames, chosenPreset); iterator != a_presetNames.end()) {
+            if (const auto iterator{std::ranges::find(a_presetNames, chosenPreset)}; iterator != a_presetNames.end()) {
                 a_presetNames.erase(iterator);
             }
 

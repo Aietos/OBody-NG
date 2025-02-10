@@ -15,15 +15,21 @@ namespace {
         }
         *path /= std::format("{}.log", SKSE::PluginDeclaration::GetSingleton()->GetName());
 
-        std::shared_ptr<spdlog::logger> log =
-            (REX::W32::IsDebuggerPresent())
-                ? std::make_shared<spdlog::logger>("Global", std::make_shared<spdlog::sinks::msvc_sink_mt>())
-                : std::make_shared<spdlog::logger>(
-                      "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
+        auto log{std::make_shared<spdlog::logger>("Global")};
+        auto& log_sinks{log->sinks()};
+
+        if (REX::W32::IsDebuggerPresent()) {
+            log_sinks.reserve(2);
+            const auto msvc_sink{std::make_shared<spdlog::sinks::msvc_sink_mt>()};
+            msvc_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [OBody.dll,%s:%#] %v");
+            log_sinks.emplace_back(msvc_sink);
+        }
+        const auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
+        file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
+        log_sinks.emplace_back(file_sink);
 
         log->set_level(spdlog::level::info);
         log->flush_on(spdlog::level::info);
-        log->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
         spdlog::set_default_logger(std::move(log));
     }
 
@@ -96,6 +102,13 @@ namespace {
             case SKSE::MessagingInterface::kPostLoadGame: {
                 logger::info("Game finished loading");
                 Event::OBodyEventHandler::Register();
+                return;
+            }
+            case SKSE::MessagingInterface::kPostLoad: {
+                const REX::W32::HMODULE tweaks{REX::W32::GetModuleHandleA("po3_Tweaks")};
+                stl::func = reinterpret_cast<stl::PO3_tweaks_GetFormEditorID>(
+                    REX::W32::GetProcAddress(tweaks, "GetFormEditorID"));
+                logger::info("Got po3_tweaks api: {}", stl::func != nullptr);
                 return;
             }
             default:

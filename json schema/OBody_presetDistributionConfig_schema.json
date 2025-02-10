@@ -69,7 +69,7 @@
   "type": "object",
   "definitions": {
     "BSTFile": {
-      "pattern": "^(?=\\S)(?=\\S.*\\.es[plm]$).*",
+      "pattern": "^(?!.*(PRN|AUX|NUL|CO(N|M[0-9\u00b9\u00b2\u00b3])|LPT[0-9\u00b9\u00b2\u00b3]|[<>:\"/\\|?*]))(?=\\S)(?=.+\\S\\.es[plm]$).*",
       "type": "string"
     },
     "EditorID": {
@@ -84,7 +84,7 @@
       "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "NonEmptyTrimmedString": {
-      "pattern": "^(?=\\S)(?=\\S.*\\S$).*",
+      "pattern": "^(?=\\S)(?=.*\\S$).*",
       "type": "string"
     },
     "OutfitName": {

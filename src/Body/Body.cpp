@@ -136,8 +136,6 @@ namespace Body {
             return;
         }
 
-        PresetManager::Preset preset;
-
         auto& jsonParser{Parser::JSONParser::GetInstance()};
 
         auto actorBase{a_actor->GetActorBase()};
@@ -154,9 +152,9 @@ namespace Body {
         }
 
         // First, we attempt to get the NPC's preset from the keys npcFormID and npc from the JSON
-        preset = jsonParser.GetNPCPreset(actorName, actorID, female);
+        std::optional<Preset> preset{jsonParser.GetNPCPreset(actorName, actorID, female)};
 
-        if (preset.name.empty()) {
+        if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
@@ -170,26 +168,26 @@ namespace Body {
             preset = jsonParser.GetNPCFactionPreset(actorBase, female);
 
             // If that also fails, we check if we have a preset in the NPC's plugin
-            if (preset.name.empty()) {
+            if (!preset.has_value()) {
                 preset = jsonParser.GetNPCPluginPreset(actorBase, actorName, female);
             }
 
             // And if that also fails, we check if we have a preset in the NPC's race
-            if (preset.name.empty()) {
+            if (!preset.has_value()) {
                 preset = jsonParser.GetNPCRacePreset(actorRace.c_str(), female);
             }
         }
 
         // If we got here without a preset, then we just fetch one randomly
-        if (preset.name.empty()) {
+        if (!preset.has_value()) {
             logger::info("No preset defined for this actor, getting it randomly");
             preset =
                 PresetManager::GetRandomPreset(female ? presetContainer.femalePresets : presetContainer.malePresets);
         }
 
-        logger::info("Preset {} will be applied to {}", preset.name, actorName);
+        logger::info("Preset {} will be applied to {}", preset->name, actorName);
 
-        GenerateBodyByPreset(a_actor, preset, false);
+        GenerateBodyByPreset(a_actor, *preset, false);
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const {
@@ -200,8 +198,8 @@ namespace Body {
             SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
         }
 
-        Preset preset = GetPresetByName(
-            IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_name, true);
+        Preset preset{GetPresetByName(
+            IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_name, true)};
 
         GenerateBodyByPreset(a_actor, preset, true);
     }
@@ -219,13 +217,13 @@ namespace Body {
         if (IsFemale(a_actor)) {
             // Generate random nipple sliders if needed
             if (setNippleRand) {
-                PresetManager::SliderSet set = GenerateRandomNippleSliders();
+                PresetManager::SliderSet set{GenerateRandomNippleSliders()};
                 ApplySliderSet(a_actor, set, "OBody");
             }
 
             if (setGenitalRand) {
                 // Generate random genital sliders if needed
-                PresetManager::SliderSet set = GenerateRandomGenitalSliders();
+                PresetManager::SliderSet set{GenerateRandomGenitalSliders()};
                 ApplySliderSet(a_actor, set, "OBody");
             }
         }
@@ -247,7 +245,7 @@ namespace Body {
 
     void OBody::ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                             const float a_weight) const {
-        const float val = ((a_slider.max - a_slider.min) * a_weight) + a_slider.min;
+        const float val{((a_slider.max - a_slider.min) * a_weight) + a_slider.min};
         morphInterface->SetMorph(a_actor, a_slider.name.c_str(), a_key, val);
     }
 
