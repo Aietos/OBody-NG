@@ -109,7 +109,7 @@ namespace PresetManager {
         return a_presetSet[stl::random(0llu, a_presetSet.size())];
     }
 
-    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name) {
+    std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name) {
         logger::info("Looking for preset: {}", a_name);
 
         for (const auto& preset : a_presetSet) {
@@ -133,9 +133,9 @@ namespace PresetManager {
                       "Ensure that below literal is of type std::size_t");
         const std::string_view chosenPreset{a_presetNames[stl::random(0llu, a_presetNames.size())]};
 
-        Preset preset{GetPresetByNameForRandom(a_presetSet, chosenPreset)};
+        const std::optional<Preset> preset{GetPresetByNameForRandom(a_presetSet, chosenPreset)};
 
-        if (preset.name.empty()) {
+        if (!preset.has_value()) {
             if (const auto iterator{std::ranges::find(a_presetNames, chosenPreset)}; iterator != a_presetNames.end()) {
                 a_presetNames.erase(iterator);
             }
@@ -143,7 +143,7 @@ namespace PresetManager {
             return GetRandomPresetByName(a_presetSet, a_presetNames, female);
         }
 
-        return preset;
+        return *preset;
     }
 
     bool IsFemalePreset(const Preset& a_preset) {

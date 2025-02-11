@@ -72,7 +72,7 @@ namespace PresetManager {
     Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
                                  bool female);
 
-    Preset GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
+    std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
 
     void GeneratePresets();
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node);
