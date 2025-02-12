@@ -7,7 +7,7 @@ from typing import Dict, List, Annotated
 
 type BSTFile = Annotated[str, Field(pattern=r"""^(?!.*(PRN|AUX|NUL|CO(N|M[0-9¹²³])|LPT[0-9¹²³]|[<>:"/\|?*]))(?=\S)(?=.+\.es[plm]$).*""")]  # NonEmptyTrimmedString but ends with .es[plm]
 
-type FormID = Annotated[str, Field(pattern=r'^[0-9A-Fa-f]{0,8}$')]
+type FormID = Annotated[str, Field(pattern=r'^[0-9A-Fa-f]{3,8}$')]
 
 type EditorID = Annotated[str, Field(pattern=r"^\S+$")]
 
