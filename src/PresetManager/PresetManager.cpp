@@ -40,7 +40,7 @@ namespace PresetManager {
 
             pugi::xml_document doc;
             if (auto result = doc.load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
-                wchar_t buffer[1024];
+                wchar_t buffer[2048];
                 swprintf_s(buffer, std::size(buffer), L"load failed: %s [%hs]", path.c_str(), result.description());
                 SPDLOG_WARN(buffer);
                 parser.invalid_presets++;

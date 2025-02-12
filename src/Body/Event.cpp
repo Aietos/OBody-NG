@@ -39,7 +39,10 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoa
 
     if (parser.invalid_presets != 0) {
         char message[256];
-        sprintf_s(message, std::size(message), "There are %zu invalid presets(s) with parsing errors, they wont be loaded in but are logged in OBody.log", parser.invalid_presets);
+        sprintf_s(message, std::size(message),
+                  "There was(were) %zu invalid presets(s) with parsing error(s), they won't be loaded in but are "
+                  "logged in OBody.log. Look for \"load failed: {filename} [{error description}]\"",
+                  parser.invalid_presets);  // max length possible: 187
         RE::DebugMessageBox(message);
     }
 

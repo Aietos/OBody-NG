@@ -69,7 +69,7 @@
   "type": "object",
   "definitions": {
     "BSTFile": {
-      "pattern": "^(?!.*(PRN|AUX|NUL|CO(N|M[0-9\u00b9\u00b2\u00b3])|LPT[0-9\u00b9\u00b2\u00b3]|[<>:\"/\\|?*]))(?=\\S)(?=.+\\S\\.es[plm]$).*",
+      "pattern": "^(?!.*(PRN|AUX|NUL|CO(N|M[0-9\u00b9\u00b2\u00b3])|LPT[0-9\u00b9\u00b2\u00b3]|[<>:\"/\\|?*]))(?=\\S)(?=.+\\.es[plm]$).*",
       "type": "string"
     },
     "EditorID": {
@@ -77,7 +77,7 @@
       "type": "string"
     },
     "FormID": {
-      "pattern": "^[Ff][Ee][0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}$",
+      "pattern": "^[0-9A-Fa-f]{0,8}$",
       "type": "string"
     },
     "NPCName": {
@@ -140,6 +140,7 @@
         "LS Force Naked",
         "OBody Nude 32"
       ],
+      "description": "Same as blacklistedOutfitsFromORefitFormID, but you use outfit names instead of their FormID.",
       "items": {
         "$ref": "#/definitions/OutfitName"
       },

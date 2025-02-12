@@ -50,7 +50,7 @@ namespace {
                 }
 
                 const auto morphInterface =
-                    static_cast<SKEE::IBodyMorphInterface*>(msg.interfaceMap->QueryInterface("BodyMorph"));
+                    static_cast<SKEE::IBodyMorphInterface*>(msg.interfaceMap->QueryInterface("BodyMorph")); // NOLINT(*-pro-type-static-cast-downcast)
                 if (!morphInterface) {
                     logger::critical("Couldn't get serialization MorphInterface!");
                     return;
@@ -190,7 +190,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
             logger::error("Schema Definition of Error: {}", sb.GetString());
         }
         SKSE::stl::report_and_fail(
-            "Please Check the Obody.log. Seems like there is an error when validating the json schema");
+            "Please Check the Obody.log. Seems like there is an error when validating the config using the json schema");
     }
     logger::info("Validated Data/SKSE/Plugins/OBody_presetDistributionConfig.json successfully");
     logger::info("{} has finished loading.", plugin->GetName());

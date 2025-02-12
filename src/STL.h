@@ -40,11 +40,11 @@ namespace stl {
             char errorMessage[256];
             if constexpr (std::is_floating_point_v<T>) {
                 sprintf_s(errorMessage, std::size(errorMessage),
-                          "The Value of min: '%f' must be lesser than the value of max: '%f'", min, max);
+                          "The Value of min: '%f' must be lesser than the value of max: '%f'", min, max); //max length possible: 153
             } else {
                 sprintf_s(errorMessage, std::size(errorMessage),
                           "The Value of min: '%lld' must be lesser than the value of max: '%lld'",
-                          static_cast<long long>(min), static_cast<long long>(max));
+                          static_cast<long long>(min), static_cast<long long>(max)); //max length possible: 99
             }
             throw std::invalid_argument(errorMessage);
         }
@@ -152,7 +152,7 @@ namespace stl {
         explicit FilePtrManager(const wchar_t* path, const wchar_t* mode = L"rb") noexcept
             : err(_wfopen_s(&fp, path, mode)) {
             if (err != 0) {
-                wchar_t buffer[1024];
+                wchar_t buffer[2048];
                 swprintf_s(buffer, std::size(buffer), L"Failed to open file '%s' pointer. Error: %hs", path,
                            strerror(err));
                 SPDLOG_ERROR(buffer);
@@ -197,7 +197,7 @@ namespace stl {
     class timeit {
     public:
         explicit timeit(const std::source_location& a_curr = std::source_location::current())
-            : curr(std::move(a_curr)) {}
+            : curr(a_curr) {}
 
         ~timeit() {
             const auto stop{std::chrono::steady_clock::now() - start};

@@ -85,11 +85,10 @@ namespace Parser {
         return {};
     }
 
-    inline std::string_view DiscardFormDigits(const std::string_view formID) {
-        if (formID.starts_with("FE")) {
-            return formID.substr(5);
-        }
-        return formID.substr(2);
+    inline std::string DiscardFormDigits(const std::string_view formID, const RE::TESFile* mod) {
+        char temp[9]{"00000000"};
+        std::memcpy(temp + (8 - formID.length()), formID.data(), formID.length());
+        return std::string(temp + (mod->IsLight() ? 5 : 2));
     }
 
     void JSONParser::ProcessNPCsFormID() {
@@ -97,18 +96,19 @@ namespace Parser {
         logger::info(TitleFormatSpecifier, npcFormIDItr->name.GetString());
         if (npcFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            auto& npcFormID = npcFormIDItr->value;
-            for (auto itr = npcFormID.MemberBegin(); itr != npcFormID.MemberEnd();) {
-                auto& [owningMod, value] = *itr;
-                if (!data_handler->LookupModByName(owningMod.GetString())) {
+            auto& npcFormID{npcFormIDItr->value};
+            for (auto itr{npcFormID.MemberBegin()}; itr != npcFormID.MemberEnd();) {
+                auto& [owningMod, value]{*itr};
+                const auto* const file{data_handler->LookupModByName(owningMod.GetString())};
+                if (!file) {
                     logger::info("removed '{}'", owningMod.GetString());
                     itr = npcFormID.EraseMember(itr);
                     continue;
                 }
                 for (auto valueItr = value.MemberBegin(); valueItr != value.MemberEnd(); ++valueItr) {
-                    auto& [formKey, formValue] = *valueItr;
+                    auto& [formKey, formValue]{*valueItr};
                     stl::RemoveDuplicatesInJsonArray(formValue, presetDistributionConfig.GetAllocator());
-                    std::string_view formID{DiscardFormDigits(formKey.GetString())};
+                    std::string formID{DiscardFormDigits(formKey.GetString(), file)};
 
                     uint32_t hexnumber;
                     sscanf_s(formID.data(), "%x", &hexnumber);
@@ -139,17 +139,18 @@ namespace Parser {
         logger::info(TitleFormatSpecifier, blacklistedNpcsFormIDItr->name.GetString());
         if (blacklistedNpcsFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            auto& blacklistedNpcsFormID = blacklistedNpcsFormIDItr->value;
-            for (auto itr = blacklistedNpcsFormID.MemberBegin(); itr != blacklistedNpcsFormID.MemberEnd();) {
+            auto& blacklistedNpcsFormID{blacklistedNpcsFormIDItr->value};
+            for (auto itr{blacklistedNpcsFormID.MemberBegin()}; itr != blacklistedNpcsFormID.MemberEnd();) {
                 auto& [plugin, val] = *itr;
-                if (!data_handler->LookupModByName(plugin.GetString())) {
+                const auto* const file{data_handler->LookupModByName(plugin.GetString())};
+                if (!file) {
                     logger::info("removed '{}'", plugin.GetString());
                     itr = blacklistedNpcsFormID.EraseMember(itr);
                     continue;
                 }
                 stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
                 for (const auto& formIDRaw : val.GetArray()) {
-                    std::string_view formID{DiscardFormDigits(formIDRaw.GetString())};
+                    std::string formID{DiscardFormDigits(formIDRaw.GetString(), file)};
                     uint32_t hexnumber;
                     sscanf_s(formID.data(), "%x", &hexnumber);
 
@@ -176,18 +177,19 @@ namespace Parser {
         logger::info(TitleFormatSpecifier, blacklistedOutfitsFromORefitFormIDItr->name.GetString());
         if (blacklistedOutfitsFromORefitFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            auto& blacklistedOutfitsFromORefitFormID = blacklistedOutfitsFromORefitFormIDItr->value;
-            for (auto itr = blacklistedOutfitsFromORefitFormID.MemberBegin();
+            auto& blacklistedOutfitsFromORefitFormID{blacklistedOutfitsFromORefitFormIDItr->value};
+            for (auto itr{blacklistedOutfitsFromORefitFormID.MemberBegin()};
                  itr != blacklistedOutfitsFromORefitFormID.MemberEnd();) {
-                auto& [plugin, val] = *itr;
-                if (!data_handler->LookupModByName(plugin.GetString())) {
+                auto& [plugin, val]{*itr};
+                const auto* const file{data_handler->LookupModByName(plugin.GetString())};
+                if (!file) {
                     logger::info("removed '{}'", plugin.GetString());
                     itr = blacklistedOutfitsFromORefitFormID.EraseMember(itr);
                     continue;
                 }
                 stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
                 for (const auto& formIDRaw : val.GetArray()) {
-                    std::string_view formID{DiscardFormDigits(formIDRaw.GetString())};
+                    std::string formID{DiscardFormDigits(formIDRaw.GetString(), file)};
                     uint32_t hexnumber;
                     sscanf_s(formID.data(), "%x", &hexnumber);
 
@@ -213,17 +215,18 @@ namespace Parser {
         logger::info(TitleFormatSpecifier, outfitsForceRefitFormIDItr->name.GetString());
         if (outfitsForceRefitFormIDItr != presetDistributionConfig.MemberEnd()) {
             auto* const data_handler{RE::TESDataHandler::GetSingleton()};
-            auto& outfitsForceRefitFormID = outfitsForceRefitFormIDItr->value;
-            for (auto itr = outfitsForceRefitFormID.MemberBegin(); itr != outfitsForceRefitFormID.MemberEnd();) {
-                auto& [plugin, val] = *itr;
-                if (!data_handler->LookupModByName(plugin.GetString())) {
+            auto& outfitsForceRefitFormID{outfitsForceRefitFormIDItr->value};
+            for (auto itr{outfitsForceRefitFormID.MemberBegin()}; itr != outfitsForceRefitFormID.MemberEnd();) {
+                auto& [plugin, val]{*itr};
+                const auto* const file{data_handler->LookupModByName(plugin.GetString())};
+                if (!file) {
                     logger::info("removed '{}'", plugin.GetString());
                     itr = outfitsForceRefitFormID.EraseMember(itr);
                     continue;
                 }
                 stl::RemoveDuplicatesInJsonArray(val, presetDistributionConfig.GetAllocator());
                 for (const auto& formIDRaw : val.GetArray()) {
-                    std::string_view formID{DiscardFormDigits(formIDRaw.GetString())};
+                    std::string formID{DiscardFormDigits(formIDRaw.GetString(), file)};
                     uint32_t hexnumber;
                     sscanf_s(formID.data(), "%x", &hexnumber);
 

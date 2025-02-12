@@ -5,9 +5,9 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing import Dict, List, Annotated
 
-type BSTFile = Annotated[str, Field(pattern=r"""^(?!.*(PRN|AUX|NUL|CO(N|M[0-9¹²³])|LPT[0-9¹²³]|[<>:"/\|?*]))(?=\S)(?=.+\S\.es[plm]$).*""")]  # NonEmptyTrimmedString but ends with .es[plm]
+type BSTFile = Annotated[str, Field(pattern=r"""^(?!.*(PRN|AUX|NUL|CO(N|M[0-9¹²³])|LPT[0-9¹²³]|[<>:"/\|?*]))(?=\S)(?=.+\.es[plm]$).*""")]  # NonEmptyTrimmedString but ends with .es[plm]
 
-type FormID = Annotated[str, Field(pattern=r'^[Ff][Ee][0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}$')]
+type FormID = Annotated[str, Field(pattern=r'^[0-9A-Fa-f]{0,8}$')]
 
 type EditorID = Annotated[str, Field(pattern=r"^\S+$")]
 
@@ -39,7 +39,7 @@ type blacklistedOutfitsFromORefitPlugin = Annotated[List[BSTFile], Field(default
 type blacklistedRacesFemale = Annotated[List[RaceName], Field(default=["ElderRace"], description="Here you can blacklist females of entire races instead of individual NPCs.")]
 type blacklistedRacesMale = Annotated[List[RaceName], Field(default=["ElderRace"], description="Same as blacklistedRacesFemale, but for male NPCs.")]
 type blacklistedPresetsFromRandomDistribution = Annotated[List[PresetName], Field(default=["- Zeroed Sliders -", "-Zeroed Sliders-", "Zeroed Sliders", "HIMBO Zero for OBody"], description="Should be self explanatory. Set the presets you do NOT want OBody to distribute randomly.")]
-type blacklistedOutfitsFromORefit = Annotated[List[OutfitName], Field(default=["LS Force Naked", "OBody Nude 32"])]
+type blacklistedOutfitsFromORefit = Annotated[List[OutfitName], Field(default=["LS Force Naked", "OBody Nude 32"], description="Same as blacklistedOutfitsFromORefitFormID, but you use outfit names instead of their FormID.")]
 type outfitsForceRefit = Annotated[List[OutfitName], Field(default=[], description="Same as outfitsForceRefitFormID, but you use outfit names instead of their FormID.")]
 type blacklistedPresetsShowInOBodyMenu = Annotated[bool, Field(default=True, description="Whether you want the blacklisted presets to show in the O menu or not.")]
 

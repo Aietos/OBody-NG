@@ -6,6 +6,7 @@
 // Note: add new modules here before using
 #include <unordered_set>
 #include <ranges>
+#include <filesystem>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
 
