@@ -319,6 +319,16 @@ namespace Body {
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
         ApplyMorphs(a_actor, true, false);
+
+        using Event = ::OBody::API::IActorChangeEventListener;
+        Event::OnActorMorphsCleared::Payload payload{};
+        Event::OnActorMorphsCleared::Flags flags{};
+
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        for (auto eventListener : actorChangeEventListeners) {
+            eventListener->OnActorMorphsCleared(a_actor, flags, payload);
+        }
     }
 
     void OBody::RemoveClothePreset(RE::Actor* a_actor) const { morphInterface->ClearBodyMorphKeys(a_actor, "OClothe"); }
