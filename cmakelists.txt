@@ -22,6 +22,7 @@ configure_file(
         @ONLY)
 
 set(sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/API/PluginInterface.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Body.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/Papyrus.cpp
