@@ -60,6 +60,15 @@ namespace PapyrusBody {
         Body::OBody::GetInstance().GenerateBodyByName(a_actor, a_name);
     }
 
+    // The trailing underscore is there because the `RemoveClothesOverlay` defined
+    // in the Papyrus script is non-native, and making it native could have broken
+    // pre-existing scripts, so now it forwards to the native `RemoveClothesOverlay_`.
+    void RemoveClothesOverlay_(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.RemoveClothePreset(a_actor);
+        obody.ApplyMorphs(a_actor, true);
+    }
+
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
         obody.ApplyClothePreset(a_actor);
@@ -112,6 +121,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(GenActor);
         OBODY_PAPYRUS_BIND(ApplyPresetByName);
         OBODY_PAPYRUS_BIND(GetAllPossiblePresets);
+        OBODY_PAPYRUS_BIND(RemoveClothesOverlay_);
         OBODY_PAPYRUS_BIND(AddClothesOverlay);
         OBODY_PAPYRUS_BIND(RegisterForOBodyEvent);
         OBODY_PAPYRUS_BIND(RegisterForOBodyNakedEvent);
