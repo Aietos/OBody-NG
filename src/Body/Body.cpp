@@ -228,11 +228,15 @@ namespace Body {
             }
         }
 
+        bool isNaked = IsNaked(a_actor, false, nullptr);
+        bool orefitIsApplied = false;
+
         // If not naked and if ORefit is turned on, apply ORefit morphing
-        if (!IsNaked(a_actor, false, nullptr)) {
+        if (!isNaked) {
             if (setRefit) {
                 logger::info("Not naked, adding cloth preset");
                 ApplyClothePreset(a_actor);
+                orefitIsApplied = true;
             }
         } else {
             logger::info("Actor is naked, not applying cloth preset");
@@ -240,6 +244,27 @@ namespace Body {
         }
 
         ApplyMorphs(a_actor, updateMorphsWithoutTimer);
+
+        using Event = ::OBody::API::IActorChangeEventListener;
+
+        Event::OnActorGenerated::Payload payload{.presetName{a_preset.name.data(), a_preset.name.size()}};
+
+        Event::OnActorGenerated::Flags flags{};
+        static_assert(Event::OnActorGenerated::Flags::IsClothed == (1 << 0));
+        static_assert(Event::OnActorGenerated::Flags::IsORefitApplied == (1 << 1));
+        static_assert(Event::OnActorGenerated::Flags::IsORefitEnabled == (1 << 2));
+        flags = static_cast<Event::OnActorGenerated::Flags>(flags | uint64_t(!isNaked));
+        flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(orefitIsApplied) << 1));
+        flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(setRefit) << 2));
+
+        {
+            std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+            for (auto eventListener : actorChangeEventListeners) {
+                eventListener->OnActorGenerated(a_actor, flags, payload);
+            }
+        }
+
         OnActorGenerated.SendEvent(a_actor, a_preset.name);
     }
 
