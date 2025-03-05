@@ -67,12 +67,38 @@ namespace PapyrusBody {
         const auto& obody{Body::OBody::GetInstance()};
         obody.RemoveClothePreset(a_actor);
         obody.ApplyMorphs(a_actor, true);
+
+        using Event = ::OBody::API::IActorChangeEventListener;
+        Event::OnORefitForcefullyChanged::Payload payload{};
+
+        Event::OnORefitForcefullyChanged::Flags flags{};
+        static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
+        flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
+
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        for (auto eventListener : obody.actorChangeEventListeners) {
+            eventListener->OnORefitForcefullyChanged(a_actor, flags, payload);
+        }
     }
 
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
         obody.ApplyClothePreset(a_actor);
         obody.ApplyMorphs(a_actor, true);
+
+        using Event = ::OBody::API::IActorChangeEventListener;
+        Event::OnORefitForcefullyChanged::Payload payload{};
+
+        Event::OnORefitForcefullyChanged::Flags flags{Event::OnORefitForcefullyChanged::Flags::IsORefitApplied};
+        static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
+        flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
+
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        for (auto eventListener : obody.actorChangeEventListeners) {
+            eventListener->OnORefitForcefullyChanged(a_actor, flags, payload);
+        }
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
