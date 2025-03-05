@@ -1,5 +1,6 @@
 #pragma once
 
+#include "API/PluginInterface.h"
 #include "PresetManager/PresetManager.h"
 #include "SKEE.h"
 
@@ -61,6 +62,10 @@ namespace Body {
         bool AttachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
         bool DetachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
 
+        bool AttachEventListener(::OBody::API::IActorChangeEventListener& eventListener);
+        bool DetachEventListener(::OBody::API::IActorChangeEventListener& eventListener);
+        bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
+
         bool readyForPluginAPIUsage = false;
 
         bool synthesisInstalled = false;
@@ -74,6 +79,9 @@ namespace Body {
         std::string distributionKey;
 
         SKEE::IBodyMorphInterface* morphInterface{};
+
+        mutable std::recursive_mutex actorChangeListenerLock;
+        std::vector<::OBody::API::IActorChangeEventListener*> actorChangeEventListeners;
 
         mutable std::recursive_mutex readinessListenerLock;
         std::vector<::OBody::API::IOBodyReadinessEventListener*> readinessEventListeners;

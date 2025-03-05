@@ -601,4 +601,26 @@ namespace Body {
 
         return std::erase(readinessEventListeners, &eventListener) != 0;
     }
+
+    bool OBody::AttachEventListener(::OBody::API::IActorChangeEventListener& eventListener) {
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        actorChangeEventListeners.push_back(&eventListener);
+
+        return true;
+    }
+
+    bool OBody::DetachEventListener(::OBody::API::IActorChangeEventListener& eventListener) {
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        return std::erase(actorChangeEventListeners, &eventListener) != 0;
+    }
+
+    bool OBody::IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener) {
+        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+        return std::find(actorChangeEventListeners.begin(), actorChangeEventListeners.end(), &eventListener) !=
+               actorChangeEventListeners.end();
+    }
+
 }  // namespace Body
