@@ -34,7 +34,65 @@ namespace {
     }
 
     // ReSharper disable once CppParameterMayBeConstPtrOrRef
-    void MessageHandler(SKSE::MessagingInterface::Message* a_msg) {
+    void PluginInterfaceMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
+        switch (a_msg->type) {
+            case OBody::API::SKSEMessages::RequestPluginInterface::type: {
+                // To maintain ABI-compatibility we specify the size of the first version of the
+                // `OBody::API::SKSEMessages::RequestPluginInterface` structure, instead of using `sizeof`.
+                if (a_msg->dataLen < sizeof(void*) * 3) {
+                    logger::error("An invalid RequestPluginInterface message of only {} bytes was sent by {}.",
+                                  a_msg->dataLen, a_msg->sender);
+                    return;
+                }
+
+                using Version = OBody::API::PluginAPIVersion;
+
+                auto request = reinterpret_cast<OBody::API::SKSEMessages::RequestPluginInterface*>(a_msg->data);
+
+                if (request->version == Version::Invalid || request->version > Version::Latest) {
+                    logger::error("An unsupported plugin-API version of {} was requested by {}.",
+                                  std::to_underlying(request->version), a_msg->sender);
+                    return;
+                }
+
+                if (request->readinessEventListener == nullptr) {
+                    logger::error(
+                        "No `IOBodyReadinessEventListener` instance was supplied with a `RequestPluginInterface` "
+                        "message sent by {}.",
+                        a_msg->sender);
+                    return;
+                }
+
+                auto requestedVersion = request->version;
+
+                switch (requestedVersion) {
+                    case Version::v1: {
+                        auto& obody{Body::OBody::GetInstance()};
+                        auto& readinessListener = *request->readinessEventListener;
+
+                        *request->pluginInterface = new OBody::API::PluginInterface(a_msg->sender);
+
+                        obody.AttachEventListener(readinessListener);
+
+                        std::lock_guard<std::recursive_mutex> lock(obody.readinessListenerLock);
+
+                        if (obody.readyForPluginAPIUsage) {
+                            readinessListener.OBodyIsBecomingReady();
+                            readinessListener.OBodyIsReady();
+                        }
+
+                        break;
+                    }
+                }
+
+                logger::info("A plugin interface of plugin-API version {} was supplied to {}.",
+                             std::to_underlying(requestedVersion), a_msg->sender);
+                return;
+            }
+        }
+    }
+
+    void SKSEMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
         auto& obody{Body::OBody::GetInstance()};
 
         switch (a_msg->type) {
@@ -115,6 +173,10 @@ namespace {
                 stl::func = reinterpret_cast<stl::PO3_tweaks_GetFormEditorID>(
                     REX::W32::GetProcAddress(tweaks, "GetFormEditorID"));
                 logger::info("Got po3_tweaks api: {}", stl::func != nullptr);
+
+                SKSE::GetMessagingInterface()->RegisterListener(nullptr, PluginInterfaceMessageHandler);
+                logger::info("Registered the PluginInterfaceMessageHandler.");
+
                 return;
             }
             default:
@@ -132,7 +194,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
 
     SKSE::Init(a_skse, false);
 
-    if (const auto* const message = SKSE::GetMessagingInterface(); !message->RegisterListener(MessageHandler)) {
+    if (const auto* const message = SKSE::GetMessagingInterface(); !message->RegisterListener(SKSEMessageHandler)) {
         return false;
     }
 
