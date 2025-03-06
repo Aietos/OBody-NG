@@ -125,29 +125,36 @@ namespace Body {
             orefitIsApplied = true;
         }
     notifyNativeEventListeners:
-        using Event = ::OBody::API::IActorChangeEventListener;
+        // It's particularly important that we avoid sending events recursively for this event,
+        // because if an event-listener equips or unequips armour in response to it it can
+        // easily cause an infinite loop of `TESEquipEvent`s, which would freeze the game
+        // until it crashes from a stack overflow.
+        SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
 
-        Event::OnActorClothingUpdate::Payload payload{.changedEquipment{a_equippedArmor}};
+                Event::OnActorClothingUpdate::Payload payload{a_equippedArmor};
 
-        Event::OnActorClothingUpdate::Flags flags{};
-        static_assert(Event::OnActorClothingUpdate::Flags::IsClothed == (1 << 0));
-        static_assert(Event::OnActorClothingUpdate::Flags::IsORefitApplied == (1 << 1));
-        static_assert(Event::OnActorClothingUpdate::Flags::IsORefitEnabled == (1 << 2));
-        static_assert(Event::OnActorClothingUpdate::Flags::IsProcessed == (1 << 3));
-        static_assert(Event::OnActorClothingUpdate::Flags::IsBlacklisted == (1 << 4));
-        static_assert(Event::OnActorClothingUpdate::Flags::ActorIsEquipping == (1 << 5));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | uint64_t(!naked));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(orefitIsApplied) << 1));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(setRefit) << 2));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(isProcessed) << 3));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(isBlacklisted) << 4));
-        flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(!a_removingArmor) << 5));
+                Event::OnActorClothingUpdate::Flags flags{};
+                static_assert(Event::OnActorClothingUpdate::Flags::IsClothed == (1 << 0));
+                static_assert(Event::OnActorClothingUpdate::Flags::IsORefitApplied == (1 << 1));
+                static_assert(Event::OnActorClothingUpdate::Flags::IsORefitEnabled == (1 << 2));
+                static_assert(Event::OnActorClothingUpdate::Flags::IsProcessed == (1 << 3));
+                static_assert(Event::OnActorClothingUpdate::Flags::IsBlacklisted == (1 << 4));
+                static_assert(Event::OnActorClothingUpdate::Flags::ActorIsEquipping == (1 << 5));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | uint64_t(!naked));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(orefitIsApplied) << 1));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(setRefit) << 2));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(isProcessed) << 3));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(isBlacklisted) << 4));
+                flags = static_cast<Event::OnActorClothingUpdate::Flags>(flags | (uint64_t(!a_removingArmor) << 5));
 
-        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
-
-        for (auto eventListener : actorChangeEventListeners) {
-            eventListener->OnActorClothingUpdate(a_actor, flags, payload);
-        }
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnActorClothingUpdate(actor, args.first, args.second);
+            });
     }
 
     void OBody::GenerateActorBody(RE::Actor* a_actor) const {
@@ -276,25 +283,26 @@ namespace Body {
 
         ApplyMorphs(a_actor, updateMorphsWithoutTimer);
 
-        using Event = ::OBody::API::IActorChangeEventListener;
+        SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
 
-        Event::OnActorGenerated::Payload payload{.presetName{a_preset.name.data(), a_preset.name.size()}};
+                Event::OnActorGenerated::Payload payload{
+                    // Note that the plugin-API mandates that this be a null-terminated string.
+                    {a_preset.name.data(), a_preset.name.size()}};
 
-        Event::OnActorGenerated::Flags flags{};
-        static_assert(Event::OnActorGenerated::Flags::IsClothed == (1 << 0));
-        static_assert(Event::OnActorGenerated::Flags::IsORefitApplied == (1 << 1));
-        static_assert(Event::OnActorGenerated::Flags::IsORefitEnabled == (1 << 2));
-        flags = static_cast<Event::OnActorGenerated::Flags>(flags | uint64_t(!isNaked));
-        flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(orefitIsApplied) << 1));
-        flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(setRefit) << 2));
+                Event::OnActorGenerated::Flags flags{};
+                static_assert(Event::OnActorGenerated::Flags::IsClothed == (1 << 0));
+                static_assert(Event::OnActorGenerated::Flags::IsORefitApplied == (1 << 1));
+                static_assert(Event::OnActorGenerated::Flags::IsORefitEnabled == (1 << 2));
+                flags = static_cast<Event::OnActorGenerated::Flags>(flags | uint64_t(!isNaked));
+                flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(orefitIsApplied) << 1));
+                flags = static_cast<Event::OnActorGenerated::Flags>(flags | (uint64_t(setRefit) << 2));
 
-        {
-            std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
-
-            for (auto eventListener : actorChangeEventListeners) {
-                eventListener->OnActorGenerated(a_actor, flags, payload);
-            }
-        }
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) { listener->OnActorGenerated(actor, args.first, args.second); });
 
         OnActorGenerated.SendEvent(a_actor, a_preset.name);
     }
@@ -320,15 +328,18 @@ namespace Body {
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
         ApplyMorphs(a_actor, true, false);
 
-        using Event = ::OBody::API::IActorChangeEventListener;
-        Event::OnActorMorphsCleared::Payload payload{};
-        Event::OnActorMorphsCleared::Flags flags{};
+        SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
+                Event::OnActorMorphsCleared::Payload payload{};
+                Event::OnActorMorphsCleared::Flags flags{};
 
-        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
-
-        for (auto eventListener : actorChangeEventListeners) {
-            eventListener->OnActorMorphsCleared(a_actor, flags, payload);
-        }
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnActorMorphsCleared(actor, args.first, args.second);
+            });
     }
 
     void OBody::RemoveClothePreset(RE::Actor* a_actor) const { morphInterface->ClearBodyMorphKeys(a_actor, "OClothe"); }

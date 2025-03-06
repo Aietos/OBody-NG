@@ -283,6 +283,61 @@ namespace OBody {
             can be expanded without breaking ABI compatibility.
             Every event returns a response, which OBody may or may not use.
             The payload is mutable as it may be used as an extended return-channel in future, if needed.
+
+            OBody aims to make it feasible to make changes to an actor in response to these events
+            without causing catastrophic bugs.
+            This is achieved primarily by these two means:
+              A) Events are not sent recursively, on a per-actor basis. That is, if an `IActorChangeEventListener`,
+                 in the act of responding to an event for a given actor,
+                 does something that would typically cause events to be sent to `IActorChangeEventListener`s:
+                 those events are not sent.
+              B) The state passed to event-listeners via the `flags` and `payload` parameters are not updated
+                 by OBody between the calls to each event-listener's method: those values are effectively
+                 frozen in time, to be as they were before any event-listeners made any changes.
+                 If an event-listener wants the most up-to-date true state, it must go out of its way to call the
+                 appropriate methods via its `IPluginInterface`.
+
+            To elucidate why this is done, consider the following scenarios:
+                We have Mod-A and Mod-B which have both registered an `IActorChangeEventListener`.
+                Mod-A wants to ensure that ORefit is disabled for a specific actor,
+                and so it disables ORefit for that actor in response to the events it handles.
+                Whereas, Mod-B wants to ensure that ORefit is enabled for a grouping of actors,
+                and the actor targeted by Mod-A falls within in the grouping,
+                and so it enables ORefit for that actor in response to the events it handles.
+
+                If OBody sent events recursively, what would happen is this:
+                    Mod-A would disable ORefit for the actor--triggering an `OnORefitForcefullyChanged` event--
+                    which Mod-B would receive and would thus then enable ORefit for the actor,
+                    which would then trigger another `OnORefitForcefullyChanged` event
+                    which Mod-A would react to. How would Mod-A react to the event?
+                    See the beginning of this paragraph for the answer.
+                    Mod-A and Mod-B would repeatedly reverse each other's changes
+                    until the game crashes due to a stack overflow.
+                    Before the crash, the game would be frozen.
+
+                    That would not be a sound basis for you to build your mod upon,
+                    hence why OBody does not send events recursively.
+
+                As OBody does not send events recursively, and does not update the event arguments between
+                event-listener calls, what actually happens is this:
+                    Mod-A will disable ORefit for the actor,
+                    and an `OnORefitForcefullyChanged` event won't be sent,
+                    Mod-B will observe that, according to the `flags` arguments, ORefit is enabled
+                    for the actor, and thus will do nothing.
+                    Or, it will call `IsORefitEnabled` on the actor, and find that ORefit is disabled,
+                    and so it would enable ORefit for the actor, and no `OnORefitForcefullyChanged` event will be sent.
+
+                    Note how the game does not freeze, nor does it crash.
+
+                To clarify how this behaves when multiple actors are involved,
+                say that we have one `IActorChangeEventListener`, and actors A, and B:
+                    The listener receives an event for actor-A, and makes a change to actor-A;
+                    the listener does not receive extra events for actor-A until all the listeners
+                    have handled actor-A.
+                    In the same event the listener makes a change to actor-B, the listener does receive
+                    an event for that change to actor-B, but if it makes further changes to actor-B or to actor-A
+                    in response to that event, no extra events will be sent.
+                    An so-on and so-on for any other actors.
         */
         class IActorChangeEventListener {
         public:

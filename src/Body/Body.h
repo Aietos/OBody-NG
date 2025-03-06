@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ActorTracker/ActorTracker.h"
 #include "API/PluginInterface.h"
 #include "PresetManager/PresetManager.h"
 #include "SKEE.h"
@@ -65,6 +66,42 @@ namespace Body {
         bool AttachEventListener(::OBody::API::IActorChangeEventListener& eventListener);
         bool DetachEventListener(::OBody::API::IActorChangeEventListener& eventListener);
         bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
+
+        template <typename PrepareArguments, typename EventMethod>
+        __forceinline void SendActorChangeEvent(RE::Actor* a_actor, PrepareArguments&& prepareArguments,
+                                                EventMethod&& eventMethod) const {
+            std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
+
+            if (actorChangeEventListeners.size() == 0) {
+                return;
+            }
+
+            auto& registry{ActorTracker::Registry::GetInstance()};
+            auto formID = a_actor->formID;
+
+            ActorTracker::ActorState fallbackActorState{};
+            fallbackActorState.actorChangeEventsAreBeingSent = true;
+
+            bool isRecursiveActorEvent = false;
+
+            registry.stateForActor.emplace_or_visit(formID, fallbackActorState, [&](auto& entry) {
+                isRecursiveActorEvent = entry.second.actorChangeEventsAreBeingSent;
+                entry.second.actorChangeEventsAreBeingSent = true;
+            });
+
+            if (isRecursiveActorEvent) {
+                return;
+            }
+
+            auto arguments = prepareArguments();
+
+            for (auto eventListener : actorChangeEventListeners) {
+                eventMethod(eventListener, a_actor, arguments);
+            }
+
+            registry.stateForActor.visit(formID,
+                                         [&](auto& entry) { entry.second.actorChangeEventsAreBeingSent = false; });
+        }
 
         bool readyForPluginAPIUsage = false;
 

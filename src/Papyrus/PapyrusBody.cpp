@@ -68,18 +68,21 @@ namespace PapyrusBody {
         obody.RemoveClothePreset(a_actor);
         obody.ApplyMorphs(a_actor, true);
 
-        using Event = ::OBody::API::IActorChangeEventListener;
-        Event::OnORefitForcefullyChanged::Payload payload{};
+        obody.SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
+                Event::OnORefitForcefullyChanged::Payload payload{};
 
-        Event::OnORefitForcefullyChanged::Flags flags{};
-        static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
-        flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
+                Event::OnORefitForcefullyChanged::Flags flags{};
+                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
+                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
 
-        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
-
-        for (auto eventListener : obody.actorChangeEventListeners) {
-            eventListener->OnORefitForcefullyChanged(a_actor, flags, payload);
-        }
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnORefitForcefullyChanged(actor, args.first, args.second);
+            });
     }
 
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
@@ -87,18 +90,21 @@ namespace PapyrusBody {
         obody.ApplyClothePreset(a_actor);
         obody.ApplyMorphs(a_actor, true);
 
-        using Event = ::OBody::API::IActorChangeEventListener;
-        Event::OnORefitForcefullyChanged::Payload payload{};
+        obody.SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
+                Event::OnORefitForcefullyChanged::Payload payload{};
 
-        Event::OnORefitForcefullyChanged::Flags flags{Event::OnORefitForcefullyChanged::Flags::IsORefitApplied};
-        static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
-        flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
+                Event::OnORefitForcefullyChanged::Flags flags{Event::OnORefitForcefullyChanged::Flags::IsORefitApplied};
+                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
+                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
 
-        std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
-
-        for (auto eventListener : obody.actorChangeEventListeners) {
-            eventListener->OnORefitForcefullyChanged(a_actor, flags, payload);
-        }
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnORefitForcefullyChanged(actor, args.first, args.second);
+            });
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
