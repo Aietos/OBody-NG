@@ -540,6 +540,54 @@ namespace Body {
         return Slider{a_morph, a_target - GetMorph(a_actor, a_morph)};
     }
 
+    bool OBody::BecomingReadyForPluginAPIUsage() {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        if (readyForPluginAPIUsage) {
+            return false;
+        }
+
+        for (auto eventListener : readinessEventListeners) {
+            eventListener->OBodyIsBecomingReady();
+        }
+
+        readyForPluginAPIUsage = true;
+
+        return true;
+    }
+
+    void OBody::ReadyForPluginAPIUsage() {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        for (auto eventListener : readinessEventListeners) {
+            eventListener->OBodyIsReady();
+        }
+    }
+
+    bool OBody::BecomingUnreadyForPluginAPIUsage() {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        if (!readyForPluginAPIUsage) {
+            return false;
+        }
+
+        for (auto eventListener : readinessEventListeners) {
+            eventListener->OBodyIsBecomingUnready();
+        }
+
+        return true;
+    }
+
+    void OBody::NoLongerReadyForPluginAPIUsage() {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        readyForPluginAPIUsage = false;
+
+        for (auto eventListener : readinessEventListeners) {
+            eventListener->OBodyIsNoLongerReady();
+        }
+    }
+
     bool OBody::AttachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener) {
         std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
 

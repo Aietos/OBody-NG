@@ -53,8 +53,15 @@ namespace Body {
 
         PresetManager::Slider DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const;
 
+        bool BecomingReadyForPluginAPIUsage();
+        void ReadyForPluginAPIUsage();
+        bool BecomingUnreadyForPluginAPIUsage();
+        void NoLongerReadyForPluginAPIUsage();
+
         bool AttachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
         bool DetachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
+
+        bool readyForPluginAPIUsage = false;
 
         bool synthesisInstalled = false;
 

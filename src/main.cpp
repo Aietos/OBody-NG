@@ -88,6 +88,12 @@ namespace {
 
                 logger::info("Synthesis installed value is {}.", obody.synthesisInstalled);
 
+                logger::info("Becoming ready for plugin-API usage.");
+                if (obody.BecomingReadyForPluginAPIUsage()) {
+                    obody.ReadyForPluginAPIUsage();
+                }
+                logger::info("Now ready for plugin-API usage.");
+
                 return;
             }
 
