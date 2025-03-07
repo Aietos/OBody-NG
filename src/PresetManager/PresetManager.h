@@ -1,5 +1,7 @@
 #pragma once
 
+#include <boost/unordered/unordered_flat_map.hpp>
+
 namespace PresetManager {
     enum class BodyType { CBBE, UNP };
 
@@ -20,7 +22,7 @@ namespace PresetManager {
         float max = 0.f;
     };
 
-    using SliderSet = std::unordered_map<std::string, Slider>;
+    using SliderSet = boost::unordered_flat_map<std::string, Slider>;
 
     struct Preset {
         Preset() = default;
