@@ -89,6 +89,9 @@ namespace OBody {
         enum class PluginAPIVersion { Invalid = 0, v1 = 1, Latest = v1 };
 
         class IActorChangeEventListener;
+        struct PresetCounts;
+        enum PresetCategory : uint64_t;
+
         /** See the documentation for `IPluginInterface`, this is its base class purely to make it
             easier to maintain ABI-compatibility.
 
@@ -190,6 +193,28 @@ namespace OBody {
 
             /** This is used to check whether OBody is sending events to `eventListener` or not. */
             virtual bool HasRegisteredEventListener(IActorChangeEventListener& eventListener) = 0;
+
+            /** This is used to get the number of presets that OBody recognises.
+                Every field of `payload` will be set by this function, you needn't initialise it. */
+            virtual void GetPresetCounts(PresetCounts& payload) = 0;
+
+            /** This is used to get a selection of the names of the presets recognised by OBody,
+                for a specific category of presets.
+
+                To use this function, supply a pointer to a contiguous span of `std::string_view`s
+                via the `buffer` parameter, and supply the length of that buffer via the `bufferLength` parameter.
+                This function will place as many preset names into your buffer as it can,
+                returning the number of preset names that it placed.
+
+                The `string_view`s that this function copies into your supplied buffer are guaranteed to
+                remain valid until OBody sends an `OBodyIsNoLongerReady` event to your `IOBodyReadinessEventListener`.
+                Additionally, those `string_view`s are guaranteed to be non-null,
+                and will point to null-terminated strings.
+
+                By default, this copies all the presets available, the `offset` and `limit` parameters
+                can be used to return only a subset of the preset names. */
+            virtual size_t GetPresetNames(PresetCategory category, std::string_view* buffer, size_t bufferLength,
+                                          size_t offset = 0, size_t limit = (std::numeric_limits<size_t>::max)()) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding
@@ -259,6 +284,29 @@ namespace OBody {
                 This event is effectively OBody yelling, "Last orders, please!".
             */
             virtual void OBodyIsBecomingUnready() {};
+        };
+
+        struct PresetCounts {
+            /** The number of non-blacklisted presets applicable to female actors. */
+            uint32_t female;
+            /** The number of blacklisted presets applicable to female actors. */
+            uint32_t femaleBlacklisted;
+            /** The number of non-blacklisted presets applicable to male actors. */
+            uint32_t male;
+            /** The number of blacklisted presets applicable to male actors. */
+            uint32_t maleBlacklisted;
+        };
+
+        enum PresetCategory : uint64_t {
+            PresetCategoryNone = 0,
+            /** Specifies non-blacklisted presets applicable to female actors. */
+            PresetCategoryFemale = 1 << 0,
+            /** Specifies blacklisted presets applicable to female actors. */
+            PresetCategoryFemaleBlacklisted = 1 << 1,
+            /** Specifies non-blacklisted presets applicable to male actors. */
+            PresetCategoryMale = 1 << 2,
+            /** Specifies blacklisted presets applicable to male actors. */
+            PresetCategoryMaleBlacklisted = 1 << 3
         };
 
         /** This is an interface for receiving events from OBody regarding the state of actors.

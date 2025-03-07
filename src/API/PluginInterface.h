@@ -24,6 +24,10 @@ namespace OBody {
             virtual bool RegisterEventListener(IActorChangeEventListener& eventListener) override;
             virtual bool DeregisterEventListener(IActorChangeEventListener& eventListener) override;
             virtual bool HasRegisteredEventListener(IActorChangeEventListener& eventListener) override;
+
+            virtual void GetPresetCounts(PresetCounts& payload) override;
+            virtual size_t GetPresetNames(PresetCategory category, std::string_view* buffer, size_t bufferLength,
+                                          size_t offset, size_t limit) override;
         };
     }  // namespace API
 }  // namespace OBody
