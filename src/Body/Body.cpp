@@ -539,4 +539,18 @@ namespace Body {
     Slider OBody::DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const {
         return Slider{a_morph, a_target - GetMorph(a_actor, a_morph)};
     }
+
+    bool OBody::AttachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener) {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        readinessEventListeners.push_back(&eventListener);
+
+        return true;
+    }
+
+    bool OBody::DetachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener) {
+        std::lock_guard<std::recursive_mutex> lock(readinessListenerLock);
+
+        return std::erase(readinessEventListeners, &eventListener) != 0;
+    }
 }  // namespace Body

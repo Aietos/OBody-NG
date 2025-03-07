@@ -53,6 +53,9 @@ namespace Body {
 
         PresetManager::Slider DeriveSlider(RE::Actor* a_actor, const char* a_morph, float a_target) const;
 
+        bool AttachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
+        bool DetachEventListener(::OBody::API::IOBodyReadinessEventListener& eventListener);
+
         bool synthesisInstalled = false;
 
         bool setRefit = true;
@@ -64,6 +67,9 @@ namespace Body {
         std::string distributionKey;
 
         SKEE::IBodyMorphInterface* morphInterface{};
+
+        mutable std::recursive_mutex readinessListenerLock;
+        std::vector<::OBody::API::IOBodyReadinessEventListener*> readinessEventListeners;
 
     private:
         static OBody instance_;
