@@ -69,46 +69,12 @@ namespace PapyrusBody {
     // pre-existing scripts, so now it forwards to the native `RemoveClothesOverlay_`.
     void RemoveClothesOverlay_(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
-        obody.RemoveClothePreset(a_actor);
-        obody.ApplyMorphs(a_actor, true);
-
-        obody.SendActorChangeEvent(
-            a_actor,
-            [&] {
-                using Event = ::OBody::API::IActorChangeEventListener;
-                Event::OnORefitForcefullyChanged::Payload payload{};
-
-                Event::OnORefitForcefullyChanged::Flags flags{};
-                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
-                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
-
-                return std::make_pair(flags, payload);
-            },
-            [](auto listener, auto actor, auto&& args) {
-                listener->OnORefitForcefullyChanged(actor, args.first, args.second);
-            });
+        obody.ForcefullyChangeORefit(a_actor, false, &obody.specialPapyrusPluginInterface);
     }
 
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
-        obody.ApplyClothePreset(a_actor);
-        obody.ApplyMorphs(a_actor, true);
-
-        obody.SendActorChangeEvent(
-            a_actor,
-            [&] {
-                using Event = ::OBody::API::IActorChangeEventListener;
-                Event::OnORefitForcefullyChanged::Payload payload{};
-
-                Event::OnORefitForcefullyChanged::Flags flags{Event::OnORefitForcefullyChanged::Flags::IsORefitApplied};
-                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
-                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(obody.setRefit) << 2));
-
-                return std::make_pair(flags, payload);
-            },
-            [](auto listener, auto actor, auto&& args) {
-                listener->OnORefitForcefullyChanged(actor, args.first, args.second);
-            });
+        obody.ForcefullyChangeORefit(a_actor, true, &obody.specialPapyrusPluginInterface);
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {

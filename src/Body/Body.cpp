@@ -364,6 +364,30 @@ namespace Body {
             });
     }
 
+    void OBody::ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
+                                       ::OBody::API::IPluginInterface* responsibleInterface) const {
+        applied ? ApplyClothePreset(a_actor) : RemoveClothePreset(a_actor);
+        ApplyMorphs(a_actor, true);
+
+        SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
+                Event::OnORefitForcefullyChanged::Payload payload{responsibleInterface};
+
+                Event::OnORefitForcefullyChanged::Flags flags{};
+                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitApplied == (1 << 1));
+                static_assert(Event::OnORefitForcefullyChanged::Flags::IsORefitEnabled == (1 << 2));
+                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(applied) << 1));
+                flags = static_cast<Event::OnORefitForcefullyChanged::Flags>(flags | (uint64_t(setRefit) << 2));
+
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnORefitForcefullyChanged(actor, args.first, args.second);
+            });
+    }
+
     void OBody::RemoveClothePreset(RE::Actor* a_actor) const { morphInterface->ClearBodyMorphKeys(a_actor, "OClothe"); }
 
     float OBody::GetWeight(RE::Actor* a_actor) { return a_actor->GetActorBase()->GetWeight() / 100.0F; }

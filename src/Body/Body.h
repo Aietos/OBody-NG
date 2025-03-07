@@ -41,6 +41,9 @@ namespace Body {
         void RemoveClothePreset(RE::Actor* a_actor) const;
         void ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
 
+        void ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
+                                    ::OBody::API::IPluginInterface* responsibleInterface) const;
+
         static float GetWeight(RE::Actor* a_actor);
 
         bool IsClotheActive(RE::Actor* a_actor) const;
