@@ -182,10 +182,18 @@ namespace Body {
 
         logger::info("Trying to find and apply preset to {}", actorName);
 
-        // If NPC is blacklisted, set him as processed
-        if (jsonParser.IsNPCBlacklisted(actorName, actorID)) {
+        auto blacklistNPC = [&] {
             SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
             SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0F);
+
+            // Clear their preset assignment, if they have one.
+            auto& registry{ActorTracker::Registry::GetInstance()};
+            registry.stateForActor.visit(actorID, [&](auto& entry) { entry.second.presetIndex = 0; });
+        };
+
+        // If NPC is blacklisted, set him as processed
+        if (jsonParser.IsNPCBlacklisted(actorName, actorID)) {
+            blacklistNPC();
             return;
         }
 
@@ -197,8 +205,7 @@ namespace Body {
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
             if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), female)) {
-                SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
-                SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0F);
+                blacklistNPC();
                 return;
             }
 
@@ -246,13 +253,25 @@ namespace Body {
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
                                      const bool updateMorphsWithoutTimer,
                                      ::OBody::API::IPluginInterface* responsibleInterface) const {
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+
+        // Assign the preset to the actor.
+        // Plus one because an index of zero on the actor signifies the absence of a preset.
+        uint32_t actorPresetIndex = a_preset.assignedIndex.value + 1;
+        ActorTracker::ActorState fallbackActorState{};
+        fallbackActorState.presetIndex = actorPresetIndex;
+
+        registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
+                                                [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+
         // Start by clearing any previous OBody morphs
         morphInterface->ClearMorphs(a_actor);
 
         // Apply the preset's sliders
         ApplySliderSet(a_actor, a_preset.sliders, "OBody");
 
-        logger::info("Applying preset: {}", a_preset.name);
+        logger::info("Applying preset: {}; index: {}", a_preset.name, a_preset.assignedIndex.value);
 
         if (IsFemale(a_actor)) {
             // Generate random nipple sliders if needed
