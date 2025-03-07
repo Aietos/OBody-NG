@@ -3,6 +3,7 @@
 #include "Papyrus/Papyrus.h"
 #include "JSONParser/JSONParser.h"
 #include "PresetManager/PresetManager.h"
+#include "SaveFileState/SaveFileState.h"
 #include "SKEE.h"
 #include "STL.h"
 
@@ -146,12 +147,6 @@ namespace {
 
                 logger::info("Synthesis installed value is {}.", obody.synthesisInstalled);
 
-                logger::info("Becoming ready for plugin-API usage.");
-                if (obody.BecomingReadyForPluginAPIUsage()) {
-                    obody.ReadyForPluginAPIUsage();
-                }
-                logger::info("Now ready for plugin-API usage.");
-
                 return;
             }
 
@@ -159,13 +154,48 @@ namespace {
             // The game doesn't send a Load game event on new game, so we need to listen for this one in specific
             case SKSE::MessagingInterface::kNewGame: {
                 logger::info("New Game started");
+
+                PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
+
                 Event::OBodyEventHandler::Register();
+
+                logger::info("Becoming ready for plugin-API usage.");
+                // This should be the last state change in this message-handler,
+                // so that the listeners work as expected.
+                if (obody.BecomingReadyForPluginAPIUsage()) {
+                    obody.ReadyForPluginAPIUsage();
+                }
+                logger::info("Now ready for plugin-API usage.");
+                return;
+            }
+
+            case SKSE::MessagingInterface::kPreLoadGame: {
+                logger::info("Game beginning to load");
+
+                logger::info("Becoming unready for plugin-API usage.");
+                if (obody.BecomingUnreadyForPluginAPIUsage()) {
+                    obody.NoLongerReadyForPluginAPIUsage();
+                }
+                logger::info("No longer ready for plugin-API usage.");
+
                 return;
             }
 
             case SKSE::MessagingInterface::kPostLoadGame: {
                 logger::info("Game finished loading");
+
+                // Now that our cosave has loaded, we can assign indexes to the presets that we loaded earlier.
+                PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
+
                 Event::OBodyEventHandler::Register();
+
+                logger::info("Becoming ready for plugin-API usage.");
+                // This should be the last state change in this message-handler,
+                // so that the listeners work as expected.
+                if (obody.BecomingReadyForPluginAPIUsage()) {
+                    obody.ReadyForPluginAPIUsage();
+                }
+                logger::info("Now ready for plugin-API usage.");
                 return;
             }
             case SKSE::MessagingInterface::kPostLoad: {
@@ -173,6 +203,15 @@ namespace {
                 stl::func = reinterpret_cast<stl::PO3_tweaks_GetFormEditorID>(
                     REX::W32::GetProcAddress(tweaks, "GetFormEditorID"));
                 logger::info("Got po3_tweaks api: {}", stl::func != nullptr);
+
+                auto serialization = SKSE::GetSerializationInterface();
+
+                serialization->SetUniqueID(SaveFileState::CosaveUID);
+                serialization->SetRevertCallback(SaveFileState::RevertState);
+                serialization->SetSaveCallback(SaveFileState::SaveState);
+                serialization->SetLoadCallback(SaveFileState::LoadState);
+                logger::info("Set our SKSE serialization callbacks, with a unique ID of {:#010x}.",
+                             SaveFileState::CosaveUID);
 
                 SKSE::GetMessagingInterface()->RegisterListener(nullptr, PluginInterfaceMessageHandler);
                 logger::info("Registered the PluginInterfaceMessageHandler.");

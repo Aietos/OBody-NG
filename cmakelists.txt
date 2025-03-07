@@ -30,6 +30,7 @@ set(sources
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/PapyrusBody.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/JSONParser/JSONParser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PresetManager/PresetManager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/SaveFileState/SaveFileState.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
 
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
