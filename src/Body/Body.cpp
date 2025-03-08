@@ -188,7 +188,33 @@ namespace Body {
 
             // Clear their preset assignment, if they have one.
             auto& registry{ActorTracker::Registry::GetInstance()};
-            registry.stateForActor.visit(actorID, [&](auto& entry) { entry.second.presetIndex = 0; });
+            uint32_t previousPresetIndex = 0;
+            registry.stateForActor.visit(actorID, [&](auto& entry) {
+                previousPresetIndex = entry.second.presetIndex;
+                entry.second.presetIndex = 0;
+            });
+
+            if (previousPresetIndex != 0) {
+                SendActorChangeEvent(
+                    a_actor,
+                    [&] {
+                        using Event = ::OBody::API::IActorChangeEventListener;
+
+                        Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                            responsibleInterface,
+                            // Note that the plugin-API mandates that this be a null-terminated string.
+                            // Minus one because an index of zero assigned to the actor signifies the absence of a
+                            // preset.
+                            PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(female)};
+
+                        auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
+
+                        return std::make_pair(flags, payload);
+                    },
+                    [](auto listener, auto actor, auto&& args) {
+                        listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                    });
+            }
         };
 
         // If NPC is blacklisted, set him as processed

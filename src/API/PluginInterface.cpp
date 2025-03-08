@@ -142,7 +142,11 @@ namespace OBody {
 
             if ((payload.presetName.size() == 0) | (payload.presetName.data() == nullptr)) {
                 // Clear their preset assignment, if they have one.
-                registry.stateForActor.visit(formID, [&](auto& entry) { entry.second.presetIndex = 0; });
+                uint32_t previousPresetIndex = 0;
+                registry.stateForActor.visit(formID, [&](auto& entry) {
+                    previousPresetIndex = entry.second.presetIndex;
+                    entry.second.presetIndex = 0;
+                });
 
                 if ((payload.flags & AssignPresetPayload::Flags::DoNotApplyMorphs) == 0) {
                     bool immediate =
@@ -150,13 +154,37 @@ namespace OBody {
                     obody.ClearActorMorphs(a_actor, immediate, this);
                 }
 
+                if (previousPresetIndex != 0) {
+                    obody.SendActorChangeEvent(
+                        a_actor,
+                        [&] {
+                            using Event = ::OBody::API::IActorChangeEventListener;
+
+                            Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                                this,
+                                // Note that the plugin-API mandates that this be a null-terminated string.
+                                // Minus one because an index of zero assigned to the actor signifies the absence of a
+                                // preset.
+                                PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(
+                                    obody.IsFemale(a_actor))};
+
+                            auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
+
+                            return std::make_pair(flags, payload);
+                        },
+                        [](auto listener, auto actor, auto&& args) {
+                            listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                        });
+                }
+
                 return true;
             }
 
+            bool isFemale = obody.IsFemale(a_actor);
+
             const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
             auto preset = GetPresetByNameForRandom(
-                obody.IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets,
-                payload.presetName);
+                isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, payload.presetName);
 
             if (!preset) {
                 return false;
@@ -172,13 +200,32 @@ namespace OBody {
                 obody.GenerateBodyByPreset(a_actor, *preset, immediate, this);
             } else {
                 // Assign the preset to the actor.
+                auto assignedPresetIndex = preset->assignedIndex;
                 // Plus one because an index of zero on the actor signifies the absence of a preset.
-                uint32_t actorPresetIndex = preset->assignedIndex.value + 1;
+                uint32_t actorPresetIndex = assignedPresetIndex.value + 1;
                 ActorTracker::ActorState fallbackActorState{};
                 fallbackActorState.presetIndex = actorPresetIndex;
 
                 registry.stateForActor.emplace_or_visit(
                     formID, fallbackActorState, [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+
+                obody.SendActorChangeEvent(
+                    a_actor,
+                    [&] {
+                        using Event = ::OBody::API::IActorChangeEventListener;
+
+                        Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                            this,
+                            // Note that the plugin-API mandates that this be a null-terminated string.
+                            assignedPresetIndex.GetPresetNameView(isFemale)};
+
+                        Event::OnActorPresetChangedWithoutGeneration::Flags flags{};
+
+                        return std::make_pair(flags, payload);
+                    },
+                    [](auto listener, auto actor, auto&& args) {
+                        listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                    });
             }
 
             return true;
