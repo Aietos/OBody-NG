@@ -215,6 +215,12 @@ namespace OBody {
                 can be used to return only a subset of the preset names. */
             virtual size_t GetPresetNames(PresetCategory category, std::string_view* buffer, size_t bufferLength,
                                           size_t offset = 0, size_t limit = (std::numeric_limits<size_t>::max)()) = 0;
+
+            /** This is used to ensure that OBody processes an actor for the current distribution key.
+                That is to say, this operation does nothing if the actor has already been processed
+                by OBody for the current distribution key, otherwise it will force OBody to process
+                the actor for the current distribution key, in accordance with OBody's configuration. */
+            virtual void EnsureActorIsProcessed(Actor* actor) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding

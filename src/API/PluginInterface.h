@@ -28,6 +28,8 @@ namespace OBody {
             virtual void GetPresetCounts(PresetCounts& payload) override;
             virtual size_t GetPresetNames(PresetCategory category, std::string_view* buffer, size_t bufferLength,
                                           size_t offset, size_t limit) override;
+
+            virtual void EnsureActorIsProcessed(Actor* actor) override;
         };
     }  // namespace API
 }  // namespace OBody

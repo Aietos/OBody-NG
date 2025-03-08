@@ -91,5 +91,9 @@ namespace OBody {
 
             return index;
         }
+
+        void PluginInterface::EnsureActorIsProcessed(Actor* a_actor) {
+            Body::OBody::GetInstance().GenerateActorBody(a_actor, this);
+        }
     }  // namespace API
 }  // namespace OBody
