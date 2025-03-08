@@ -101,7 +101,7 @@ namespace OBody {
         }
 
         void PluginInterface::RemoveOBodyMorphsFromActor(Actor* a_actor) {
-            Body::OBody::GetInstance().ClearActorMorphs(a_actor, this);
+            Body::OBody::GetInstance().ClearActorMorphs(a_actor, true, this);
         }
 
         void PluginInterface::ForcefullyChangeORefitForActor(Actor* a_actor, bool orefitShouldBeApplied) {
@@ -133,6 +133,55 @@ namespace OBody {
             }
 
             payload.presetName = ""sv;
+        }
+
+        bool PluginInterface::AssignPresetToActor(Actor* a_actor, AssignPresetPayload& payload) {
+            const auto& obody{Body::OBody::GetInstance()};
+            auto& registry{ActorTracker::Registry::GetInstance()};
+            auto formID = a_actor->formID;
+
+            if ((payload.presetName.size() == 0) | (payload.presetName.data() == nullptr)) {
+                // Clear their preset assignment, if they have one.
+                registry.stateForActor.visit(formID, [&](auto& entry) { entry.second.presetIndex = 0; });
+
+                if ((payload.flags & AssignPresetPayload::Flags::DoNotApplyMorphs) == 0) {
+                    bool immediate =
+                        (payload.flags & AssignPresetPayload::Flags::ForceImmediateApplicationOfMorphs) != 0;
+                    obody.ClearActorMorphs(a_actor, immediate, this);
+                }
+
+                return true;
+            }
+
+            const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+            auto preset = GetPresetByNameForRandom(
+                obody.IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets,
+                payload.presetName);
+
+            if (!preset) {
+                return false;
+            }
+
+            // Like OBody::GenerateBodyByName, we set this morph to prevent a crash with SynthEBD/Synthesis.
+            if (obody.synthesisInstalled) {
+                obody.SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
+            }
+
+            if ((payload.flags & AssignPresetPayload::Flags::DoNotApplyMorphs) == 0) {
+                bool immediate = (payload.flags & AssignPresetPayload::Flags::ForceImmediateApplicationOfMorphs) != 0;
+                obody.GenerateBodyByPreset(a_actor, *preset, immediate, this);
+            } else {
+                // Assign the preset to the actor.
+                // Plus one because an index of zero on the actor signifies the absence of a preset.
+                uint32_t actorPresetIndex = preset->assignedIndex.value + 1;
+                ActorTracker::ActorState fallbackActorState{};
+                fallbackActorState.presetIndex = actorPresetIndex;
+
+                registry.stateForActor.emplace_or_visit(
+                    formID, fallbackActorState, [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+            }
+
+            return true;
         }
     }  // namespace API
 }  // namespace OBody

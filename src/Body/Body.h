@@ -39,7 +39,8 @@ namespace Body {
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
         void ApplyClothePreset(RE::Actor* a_actor) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
-        void ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
+        void ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
+                              ::OBody::API::IPluginInterface* responsibleInterface) const;
         void ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
 
         void ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,

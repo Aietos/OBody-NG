@@ -79,7 +79,7 @@ namespace PapyrusBody {
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
-        obody.ClearActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
+        obody.ClearActorMorphs(a_actor, true, &obody.specialPapyrusPluginInterface);
     }
 
     bool presetNameComparison(const std::string_view a, const std::string_view b) {

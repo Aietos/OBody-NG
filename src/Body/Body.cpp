@@ -345,10 +345,11 @@ namespace Body {
         ApplySliderSet(a_actor, set, "OClothe");
     }
 
-    void OBody::ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
+    void OBody::ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
+                                 ::OBody::API::IPluginInterface* responsibleInterface) const {
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
-        ApplyMorphs(a_actor, true, false);
+        ApplyMorphs(a_actor, updateMorphsWithoutTimer, false);
 
         SendActorChangeEvent(
             a_actor,

@@ -37,6 +37,7 @@ namespace OBody {
             virtual void ForcefullyChangeORefitForActor(Actor* actor, bool orefitShouldBeApplied) override;
 
             virtual void GetPresetAssignedToActor(Actor* actor, PresetAssignmentInformation& payload) override;
+            virtual bool AssignPresetToActor(Actor* actor, AssignPresetPayload& payload) override;
         };
     }  // namespace API
 }  // namespace OBody

@@ -92,6 +92,7 @@ namespace OBody {
         struct PresetCounts;
         enum PresetCategory : uint64_t;
         struct PresetAssignmentInformation;
+        struct AssignPresetPayload;
 
         /** See the documentation for `IPluginInterface`, this is its base class purely to make it
             easier to maintain ABI-compatibility.
@@ -243,6 +244,15 @@ namespace OBody {
             /** This is used to get information about the preset currently assigned to an actor.
                 You MUST initialise the `flags` field of `payload`, every other field may be left uninitialised. */
             virtual void GetPresetAssignedToActor(Actor* actor, PresetAssignmentInformation& payload) = 0;
+
+            /** This is used to assign a preset to an actor.
+
+                If the supplied preset name is an empty or null string this method will
+                unassign any preset assigned to the actor.
+
+                This returns whether a preset with the supplied name was found or not.
+                If the supplied preset name was empty or null this will return `true`. */
+            virtual bool AssignPresetToActor(Actor* actor, AssignPresetPayload& payload) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding
@@ -354,6 +364,29 @@ namespace OBody {
                 so it can be used as C-style string.
                 The data that this `string_view` points to is guaranteed to be valid
                 until OBody sends your `IOBodyReadinessEventListener` an `OBodyIsNoLongerReady` event. */
+            std::string_view presetName;
+        };
+
+        struct AssignPresetPayload {
+            enum Flags : uint64_t {
+                None = 0,
+                /** If this bit is set, OBody will immediately apply or remove the morphs
+                    for the assigned preset to the actor, instead of queuing the morphs to
+                    be applied later. */
+                ForceImmediateApplicationOfMorphs = 1 << 0,
+                /** If this bit is set, OBody will refrain from applying the morphs, and from
+                    queuing the morphs to be applied later, for a preset when assigning a preset to an
+                    actor. The morphs can be applied later by calling `ApplyOBodyMorphsToActor`. The flag
+                    takes precedence over the `ForceImmediateApplicationOfMorphs` flag.
+                    If the `presetName` field is a null or empty string this bit will instead prevent
+                    OBody from removing the morphs applied to the actor, if any are applied. */
+                DoNotApplyMorphs = 1 << 1
+            };
+
+            /** A bitwise combination of flags regarding the assignment of the preset. */
+            Flags flags = Flags::ForceImmediateApplicationOfMorphs;
+
+            /** The name of a preset that is to be assigned to an actor. */
             std::string_view presetName;
         };
 
