@@ -95,5 +95,13 @@ namespace OBody {
         void PluginInterface::EnsureActorIsProcessed(Actor* a_actor) {
             Body::OBody::GetInstance().GenerateActorBody(a_actor, this);
         }
+
+        void PluginInterface::ApplyOBodyMorphsToActor(Actor* a_actor) {
+            Body::OBody::GetInstance().ReapplyActorMorphs(a_actor, this);
+        }
+
+        void PluginInterface::RemoveOBodyMorphsFromActor(Actor* a_actor) {
+            Body::OBody::GetInstance().ClearActorMorphs(a_actor, this);
+        }
     }  // namespace API
 }  // namespace OBody

@@ -30,6 +30,9 @@ namespace OBody {
                                           size_t offset, size_t limit) override;
 
             virtual void EnsureActorIsProcessed(Actor* actor) override;
+
+            virtual void ApplyOBodyMorphsToActor(Actor* actor) override;
+            virtual void RemoveOBodyMorphsFromActor(Actor* actor) override;
         };
     }  // namespace API
 }  // namespace OBody

@@ -364,6 +364,27 @@ namespace Body {
             });
     }
 
+    void OBody::ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+        uint32_t actorPresetIndex = 0;
+
+        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
+
+        if (actorPresetIndex != 0) {
+            // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
+            auto preset = PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(IsFemale(a_actor));
+
+            if (preset != nullptr) {
+                GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
+                return;
+            }
+        }
+
+        // No preset is assigned to the actor, we fallback to GenerateActorBody.
+        GenerateActorBody(a_actor, responsibleInterface);
+    }
+
     void OBody::ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
                                        ::OBody::API::IPluginInterface* responsibleInterface) const {
         applied ? ApplyClothePreset(a_actor) : RemoveClothePreset(a_actor);

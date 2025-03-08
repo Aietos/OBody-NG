@@ -221,6 +221,18 @@ namespace OBody {
                 by OBody for the current distribution key, otherwise it will force OBody to process
                 the actor for the current distribution key, in accordance with OBody's configuration. */
             virtual void EnsureActorIsProcessed(Actor* actor) = 0;
+
+            /** This is used to reapply any OBody morphs that are or were applied to an actor,
+                such that the actor's morph will be as they should, according to the preset assigned to
+                them; if no preset is assigned to them, a preset will be assigned to them in the usual
+                fashion. `RemoveOBodyMorphsFromActor` can be used to reverse this operation. */
+            virtual void ApplyOBodyMorphsToActor(Actor* actor) = 0;
+
+            /** This is used to remove any OBody morphs that are applied to an actor, such that the
+                actor's morph will be as though OBody had never morphed the actor at all.
+                `ApplyOBodyMorphsToActor` can be used to reverse this operation.
+                Any per-actor configuration, such as the applied preset, will be retained for the actor. */
+            virtual void RemoveOBodyMorphsFromActor(Actor* actor) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding
