@@ -28,17 +28,18 @@ namespace Body {
 
         void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) const;
 
-        void GenerateActorBody(RE::Actor* a_actor) const;
-        void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const;
-        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
-                                  bool updateMorphsWithoutTimer) const;
+        void GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
+        void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
+                                ::OBody::API::IPluginInterface* responsibleInterface) const;
+        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer,
+                                  ::OBody::API::IPluginInterface* responsibleInterface) const;
 
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
         void ApplyClothePreset(RE::Actor* a_actor) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
-        void ClearActorMorphs(RE::Actor* a_actor) const;
+        void ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
 
         static float GetWeight(RE::Actor* a_actor);
 
@@ -122,6 +123,10 @@ namespace Body {
 
         mutable std::recursive_mutex readinessListenerLock;
         std::vector<::OBody::API::IOBodyReadinessEventListener*> readinessEventListeners;
+
+        // This `IPluginInterface` instance is a special one used to signal to plugin-API event-listeners
+        // that a change was effected by OBody's Papyrus functions (the OBodyNative script).
+        mutable ::OBody::API::PluginInterface specialPapyrusPluginInterface{"_Papyrus"};
 
     private:
         static OBody instance_;

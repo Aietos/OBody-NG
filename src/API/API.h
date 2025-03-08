@@ -351,6 +351,17 @@ namespace OBody {
             */
             struct OnActorGenerated {
                 struct Payload {
+                    /** This will be null if OBody itself was responsible for this event being fired.
+                        Otherwise, this is the `IPluginInterface` that was responsible for this event being triggered.
+
+                        There is a special `IPluginInterface` instance which OBody will set in this field
+                        if this event was effected by OBody's Papyrus functions (the OBodyNative script).
+                        You can identify that instance by its `owner` string, which is: "_Papyrus".
+
+                        You can use this field to avoid acting upon changes that your own plugin effected,
+                        or to avoid stepping on the toes of other mods that are making changes.*/
+                    IPluginInterfaceVersionIndependent* responsiblePluginInterface;
+
                     /** The name of the BodySlide preset that was assigned to the actor.
                         Note that this is the name of the BodySlide preset as defined within the XML
                         of the BodySlide slider presets file, and not the name of the slider presets file itself.
@@ -443,6 +454,9 @@ namespace OBody {
             */
             struct OnActorClothingUpdate {
                 struct Payload {
+                    /** Refer to the documentation of `responsiblePluginInterface` for the `OnActorGenerated` event. */
+                    IPluginInterfaceVersionIndependent* responsiblePluginInterface;
+
                     /** The equipment that is being equipped or unequipped by the actor,
                         check the flags for which it is. This will not be null. */
                     const TESForm* changedEquipment;
@@ -484,7 +498,10 @@ namespace OBody {
                 `OBodyNative.AddClothesOverlay` or `OBodyNative.RemoveClothesOverlay`.
             */
             struct OnORefitForcefullyChanged {
-                struct Payload {};
+                struct Payload {
+                    /** Refer to the documentation of `responsiblePluginInterface` for the `OnActorGenerated` event. */
+                    IPluginInterfaceVersionIndependent* responsiblePluginInterface;
+                };
 
                 enum Flags : uint64_t {
                     None = 0,
@@ -511,7 +528,10 @@ namespace OBody {
                 (Implicitly, this means that ORefit is not active for the actor).
             */
             struct OnActorMorphsCleared {
-                struct Payload {};
+                struct Payload {
+                    /** Refer to the documentation of `responsiblePluginInterface` for the `OnActorGenerated` event. */
+                    IPluginInterfaceVersionIndependent* responsiblePluginInterface;
+                };
 
                 enum Flags : uint64_t { None = 0 };
 

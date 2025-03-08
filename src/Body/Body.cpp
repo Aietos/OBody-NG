@@ -134,7 +134,7 @@ namespace Body {
             [&] {
                 using Event = ::OBody::API::IActorChangeEventListener;
 
-                Event::OnActorClothingUpdate::Payload payload{a_equippedArmor};
+                Event::OnActorClothingUpdate::Payload payload{nullptr, a_equippedArmor};
 
                 Event::OnActorClothingUpdate::Flags flags{};
                 static_assert(Event::OnActorClothingUpdate::Flags::IsClothed == (1 << 0));
@@ -157,7 +157,7 @@ namespace Body {
             });
     }
 
-    void OBody::GenerateActorBody(RE::Actor* a_actor) const {
+    void OBody::GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
         // The main function of OBody NG
 
         // If actor is already processed, no need to do anything
@@ -225,10 +225,11 @@ namespace Body {
 
         logger::info("Preset {} will be applied to {}", preset->name, actorName);
 
-        GenerateBodyByPreset(a_actor, *preset, false);
+        GenerateBodyByPreset(a_actor, *preset, false, responsibleInterface);
     }
 
-    void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name) const {
+    void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
+                                   ::OBody::API::IPluginInterface* responsibleInterface) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
@@ -239,11 +240,12 @@ namespace Body {
         Preset preset{GetPresetByName(
             IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_name, true)};
 
-        GenerateBodyByPreset(a_actor, preset, true);
+        GenerateBodyByPreset(a_actor, preset, true, responsibleInterface);
     }
 
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
-                                     const bool updateMorphsWithoutTimer) const {
+                                     const bool updateMorphsWithoutTimer,
+                                     ::OBody::API::IPluginInterface* responsibleInterface) const {
         // Start by clearing any previous OBody morphs
         morphInterface->ClearMorphs(a_actor);
 
@@ -289,6 +291,7 @@ namespace Body {
                 using Event = ::OBody::API::IActorChangeEventListener;
 
                 Event::OnActorGenerated::Payload payload{
+                    responsibleInterface,
                     // Note that the plugin-API mandates that this be a null-terminated string.
                     {a_preset.name.data(), a_preset.name.size()}};
 
@@ -323,7 +326,7 @@ namespace Body {
         ApplySliderSet(a_actor, set, "OClothe");
     }
 
-    void OBody::ClearActorMorphs(RE::Actor* a_actor) const {
+    void OBody::ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
         ApplyMorphs(a_actor, true, false);
@@ -332,7 +335,7 @@ namespace Body {
             a_actor,
             [&] {
                 using Event = ::OBody::API::IActorChangeEventListener;
-                Event::OnActorMorphsCleared::Payload payload{};
+                Event::OnActorMorphsCleared::Payload payload{responsibleInterface};
                 Event::OnActorMorphsCleared::Flags flags{};
 
                 return std::make_pair(flags, payload);

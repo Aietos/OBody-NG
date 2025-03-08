@@ -8,7 +8,10 @@
 #include "Papyrus/PapyrusBody.h"
 
 namespace PapyrusBody {
-    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) { Body::OBody::GetInstance().GenerateActorBody(a_actor); }
+    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.GenerateActorBody(a_actor, &obody.specialPapyrusPluginInterface);
+    }
 
     void SetORefit(RE::StaticFunctionTag*, const bool a_enabled) { Body::OBody::GetInstance().setRefit = a_enabled; }
 
@@ -57,7 +60,8 @@ namespace PapyrusBody {
     // ReSharper disable once CppPassValueParameterByConstReference
     void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor,
                            const std::string a_name) {  // NOLINT(*-unnecessary-value-param)
-        Body::OBody::GetInstance().GenerateBodyByName(a_actor, a_name);
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.GenerateBodyByName(a_actor, a_name, &obody.specialPapyrusPluginInterface);
     }
 
     // The trailing underscore is there because the `RemoveClothesOverlay` defined
@@ -108,7 +112,8 @@ namespace PapyrusBody {
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        Body::OBody::GetInstance().ClearActorMorphs(a_actor);
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.ClearActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
     }
 
     bool presetNameComparison(const std::string_view a, const std::string_view b) {
