@@ -39,5 +39,8 @@ namespace PapyrusBody {
 
     std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
+    bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
+                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs);
+
     bool Bind(VM* a_vm);
 }  // namespace PapyrusBody

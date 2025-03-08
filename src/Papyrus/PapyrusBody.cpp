@@ -141,6 +141,55 @@ namespace PapyrusBody {
         return "";
     }
 
+    bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
+                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) {
+        const auto& obody{Body::OBody::GetInstance()};
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+
+        if (a_presetName.size() == 0) {
+            // Clear their preset assignment, if they have one.
+            registry.stateForActor.visit(formID, [&](auto& entry) { entry.second.presetIndex = 0; });
+
+            if (!a_doNotApplyMorphs) {
+                obody.ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+            }
+
+            return true;
+        }
+
+        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        auto preset = GetPresetByNameForRandom(
+            Body::OBody::IsFemale(a_actor) ? presetContainer.allFemalePresets : presetContainer.allMalePresets,
+            a_presetName);
+
+        if (!preset) {
+            return false;
+        }
+
+        // Like OBody::GenerateBodyByName, we set this morph to prevent a crash with SynthEBD/Synthesis.
+        if (obody.synthesisInstalled) {
+            obody.SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
+        }
+
+        if (!a_doNotApplyMorphs) {
+            obody.GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+        } else {
+            // Assign the preset to the actor.
+            // Plus one because an index of zero on the actor signifies the absence of a preset.
+            uint32_t actorPresetIndex = preset->assignedIndex.value + 1;
+            ActorTracker::ActorState fallbackActorState{};
+            fallbackActorState.presetIndex = actorPresetIndex;
+
+            registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
+                                                    [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+        }
+
+        return true;
+    }
+
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;
 
@@ -159,6 +208,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(ResetActorOBodyMorphs);
         OBODY_PAPYRUS_BIND(ReapplyActorOBodyMorphs);
         OBODY_PAPYRUS_BIND(GetPresetAssignedToActor);
+        OBODY_PAPYRUS_BIND(AssignPresetToActor);
 
         OBODY_PAPYRUS_BIND(SetORefit);
         OBODY_PAPYRUS_BIND(SetNippleSlidersORefitEnabled);
