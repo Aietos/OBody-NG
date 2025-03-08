@@ -6,6 +6,14 @@ namespace SaveFileState {
     void SaveState(SKSE::SerializationInterface* save) {
         Buffer buffer;
 
+        if (save->OpenRecord(ActorRegistryTypeID, 0)) {
+            if (!WriteRecordDataForActorRegistryV0(save, buffer, ActorTracker::Registry::GetInstance())) {
+                logger::critical("Failed to save the actor-registry!");
+            }
+        } else {
+            logger::critical("Failed to open a record for the actor-registry!");
+        }
+
         if (save->OpenRecord(PresetNameIndexMapTypeID, 0)) {
             if (!WriteRecordDataForPresetNameIndexMapV0(save, buffer, PresetManager::PresetContainer::GetInstance())) {
                 logger::critical("Failed to save the preset-name-index-map!");
@@ -18,6 +26,7 @@ namespace SaveFileState {
     void LoadState(SKSE::SerializationInterface* load) {
         Buffer buffer;
 
+        size_t actorRegistryCount = 0;
         size_t presetNameMapCount = 0;
 
         uint32_t type;
@@ -26,6 +35,26 @@ namespace SaveFileState {
 
         while (load->GetNextRecordInfo(type, version, length)) {
             switch (type) {
+                case ActorRegistryTypeID: {
+                    switch (version) {
+                        case 0: {
+                            if (++actorRegistryCount == 1) {
+                                if (!ReadRecordDataForActorRegistryV0(load, buffer,
+                                                                      ActorTracker::Registry::GetInstance())) {
+                                    logger::critical("Failed to load the actor-registry!");
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            logger::error(
+                                "An actor-registry record of an unknown version '{}' was found in the cosave.",
+                                version);
+                            break;
+                        }
+                    }
+                    break;
+                }
                 case PresetNameIndexMapTypeID: {
                     switch (version) {
                         case 0: {
@@ -61,11 +90,93 @@ namespace SaveFileState {
 
     // In this context, revert means to undo the effects of a call to LoadState.
     void RevertState(SKSE::SerializationInterface* revert) {
+        auto& registry = ActorTracker::Registry::GetInstance();
+        registry.stateForActor.clear();
+
         auto& presetContainer = PresetManager::PresetContainer::GetInstance();
         presetContainer.femalePresetIndexByName.clear();
         presetContainer.malePresetIndexByName.clear();
         presetContainer.nextFemalePresetIndex.value = 0;
         presetContainer.nextMalePresetIndex.value = 0;
+    }
+
+    bool WriteRecordDataForActorRegistryV0(SKSE::SerializationInterface* save, Buffer buffer,
+                                           const ActorTracker::Registry& registry) {
+        // The format for this is joyously simple:
+        // We store 4 bytes for the form-ID, and then we store 4 bytes for the actor-state.
+        // And we do that for each entry in the actor-registry.
+        static_assert(IsAlignedTo(BufferSize, sizeof(RE::FormID) + sizeof(ActorTracker::ActorState)));
+
+        size_t offset = 0;
+
+        bool succeeded = registry.stateForActor.cvisit_while([&](const auto& entry) {
+            RE::FormID formID = entry.first;
+            std::memcpy(&buffer[offset], &formID, sizeof(decltype(formID)));
+            offset += sizeof(decltype(formID));
+
+            ActorTracker::ActorState actorState = entry.second;
+            actorState.value = actorState.value & ActorTracker::ActorState::PersistedInCosaveMask;
+
+            std::memcpy(&buffer[offset], &actorState, sizeof(decltype(actorState)));
+            offset += sizeof(decltype(actorState));
+
+            assert(offset <= BufferSize);
+            if (offset == BufferSize) {
+                if (!save->WriteRecordData(buffer, offset)) return false;
+                offset = 0;
+            }
+
+            return true;
+        });
+
+        // Flush any remaining data.
+        if (offset != 0) {
+            if (!save->WriteRecordData(buffer, offset)) return false;
+        }
+
+        return succeeded;
+    }
+
+    bool ReadRecordDataForActorRegistryV0(SKSE::SerializationInterface* load, Buffer buffer,
+                                          ActorTracker::Registry& registry) {
+        // See `WriteRecordDataForActorRegistryV0` for a description of this format.
+        size_t offset;
+        size_t remainingBytes = 0;
+
+        for (;;) {
+            if (remainingBytes == 0) {
+                remainingBytes = load->ReadRecordData(buffer, BufferSize);
+
+                if (remainingBytes == 0) {
+                    // We've reached the end of the data--we're done.
+                    return true;
+                }
+
+                if (!IsAlignedTo(remainingBytes, sizeof(RE::FormID) + sizeof(ActorTracker::ActorState))) {
+                    logger::critical("This save file's actor-registry is misaligned! {{remainingBytes: {}}}",
+                                     remainingBytes);
+                    return false;
+                }
+
+                offset = 0;
+            }
+
+            RE::FormID formID;
+            std::memcpy(&formID, &buffer[offset], sizeof(decltype(formID)));
+            offset += sizeof(decltype(formID));
+            remainingBytes -= sizeof(decltype(formID));
+
+            ActorTracker::ActorState actorState;
+            std::memcpy(&actorState, &buffer[offset], sizeof(decltype(actorState)));
+            offset += sizeof(decltype(actorState));
+            remainingBytes -= sizeof(decltype(actorState));
+
+            actorState.value = actorState.value & ActorTracker::ActorState::PersistedInCosaveMask;
+
+            registry.stateForActor.insert_or_assign(formID, actorState);
+        }
+
+        assert(false);
     }
 
     bool WriteRecordDataForPresetNameIndexMapV0(SKSE::SerializationInterface* save, Buffer buffer,

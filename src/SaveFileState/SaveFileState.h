@@ -1,9 +1,11 @@
 #pragma once
 
+#include "ActorTracker/ActorTracker.h"
 #include "PresetManager/PresetManager.h"
 
 namespace SaveFileState {
     constexpr uint32_t CosaveUID = 0xa0B0D9ee;
+    constexpr uint32_t ActorRegistryTypeID = 0xa0B0D9ea;
     constexpr uint32_t PresetNameIndexMapTypeID = 0xa0B0D9e0;
 
     // Making a call for each tiny piece of data and having SKSE copy it into its filestream
@@ -15,6 +17,11 @@ namespace SaveFileState {
     void SaveState(SKSE::SerializationInterface* save);
     void LoadState(SKSE::SerializationInterface* load);
     void RevertState(SKSE::SerializationInterface* revert);
+
+    bool WriteRecordDataForActorRegistryV0(SKSE::SerializationInterface* save, Buffer buffer,
+                                           const ActorTracker::Registry& registry);
+    bool ReadRecordDataForActorRegistryV0(SKSE::SerializationInterface* load, Buffer buffer,
+                                          ActorTracker::Registry& registry);
 
     bool WriteRecordDataForPresetNameIndexMapV0(SKSE::SerializationInterface* save, Buffer buffer,
                                                 const PresetManager::PresetContainer& presetContainer);
