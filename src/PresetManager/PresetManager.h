@@ -24,6 +24,8 @@ namespace PresetManager {
 
     using SliderSet = boost::unordered_flat_map<std::string, Slider>;
 
+    struct Preset;
+
     // We can refer to presets by their index rather than their name.
     // We do this to reduce the memory usage for keeping track of which preset is assigned to each actor--
     // the memory footprint isn't a concern while the game is running, instead it's a concern for the
@@ -55,6 +57,9 @@ namespace PresetManager {
         static constexpr uint32_t BitWidth = 20;
 
         uint32_t value = 0;
+
+        Preset* GetPreset(bool actorIsFemale) const;
+        std::string_view GetPresetNameView(bool actorIsFemale) const;
     };
 
     using SparsePresetIndex = uint32_t;
