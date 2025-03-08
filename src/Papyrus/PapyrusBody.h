@@ -33,6 +33,8 @@ namespace PapyrusBody {
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
+    void ReapplyActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor);
+
     std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
     bool Bind(VM* a_vm);

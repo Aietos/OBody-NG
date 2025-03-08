@@ -82,6 +82,11 @@ namespace PapyrusBody {
         obody.ClearActorMorphs(a_actor, true, &obody.specialPapyrusPluginInterface);
     }
 
+    void ReapplyActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.ReapplyActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
+    }
+
     bool presetNameComparison(const std::string_view a, const std::string_view b) {
         return boost::algorithm::ilexicographical_compare(a, b);
     }
@@ -132,6 +137,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(GetFemaleDatabaseSize);
         OBODY_PAPYRUS_BIND(GetMaleDatabaseSize);
         OBODY_PAPYRUS_BIND(ResetActorOBodyMorphs);
+        OBODY_PAPYRUS_BIND(ReapplyActorOBodyMorphs);
 
         OBODY_PAPYRUS_BIND(SetORefit);
         OBODY_PAPYRUS_BIND(SetNippleSlidersORefitEnabled);
