@@ -103,5 +103,9 @@ namespace OBody {
         void PluginInterface::RemoveOBodyMorphsFromActor(Actor* a_actor) {
             Body::OBody::GetInstance().ClearActorMorphs(a_actor, this);
         }
+
+        void PluginInterface::ForcefullyChangeORefitForActor(Actor* a_actor, bool orefitShouldBeApplied) {
+            Body::OBody::GetInstance().ForcefullyChangeORefit(a_actor, orefitShouldBeApplied, this);
+        }
     }  // namespace API
 }  // namespace OBody

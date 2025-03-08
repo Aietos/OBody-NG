@@ -233,6 +233,11 @@ namespace OBody {
                 `ApplyOBodyMorphsToActor` can be used to reverse this operation.
                 Any per-actor configuration, such as the applied preset, will be retained for the actor. */
             virtual void RemoveOBodyMorphsFromActor(Actor* actor) = 0;
+
+            /** This is used to forcefully change whether ORefit is applied or not to an actor,
+                regardless of the actor's equipped armour, and without respect to the global setting
+                for ORefit. */
+            virtual void ForcefullyChangeORefitForActor(Actor* actor, bool orefitShouldBeApplied) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding

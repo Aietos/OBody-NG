@@ -33,6 +33,8 @@ namespace OBody {
 
             virtual void ApplyOBodyMorphsToActor(Actor* actor) override;
             virtual void RemoveOBodyMorphsFromActor(Actor* actor) override;
+
+            virtual void ForcefullyChangeORefitForActor(Actor* actor, bool orefitShouldBeApplied) override;
         };
     }  // namespace API
 }  // namespace OBody
