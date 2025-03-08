@@ -107,5 +107,32 @@ namespace OBody {
         void PluginInterface::ForcefullyChangeORefitForActor(Actor* a_actor, bool orefitShouldBeApplied) {
             Body::OBody::GetInstance().ForcefullyChangeORefit(a_actor, orefitShouldBeApplied, this);
         }
+
+        void PluginInterface::GetPresetAssignedToActor(Actor* a_actor, PresetAssignmentInformation& payload) {
+            bool isFemale = Body::OBody::GetInstance().IsFemale(a_actor);
+
+            static_assert(PresetAssignmentInformation::Flags::IsFemale == 1);
+            auto flags = static_cast<PresetAssignmentInformation::Flags>(isFemale);
+
+            payload.flags = flags;
+
+            auto& registry{ActorTracker::Registry::GetInstance()};
+            auto formID = a_actor->formID;
+            uint32_t actorPresetIndex = 0;
+
+            registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
+
+            if (actorPresetIndex != 0) {
+                // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
+                auto preset = PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(isFemale);
+
+                if (preset != nullptr) {
+                    payload.presetName = {preset->name.data(), preset->name.size()};
+                    return;
+                }
+            }
+
+            payload.presetName = ""sv;
+        }
     }  // namespace API
 }  // namespace OBody

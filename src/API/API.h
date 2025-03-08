@@ -91,6 +91,7 @@ namespace OBody {
         class IActorChangeEventListener;
         struct PresetCounts;
         enum PresetCategory : uint64_t;
+        struct PresetAssignmentInformation;
 
         /** See the documentation for `IPluginInterface`, this is its base class purely to make it
             easier to maintain ABI-compatibility.
@@ -238,6 +239,10 @@ namespace OBody {
                 regardless of the actor's equipped armour, and without respect to the global setting
                 for ORefit. */
             virtual void ForcefullyChangeORefitForActor(Actor* actor, bool orefitShouldBeApplied) = 0;
+
+            /** This is used to get information about the preset currently assigned to an actor.
+                You MUST initialise the `flags` field of `payload`, every other field may be left uninitialised. */
+            virtual void GetPresetAssignedToActor(Actor* actor, PresetAssignmentInformation& payload) = 0;
         };
 
         /** This is an interface for receiving events from OBody regarding
@@ -330,6 +335,26 @@ namespace OBody {
             PresetCategoryMale = 1 << 2,
             /** Specifies blacklisted presets applicable to male actors. */
             PresetCategoryMaleBlacklisted = 1 << 3
+        };
+
+        struct PresetAssignmentInformation {
+            enum Flags : uint64_t {
+                None = 0,
+                /** This bit is set if the actor is female. */
+                IsFemale = 1 << 0
+            };
+
+            /** A bitwise combination of flags regarding the preset assignment. */
+            Flags flags = Flags::None;
+
+            /** This is the name of a preset assigned to an actor;
+                if no preset is assigned to the actor this will be an empty string.
+
+                This is a `string_view`, but the string it points to is null-terminated,
+                so it can be used as C-style string.
+                The data that this `string_view` points to is guaranteed to be valid
+                until OBody sends your `IOBodyReadinessEventListener` an `OBodyIsNoLongerReady` event. */
+            std::string_view presetName;
         };
 
         /** This is an interface for receiving events from OBody regarding the state of actors.
