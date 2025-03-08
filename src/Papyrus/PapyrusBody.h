@@ -37,5 +37,7 @@ namespace PapyrusBody {
 
     std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
+    std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor);
+
     bool Bind(VM* a_vm);
 }  // namespace PapyrusBody

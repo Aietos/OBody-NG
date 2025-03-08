@@ -121,6 +121,26 @@ namespace PapyrusBody {
         return ret;
     }
 
+    std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+        uint32_t actorPresetIndex = 0;
+
+        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
+
+        if (actorPresetIndex != 0) {
+            // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
+            auto preset =
+                PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(Body::OBody::IsFemale(a_actor));
+
+            if (preset != nullptr) {
+                return preset->name;
+            }
+        }
+
+        return "";
+    }
+
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;
 
@@ -138,6 +158,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(GetMaleDatabaseSize);
         OBODY_PAPYRUS_BIND(ResetActorOBodyMorphs);
         OBODY_PAPYRUS_BIND(ReapplyActorOBodyMorphs);
+        OBODY_PAPYRUS_BIND(GetPresetAssignedToActor);
 
         OBODY_PAPYRUS_BIND(SetORefit);
         OBODY_PAPYRUS_BIND(SetNippleSlidersORefitEnabled);
