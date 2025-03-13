@@ -28,6 +28,10 @@ namespace PapyrusBody {
         Body::OBody::GetInstance().setPerformanceMode = a_enabled;
     }
 
+    void SetRespectfulMorphApplication(RE::StaticFunctionTag*, const bool a_enabled) {
+        Body::OBody::GetInstance().setRespectfulMorphApplication = a_enabled;
+    }
+
     // ReSharper disable once CppPassValueParameterByConstReference
     void SetDistributionKey(RE::StaticFunctionTag*,
                             const std::string a_distributionKey) {  // NOLINT(*-unnecessary-value-param)
@@ -125,6 +129,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(SetNippleRand);
         OBODY_PAPYRUS_BIND(SetGenitalRand);
         OBODY_PAPYRUS_BIND(SetPerformanceMode);
+        OBODY_PAPYRUS_BIND(SetRespectfulMorphApplication);
         OBODY_PAPYRUS_BIND(SetDistributionKey);
 #undef OBODY_PAPYRUS_BIND
         return true;

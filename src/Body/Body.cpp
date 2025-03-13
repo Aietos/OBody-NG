@@ -207,7 +207,14 @@ namespace Body {
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
                                      const bool updateMorphsWithoutTimer) const {
         // Start by clearing any previous OBody morphs
-        morphInterface->ClearMorphs(a_actor);
+        if (setRespectfulMorphApplication) {
+            morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
+            morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
+        } else {
+            // For backwards compatibility we clear all morphs instead of just our own,
+            // unless the user has opted-in for us to be more respectful.
+            morphInterface->ClearMorphs(a_actor);
+        }
 
         // Apply the preset's sliders
         ApplySliderSet(a_actor, a_preset.sliders, "OBody");
