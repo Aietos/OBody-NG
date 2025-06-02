@@ -60,6 +60,7 @@ namespace Body {
         bool setNippleRand = true;
         bool setGenitalRand = true;
         bool setPerformanceMode = true;
+        bool setRespectfulMorphApplication = false;
 
         std::string distributionKey;
 
