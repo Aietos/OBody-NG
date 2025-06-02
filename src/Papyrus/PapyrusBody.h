@@ -35,7 +35,14 @@ namespace PapyrusBody {
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor);
 
+    void ReapplyActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor);
+
     std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor);
+
+    std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor);
+
+    bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
+                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs);
 
     bool Bind(VM* a_vm);
 }  // namespace PapyrusBody

@@ -8,7 +8,10 @@
 #include "Papyrus/PapyrusBody.h"
 
 namespace PapyrusBody {
-    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) { Body::OBody::GetInstance().GenerateActorBody(a_actor); }
+    void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.GenerateActorBody(a_actor, &obody.specialPapyrusPluginInterface);
+    }
 
     void SetORefit(RE::StaticFunctionTag*, const bool a_enabled) { Body::OBody::GetInstance().setRefit = a_enabled; }
 
@@ -61,17 +64,31 @@ namespace PapyrusBody {
     // ReSharper disable once CppPassValueParameterByConstReference
     void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor,
                            const std::string a_name) {  // NOLINT(*-unnecessary-value-param)
-        Body::OBody::GetInstance().GenerateBodyByName(a_actor, a_name);
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.GenerateBodyByName(a_actor, a_name, &obody.specialPapyrusPluginInterface);
+    }
+
+    // The trailing underscore is there because the `RemoveClothesOverlay` defined
+    // in the Papyrus script is non-native, and making it native could have broken
+    // pre-existing scripts, so now it forwards to the native `RemoveClothesOverlay_`.
+    void RemoveClothesOverlay_(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.ForcefullyChangeORefit(a_actor, false, &obody.specialPapyrusPluginInterface);
     }
 
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
         const auto& obody{Body::OBody::GetInstance()};
-        obody.ApplyClothePreset(a_actor);
-        obody.ApplyMorphs(a_actor, true);
+        obody.ForcefullyChangeORefit(a_actor, true, &obody.specialPapyrusPluginInterface);
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        Body::OBody::GetInstance().ClearActorMorphs(a_actor);
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.ClearActorMorphs(a_actor, true, &obody.specialPapyrusPluginInterface);
+    }
+
+    void ReapplyActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        const auto& obody{Body::OBody::GetInstance()};
+        obody.ReapplyActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
     }
 
     bool presetNameComparison(const std::string_view a, const std::string_view b) {
@@ -108,6 +125,122 @@ namespace PapyrusBody {
         return ret;
     }
 
+    std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+        uint32_t actorPresetIndex = 0;
+
+        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
+
+        if (actorPresetIndex != 0) {
+            // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
+            auto preset =
+                PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(Body::OBody::IsFemale(a_actor));
+
+            if (preset != nullptr) {
+                return preset->name;
+            }
+        }
+
+        return "";
+    }
+
+    bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
+                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) {
+        const auto& obody{Body::OBody::GetInstance()};
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+
+        if (a_presetName.size() == 0) {
+            // Clear their preset assignment, if they have one.
+            uint32_t previousPresetIndex = 0;
+            registry.stateForActor.visit(formID, [&](auto& entry) {
+                previousPresetIndex = entry.second.presetIndex;
+                entry.second.presetIndex = 0;
+            });
+
+            if (!a_doNotApplyMorphs) {
+                obody.ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+            }
+
+            if (previousPresetIndex != 0) {
+                obody.SendActorChangeEvent(
+                    a_actor,
+                    [&] {
+                        using Event = ::OBody::API::IActorChangeEventListener;
+
+                        Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                            &obody.specialPapyrusPluginInterface,
+                            // Note that the plugin-API mandates that this be a null-terminated string.
+                            // Minus one because an index of zero assigned to the actor signifies the absence of a
+                            // preset.
+                            PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(
+                                obody.IsFemale(a_actor))};
+
+                        auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
+
+                        return std::make_pair(flags, payload);
+                    },
+                    [](auto listener, auto actor, auto&& args) {
+                        listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                    });
+            }
+
+            return true;
+        }
+
+        bool isFemale = Body::OBody::IsFemale(a_actor);
+
+        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        auto preset = GetPresetByNameForRandom(
+            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_presetName);
+
+        if (!preset) {
+            return false;
+        }
+
+        // Like OBody::GenerateBodyByName, we set this morph to prevent a crash with SynthEBD/Synthesis.
+        if (obody.synthesisInstalled) {
+            obody.SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
+        }
+
+        if (!a_doNotApplyMorphs) {
+            obody.GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+        } else {
+            // Assign the preset to the actor.
+            auto assignedPresetIndex = preset->assignedIndex;
+            // Plus one because an index of zero on the actor signifies the absence of a preset.
+            uint32_t actorPresetIndex = assignedPresetIndex.value + 1;
+            ActorTracker::ActorState fallbackActorState{};
+            fallbackActorState.presetIndex = actorPresetIndex;
+
+            registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
+                                                    [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+
+            obody.SendActorChangeEvent(
+                a_actor,
+                [&] {
+                    using Event = ::OBody::API::IActorChangeEventListener;
+
+                    Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                        &obody.specialPapyrusPluginInterface,
+                        // Note that the plugin-API mandates that this be a null-terminated string.
+                        assignedPresetIndex.GetPresetNameView(isFemale)};
+
+                    Event::OnActorPresetChangedWithoutGeneration::Flags flags{};
+
+                    return std::make_pair(flags, payload);
+                },
+                [](auto listener, auto actor, auto&& args) {
+                    listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                });
+        }
+
+        return true;
+    }
+
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;
 
@@ -116,6 +249,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(GenActor);
         OBODY_PAPYRUS_BIND(ApplyPresetByName);
         OBODY_PAPYRUS_BIND(GetAllPossiblePresets);
+        OBODY_PAPYRUS_BIND(RemoveClothesOverlay_);
         OBODY_PAPYRUS_BIND(AddClothesOverlay);
         OBODY_PAPYRUS_BIND(RegisterForOBodyEvent);
         OBODY_PAPYRUS_BIND(RegisterForOBodyNakedEvent);
@@ -123,6 +257,9 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(GetFemaleDatabaseSize);
         OBODY_PAPYRUS_BIND(GetMaleDatabaseSize);
         OBODY_PAPYRUS_BIND(ResetActorOBodyMorphs);
+        OBODY_PAPYRUS_BIND(ReapplyActorOBodyMorphs);
+        OBODY_PAPYRUS_BIND(GetPresetAssignedToActor);
+        OBODY_PAPYRUS_BIND(AssignPresetToActor);
 
         OBODY_PAPYRUS_BIND(SetORefit);
         OBODY_PAPYRUS_BIND(SetNippleSlidersORefitEnabled);

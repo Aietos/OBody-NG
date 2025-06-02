@@ -22,12 +22,15 @@ configure_file(
         @ONLY)
 
 set(sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ActorTracker/ActorTracker.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/API/PluginInterface.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Body.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Body/Event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/Papyrus.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Papyrus/PapyrusBody.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/JSONParser/JSONParser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PresetManager/PresetManager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/SaveFileState/SaveFileState.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
 
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -48,6 +51,7 @@ find_package(CommonLibSSE CONFIG REQUIRED)
 find_package(ryml CONFIG REQUIRED)
 find_package(boost_algorithm CONFIG REQUIRED)
 find_package(boost_stl_interfaces CONFIG REQUIRED)
+find_package(boost_unordered CONFIG REQUIRED)
 
 add_commonlibsse_plugin(${PROJECT_NAME} SOURCES ${sources} AUTHOR ${PROJECT_AUTHOR})
 add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS "${PROJECT_NAME}")
@@ -70,7 +74,8 @@ target_link_libraries(
         pugixml
         rapidjson
         Boost::algorithm
-        Boost::stl_interfaces)
+        Boost::stl_interfaces
+        Boost::unordered)
 
 target_precompile_headers(
         ${PROJECT_NAME}
