@@ -19,7 +19,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
 
     if (RE::Actor * actor{a_event->objectInitialized->As<RE::Actor>()};
         (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
-        Body::OBody::GetInstance().GenerateActorBody(actor);
+        Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);
     }
 
     return RE::BSEventNotifyControl::kContinue;

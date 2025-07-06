@@ -91,6 +91,66 @@ namespace PresetManager {
         return Preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
     }
 
+    void PresetContainer::AssignPresetIndexes() {
+        auto assignIndexes = [&](auto& loadedPresets, auto& presetIndexMap, auto& sparseIndexMap, auto& nextPresetIndex) {
+            // We ensure that absent presets have an index of -1 to signify their absence.
+            sparseIndexMap.resize(0);
+            sparseIndexMap.resize(nextPresetIndex.value, -1);
+
+            for (size_t loadedIndex = 0; loadedIndex < loadedPresets.size(); ++loadedIndex) {
+                auto& preset = loadedPresets[loadedIndex];
+
+                auto indexAssignment = presetIndexMap.emplace(preset.name, nextPresetIndex.value);
+
+                if (indexAssignment.second) {
+                    // This is a preset name we haven't seen before.
+                    ++nextPresetIndex.value;
+                    sparseIndexMap.resize(nextPresetIndex.value);
+                }
+
+                auto assignedIndex = indexAssignment.first->second;
+                sparseIndexMap[assignedIndex.value] = loadedIndex;
+                preset.assignedIndex = assignedIndex;
+            }
+        };
+
+        assignIndexes(this->allFemalePresets, this->femalePresetIndexByName, this->allFemalePresetsByIndex, this->nextFemalePresetIndex);
+        assignIndexes(this->allMalePresets, this->malePresetIndexByName, this->allMalePresetsByIndex, this->nextMalePresetIndex);
+
+        logger::info("Assigned indexes to all the loaded presets.");
+    }
+
+    Preset* AssignedPresetIndex::GetPreset(bool actorIsFemale) const {
+        auto& presetContainer{PresetContainer::GetInstance()};
+
+        const auto& sparseMap =
+            actorIsFemale ? presetContainer.allFemalePresetsByIndex : presetContainer.allMalePresetsByIndex;
+
+        // If the actor's sex has not changed, then this index must be in bounds, but an actor's sex may have changed.
+        if (value >= sparseMap.size()) {
+            return nullptr;
+        }
+
+        auto denseIndex = sparseMap[value];
+        auto& presets = actorIsFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets;
+
+        // The user may have removed this preset since it was assigned,
+        // if they did the sparse-map will have mapped it to -1.
+        assert(denseIndex < presets.size() || denseIndex == -1);
+
+        return denseIndex < presets.size() ? &presets[denseIndex] : nullptr;
+    }
+
+    std::string_view AssignedPresetIndex::GetPresetNameView(bool actorIsFemale) const {
+        const auto preset = GetPreset(actorIsFemale);
+
+        if (preset != nullptr) {
+            return {preset->name.data(), preset->name.size()};
+        }
+
+        return {};
+    }
+
     Preset GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name, const bool female) {
         logger::info("Looking for preset: {}", a_name);
 
