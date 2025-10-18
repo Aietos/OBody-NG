@@ -1,25 +1,16 @@
 {
   "default-registry": {
     "kind": "git",
-    "baseline": "33e9c99208736b713cabe4490e15235f62f893d4",
+    "baseline": "74e6536215718009aae747d86d84b78376bf9e09",
     "repository": "https://github.com/microsoft/vcpkg.git"
   },
   "registries": [
     {
       "kind": "git",
-      "baseline": "c6d868d34b65ebd9119d0a2698bf50a85c7ec7c8",
-      "repository": "https://github.com/ThirdEyeSqueegee/CommonLibSSE-NG-vcpkg",
+      "baseline": "6309841a1ce770409708a67a9ba5c26c537d2937",
+      "repository": "https://gitlab.com/colorglass/vcpkg-colorglass",
       "packages": [
         "commonlibsse-ng"
-      ]
-    },
-    {
-      "kind": "git",
-      "baseline": "6abaa8a737b8e8318ee7597fee5c5d5e639f8ad0",
-      "repository": "https://github.com/ThirdEyeSqueegee/vcpkg-ports",
-      "packages": [
-        "openvr",
-        "spdlog"
       ]
     }
   ]
