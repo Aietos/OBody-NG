@@ -19,7 +19,7 @@ namespace {
         auto log{std::make_shared<spdlog::logger>("Global")};
         auto& log_sinks{log->sinks()};
 
-        if (REX::W32::IsDebuggerPresent()) {
+        if (SKSE::WinAPI::IsDebuggerPresent()) {
             log_sinks.reserve(2);
             const auto msvc_sink{std::make_shared<spdlog::sinks::msvc_sink_mt>()};
             msvc_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [OBody.dll,%s:%#] %v");
@@ -199,9 +199,9 @@ namespace {
                 return;
             }
             case SKSE::MessagingInterface::kPostLoad: {
-                const REX::W32::HMODULE tweaks{REX::W32::GetModuleHandleA("po3_Tweaks")};
+                const SKSE::WinAPI::HMODULE tweaks{GetModuleHandle("po3_Tweaks")};
                 stl::func = reinterpret_cast<stl::PO3_tweaks_GetFormEditorID>(
-                    REX::W32::GetProcAddress(tweaks, "GetFormEditorID"));
+                    SKSE::WinAPI::GetProcAddress(tweaks, "GetFormEditorID"));
                 logger::info("Got po3_tweaks api: {}", stl::func != nullptr);
 
                 auto serialization = SKSE::GetSerializationInterface();
@@ -231,7 +231,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
     const auto* const plugin{SKSE::PluginDeclaration::GetSingleton()};
     logger::info("{} {} is loading...", plugin->GetName(), plugin->GetVersion().string("."));
 
-    SKSE::Init(a_skse, false);
+    SKSE::Init(a_skse);
 
     if (const auto* const message = SKSE::GetMessagingInterface(); !message->RegisterListener(SKSEMessageHandler)) {
         return false;
