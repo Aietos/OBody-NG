@@ -104,11 +104,11 @@ target_link_libraries(OBody PRIVATE
     user32
     version
 )
-add_library(target_objectfiles_OBody_70ABD068 OBJECT IMPORTED GLOBAL)
-set_property(TARGET target_objectfiles_OBody_70ABD068 PROPERTY IMPORTED_OBJECTS
+add_library(target_objectfiles_OBody_22757994 OBJECT IMPORTED GLOBAL)
+set_property(TARGET target_objectfiles_OBody_22757994 PROPERTY IMPORTED_OBJECTS
     ${CMAKE_SOURCE_DIR}/build/.objs/OBody/windows/x64/releasedbg/gens/include/cxx/PCH.h_v143.pch.obj
 )
-target_link_libraries(OBody PRIVATE target_objectfiles_OBody_70ABD068)
+target_link_libraries(OBody PRIVATE target_objectfiles_OBody_22757994)
 target_link_directories(OBody PRIVATE
     C:/Users/Judah/AppData/Local/.xmake/packages/p/pugixml/v1.15/62451b04cb8d446fb52d4c6d38b1e19b/lib
     build/.packages/v/vcpkg_ryml/latest/26563ad9dadf4267b5b8edf7f93e90ee/vcpkg_installed/x64-windows-static-md/lib
@@ -289,11 +289,11 @@ target_link_libraries(commonlibsse-ng PRIVATE
     user32
     version
 )
-add_library(target_objectfiles_commonlibsse-ng_005D7DBD OBJECT IMPORTED GLOBAL)
-set_property(TARGET target_objectfiles_commonlibsse-ng_005D7DBD PROPERTY IMPORTED_OBJECTS
+add_library(target_objectfiles_commonlibsse-ng_8DB06862 OBJECT IMPORTED GLOBAL)
+set_property(TARGET target_objectfiles_commonlibsse-ng_8DB06862 PROPERTY IMPORTED_OBJECTS
     ${CMAKE_SOURCE_DIR}/build/.objs/commonlibsse-ng/windows/x64/releasedbg/gens/lib/commonlibsse-ng/include/SKSE/Impl/cxx/PCH.h_v143.pch.obj
 )
-target_link_libraries(commonlibsse-ng PRIVATE target_objectfiles_commonlibsse-ng_005D7DBD)
+target_link_libraries(commonlibsse-ng PRIVATE target_objectfiles_commonlibsse-ng_8DB06862)
 target_link_directories(commonlibsse-ng PRIVATE
     C:/Users/Judah/AppData/Local/.xmake/packages/d/directxtk/24.2.0/f6fb9eaf439246fdb823f48a8816ec0c/lib
     C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.15.3/6425784fcb5c43dea6fd2000c451e041/lib

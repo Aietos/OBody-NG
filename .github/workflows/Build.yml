@@ -29,7 +29,9 @@ jobs:
           sevenzip: true
           setup-cpp: false
           powershell: true
-          vcpkg: true
+
+      - name: Setup anew (or from cache) vcpkg (and does not build any package)
+        uses: lukka/run-vcpkg@v11
 
       - uses: xmake-io/github-action-setup-xmake@v1
         with:
