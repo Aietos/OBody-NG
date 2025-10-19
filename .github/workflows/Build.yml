@@ -32,6 +32,8 @@ jobs:
 
       - name: Setup anew (or from cache) vcpkg (and does not build any package)
         uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "980c981a8ab8dcf9389c9d10c3e1bc20b6ee23f9"
 
       - uses: xmake-io/github-action-setup-xmake@v1
         with:
