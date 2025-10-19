@@ -69,12 +69,10 @@
   "type": "object",
   "definitions": {
     "BSTFile": {
-      "pattern": "^(?!.*(PRN|AUX|NUL|CO(N|M[0-9\u00b9\u00b2\u00b3])|LPT[0-9\u00b9\u00b2\u00b3]|[<>:\"/\\|?*]))(?=\\S)(?=.+\\.es[plm]$).*",
-      "type": "string"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "EditorID": {
-      "pattern": "^\\S+$",
-      "type": "string"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "FormID": {
       "pattern": "^[0-9A-Fa-f]{3,8}$",
@@ -94,8 +92,7 @@
       "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "RaceName": {
-      "pattern": "^\\S+Race(Vampire)?$",
-      "type": "string"
+      "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "blacklistedNpcs": {
       "default": [],

@@ -12,3 +12,6 @@
 /build/
 /contrib/**
 /**.log
+/.venv/
+/.env
+/.xmake/

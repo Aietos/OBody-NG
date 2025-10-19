@@ -69,6 +69,11 @@ namespace PresetManager {
                 }
             }
         }
+        // For performance reasons, PresetContainer::AssignPresetIndexes
+        // relies on the blacklisted presets coming after the non-blacklisted presets.
+        // (In order to not rely on this order, we'd instead have to perform string-key lookups
+        //  via a hash-table, instead of direct array access. Which wouldn't be good for code
+        //  that runs every time a saved-game is loaded).
 
         allFemalePresets = femalePresets;
         allFemalePresets.insert_range(allFemalePresets.end(), blacklistedFemalePresets);
@@ -92,30 +97,52 @@ namespace PresetManager {
     }
 
     void PresetContainer::AssignPresetIndexes() {
-        auto assignIndexes = [&](auto& loadedPresets, auto& presetIndexMap, auto& sparseIndexMap, auto& nextPresetIndex) {
+        auto assignIndexes = [&](PresetSet& allLoadedPresets, PresetSet& nonBlacklistedPresets,
+                                 PresetSet& blacklistedPresets, auto& presetIndexMap, auto& sparseIndexMap,
+                                 auto& nextPresetIndex) {
+            assert(allLoadedPresets.size() == nonBlacklistedPresets.size() + blacklistedPresets.size());
+
             // We ensure that absent presets have an index of -1 to signify their absence.
             sparseIndexMap.resize(0);
             sparseIndexMap.resize(nextPresetIndex.value, -1);
 
-            for (size_t loadedIndex = 0; loadedIndex < loadedPresets.size(); ++loadedIndex) {
-                auto& preset = loadedPresets[loadedIndex];
+            size_t loadedIndexOffset = 0;
 
-                auto indexAssignment = presetIndexMap.emplace(preset.name, nextPresetIndex.value);
+            auto assignSubset = [&](PresetSet& subset) {
+                size_t loadedIndex = 0;
 
-                if (indexAssignment.second) {
-                    // This is a preset name we haven't seen before.
-                    ++nextPresetIndex.value;
-                    sparseIndexMap.resize(nextPresetIndex.value);
+                for (; loadedIndex < subset.size(); ++loadedIndex) {
+                    auto& presetInSubset = subset[loadedIndex];
+                    auto& presetInAll = allLoadedPresets[loadedIndexOffset + loadedIndex];
+
+                    assert(presetInSubset.name.data() == presetInAll.name.data());
+
+                    auto indexAssignment = presetIndexMap.emplace(presetInSubset.name, nextPresetIndex.value);
+
+                    if (indexAssignment.second) {
+                        // This is a preset name we haven't seen before.
+                        ++nextPresetIndex.value;
+                        sparseIndexMap.resize(nextPresetIndex.value);
+                    }
+
+                    auto assignedIndex = indexAssignment.first->second;
+                    sparseIndexMap[assignedIndex.value] = loadedIndexOffset + loadedIndex;
+
+                    presetInSubset.assignedIndex = assignedIndex;
+                    presetInAll.assignedIndex = assignedIndex;
                 }
 
-                auto assignedIndex = indexAssignment.first->second;
-                sparseIndexMap[assignedIndex.value] = loadedIndex;
-                preset.assignedIndex = assignedIndex;
-            }
+                loadedIndexOffset += loadedIndex;
+            };
+
+            assignSubset(nonBlacklistedPresets);
+            assignSubset(blacklistedPresets);
         };
 
-        assignIndexes(this->allFemalePresets, this->femalePresetIndexByName, this->allFemalePresetsByIndex, this->nextFemalePresetIndex);
-        assignIndexes(this->allMalePresets, this->malePresetIndexByName, this->allMalePresetsByIndex, this->nextMalePresetIndex);
+        assignIndexes(this->allFemalePresets, this->femalePresets, this->blacklistedFemalePresets,
+                      this->femalePresetIndexByName, this->allFemalePresetsByIndex, this->nextFemalePresetIndex);
+        assignIndexes(this->allMalePresets, this->malePresets, this->blacklistedMalePresets,
+                      this->malePresetIndexByName, this->allMalePresetsByIndex, this->nextMalePresetIndex);
 
         logger::info("Assigned indexes to all the loaded presets.");
     }

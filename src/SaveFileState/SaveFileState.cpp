@@ -1,5 +1,9 @@
 #include "SaveFileState/SaveFileState.h"
 
+#pragma push_macro("max")
+#pragma push_macro("min")
+#undef max
+#undef min
 namespace SaveFileState {
     // Refer to https://github.com/Ryan-rsm-McKenzie/CommonLibSSE/wiki/Serialization
 
@@ -89,7 +93,7 @@ namespace SaveFileState {
     }
 
     // In this context, revert means to undo the effects of a call to LoadState.
-    void RevertState(SKSE::SerializationInterface* revert) {
+    void RevertState([[maybe_unused]] SKSE::SerializationInterface* revert) {
         auto& registry = ActorTracker::Registry::GetInstance();
         registry.stateForActor.clear();
 
@@ -140,7 +144,7 @@ namespace SaveFileState {
     bool ReadRecordDataForActorRegistryV0(SKSE::SerializationInterface* load, Buffer buffer,
                                           ActorTracker::Registry& registry) {
         // See `WriteRecordDataForActorRegistryV0` for a description of this format.
-        size_t offset;
+        size_t offset{};
         size_t remainingBytes = 0;
 
         for (;;) {
@@ -386,3 +390,5 @@ namespace SaveFileState {
         return true;
     }
 }  // namespace SaveFileState
+#pragma pop_macro("max")
+#pragma pop_macro("min")

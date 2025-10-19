@@ -1,0 +1,87 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  PROJECT_NAME: OBody
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+#    if: ${{ vars.ENABLE_BUILD == 'true' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup C++ environment
+        uses: aminya/setup-cpp@v1
+        with:
+          compiler: msvc
+          vcvarsall: true
+          sevenzip: true
+          setup-cpp: false
+          powershell: true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "980c981a8ab8dcf9389c9d10c3e1bc20b6ee23f9"
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: '.xmake-cache'
+
+      - name: Extract version from xmake.lua
+        id: version
+        shell: powershell
+        run: |
+          # Extract version from xmake.lua using PowerShell
+          $version = (Select-String -Path "xmake.lua" -Pattern 'set_version\("([^"]+)"\)').Matches[0].Groups[1].Value
+          echo "PROJECT_VERSION=$version" >> $env:GITHUB_ENV
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build releasedbg
+        run: xmake -y OBody
+
+      - name: Create 7z archive
+        shell: powershell
+        run: |
+          # Create Artifact directory if it doesn't exist
+          New-Item -ItemType Directory -Force -Path "contrib/Artifact"
+          
+          # Change to contrib/Distribution directory and create 7z archive from there
+          # This makes Distribution the root of the archive
+          cd contrib/Distribution
+          7z a -t7z -mx=9 "../Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z" "*"
+          
+          # Return to base directory for subsequent steps
+          cd ../..
+
+      - name: Deploy Artifact
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}
+          path: ${{ github.workspace }}/contrib/Distribution/
+          compression-level: '9'
+
+      - name: Upload files to a GitHub release
+        if: github.event_name == 'push'
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z
+          tag: ${{ env.PROJECT_VERSION }}
+          commit: main
+          generateReleaseNotes: true
+          artifactErrorsFailBuild: true
+          makeLatest: "latest"
+          name: ${{ env.PROJECT_NAME }} ${{ env.PROJECT_VERSION }}

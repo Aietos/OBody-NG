@@ -40,11 +40,12 @@ namespace stl {
             char errorMessage[256];
             if constexpr (std::is_floating_point_v<T>) {
                 sprintf_s(errorMessage, std::size(errorMessage),
-                          "The Value of min: '%f' must be lesser than the value of max: '%f'", min, max); //max length possible: 153
+                          "The Value of min: '%f' must be lesser than the value of max: '%f'", min,
+                          max);  // max length possible: 153
             } else {
                 sprintf_s(errorMessage, std::size(errorMessage),
                           "The Value of min: '%lld' must be lesser than the value of max: '%lld'",
-                          static_cast<long long>(min), static_cast<long long>(max)); //max length possible: 99
+                          static_cast<long long>(min), static_cast<long long>(max));  // max length possible: 99
             }
             throw std::invalid_argument(errorMessage);
         }
@@ -71,7 +72,6 @@ namespace stl {
 
         for (auto& value : input) {
             if (std::find(elements.begin(), elements.begin() + size, value) == elements.begin() + size) {
-                if (size >= N) throw std::exception("Set is full, not enough space");
                 elements[size++] = value;
             }
         }
@@ -114,7 +114,7 @@ namespace stl {
             case RE::FormType::SoundRecord:
                 return a_form->GetFormEditorID();
             default: {
-                if (func) {
+                if (func) [[likely]] {
                     return func(a_form->formID);
                 }
                 return {};
@@ -122,7 +122,7 @@ namespace stl {
         }
     }
 
-    static void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array, rapidjson::Value::AllocatorType& allocator) {
+    inline void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array, rapidjson::Value::AllocatorType& allocator) {
         if (!json_array.IsArray()) return;
 
         std::unordered_set<std::string_view> seen;
@@ -140,54 +140,25 @@ namespace stl {
         json_array.Swap(uniqueArray);
     }
 
+
     class FilePtrManager {
     public:
-        explicit FilePtrManager(const char* path, const char* mode = "rb") noexcept : err(fopen_s(&fp, path, mode)) {
-            // ReSharper disable CppDeprecatedEntity
-            if (err != 0) {
-                logger::error("Warning: Failed to open file '{}' pointer. Error: {}", path, strerror(err));
-            }
-        }
+        explicit FilePtrManager(const char* path, const char* mode = "rb") noexcept;
 
-        explicit FilePtrManager(const wchar_t* path, const wchar_t* mode = L"rb") noexcept
-            : err(_wfopen_s(&fp, path, mode)) {
-            if (err != 0) {
-                wchar_t buffer[2048];
-                swprintf_s(buffer, std::size(buffer), L"Failed to open file '%s' pointer. Error: %hs", path,
-                           strerror(err));
-                SPDLOG_ERROR(buffer);
-            }
-        }
+        explicit FilePtrManager(const wchar_t* path, const wchar_t* mode = L"rb") noexcept;
 
-        ~FilePtrManager() {
-            if (fp && (err = fclose(fp)) != 0) {
-                logger::error("Warning: Failed to close file pointer: {}", strerror(err));
-                // ReSharper restore CppDeprecatedEntity
-            }
-        }
+        ~FilePtrManager();
 
         FilePtrManager(const FilePtrManager&) = delete;
         FilePtrManager& operator=(const FilePtrManager&) = delete;
 
-        FilePtrManager(FilePtrManager&& other) noexcept : fp(other.fp), err(other.err) {
-            other.fp = nullptr;
-            other.err = 0;
-        }
+        FilePtrManager(FilePtrManager&& other) noexcept;
 
-        FilePtrManager& operator=(FilePtrManager&& other) noexcept {
-            if (this != &other) {
-                if (fp && fp != other.fp) fclose(fp);
-                fp = other.fp;
-                err = other.err;
-                other.fp = nullptr;
-                other.err = 0;
-            }
-            return *this;
-        }
+        FilePtrManager& operator=(FilePtrManager&& other) noexcept;
 
-        [[nodiscard]] FILE* get() noexcept { return fp; }
-        [[nodiscard]] FILE* get() const noexcept { return fp; }
-        [[nodiscard]] errno_t error() const noexcept { return err; }
+        [[nodiscard]] FILE* get() noexcept;
+        [[nodiscard]] FILE* get() const noexcept;
+        [[nodiscard]] errno_t error() const noexcept;
 
     private:
         FILE* fp{};
@@ -196,19 +167,9 @@ namespace stl {
 
     class timeit {
     public:
-        explicit timeit(const std::source_location& a_curr = std::source_location::current())
-            : curr(a_curr) {}
+        explicit timeit(const std::source_location& a_curr = std::source_location::current()) : curr(a_curr) {}
 
-        ~timeit() {
-            const auto stop{std::chrono::steady_clock::now() - start};
-            logger::info(
-                "Time Taken in '{}' is {} nanoseconds or {} microseconds or {} milliseconds or {} seconds or "
-                "{} minutes",
-                curr.function_name(), stop.count(), std::chrono::duration_cast<std::chrono::microseconds>(stop).count(),
-                std::chrono::duration_cast<std::chrono::milliseconds>(stop).count(),
-                std::chrono::duration_cast<std::chrono::seconds>(stop).count(),
-                std::chrono::duration_cast<std::chrono::minutes>(stop).count());
-        }
+        ~timeit();
 
     private:
         std::source_location curr;
