@@ -6,7 +6,7 @@ includes ("lib/commonlibsse-ng")
 
 -- set project
 set_project("OBody")
-set_version("4.3.7")
+set_version("4.4.0")
 set_license("GPL-3.0")
 
 -- set defaults
@@ -24,7 +24,19 @@ add_rules("plugin.vsxmake.autoupdate")
 set_defaultmode("releasedbg")
 
 -- require packages
-add_requires("rapidjson", "pugixml", "vcpkg::ryml", "vcpkg::boost-algorithm")
+add_requires("rapidjson", "pugixml")
+local cfg = {
+    configs = {
+        baseline = "980c981a8ab8dcf9389c9d10c3e1bc20b6ee23f9",
+        default_registry = {
+            kind = "git",
+            repository = "https://github.com/Microsoft/vcpkg",
+            baseline = "980c981a8ab8dcf9389c9d10c3e1bc20b6ee23f9"
+        }
+    }
+}
+add_requires("vcpkg::ryml latest", cfg)
+add_requires("vcpkg::boost-algorithm latest", cfg)
 
 -- targets
 target("OBody")
