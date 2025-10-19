@@ -30,7 +30,7 @@ jobs:
           setup-cpp: false
           powershell: true
 
-      - name: Setup anew (or from cache) vcpkg (and does not build any package)
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: "980c981a8ab8dcf9389c9d10c3e1bc20b6ee23f9"
@@ -42,6 +42,7 @@ jobs:
 
       - name: Extract version from xmake.lua
         id: version
+        shell: powershell
         run: |
           # Extract version from xmake.lua using PowerShell
           $version = (Select-String -Path "xmake.lua" -Pattern 'set_version\("([^"]+)"\)').Matches[0].Groups[1].Value
@@ -52,6 +53,7 @@ jobs:
         run: xmake -y OBody
 
       - name: Create 7z archive
+        shell: powershell
         run: |
           # Create Artifact directory if it doesn't exist
           New-Item -ItemType Directory -Force -Path "contrib/Artifact"

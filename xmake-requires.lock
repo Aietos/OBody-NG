@@ -67,10 +67,10 @@
             },
             version = "v1.15.3"
         },
-        ["vcpkg::boost-algorithm latest#29829a97"] = {
+        ["vcpkg::boost-algorithm#29829a97"] = {
             version = "latest"
         },
-        ["vcpkg::ryml latest#29829a97"] = {
+        ["vcpkg::ryml#29829a97"] = {
             version = "latest"
         }
     }

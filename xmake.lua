@@ -35,8 +35,8 @@ local cfg = {
         }
     }
 }
-add_requires("vcpkg::ryml latest", cfg)
-add_requires("vcpkg::boost-algorithm latest", cfg)
+add_requires("vcpkg::ryml", cfg)
+add_requires("vcpkg::boost-algorithm", cfg)
 
 -- targets
 target("OBody")
