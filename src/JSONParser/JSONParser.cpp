@@ -578,7 +578,7 @@ namespace Parser {
                                  pair.first, pair.second.second);  // Return the unique_ptr directly
                          });
 
-        std::vector<std::string> wornItems;
+        // std::vector<std::string> wornItems;
 
         for (const auto& [bound_obj, inventory_entry_data] : inventory) {
             if (inventory_entry_data->IsWorn()) {
@@ -633,7 +633,7 @@ namespace Parser {
         const std::vector<RE::TESFaction*> actorFactions{actorRanks.begin(), actorRanks.end()};
 
         if (actorFactions.empty()) {
-            return {};
+            return std::nullopt;
         }
 
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
@@ -655,7 +655,7 @@ namespace Parser {
             }
         }
 
-        return {};
+        return std::nullopt;
     }
 
     std::optional<PresetManager::Preset> JSONParser::GetNPCPreset(const char* actorName, const uint32_t formID,
@@ -687,7 +687,7 @@ namespace Parser {
             }
             return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female);
         }
-        return {};
+        return std::nullopt;
     }
 
     std::optional<PresetManager::Preset> JSONParser::GetNPCPluginPreset(const RE::TESNPC* a_actor,
@@ -716,7 +716,7 @@ namespace Parser {
             }
         }
 
-        return {};
+        return std::nullopt;
     }
 
     std::optional<PresetManager::Preset> JSONParser::GetNPCRacePreset(const char* actorRace, const bool female) {
@@ -734,6 +734,6 @@ namespace Parser {
             return PresetManager::GetRandomPresetByName(presetSet, presets_copy, female);
         }
 
-        return {};
+        return std::nullopt;
     }
 }  // namespace Parser

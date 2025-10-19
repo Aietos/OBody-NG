@@ -78,7 +78,7 @@ namespace Body {
                                                 EventMethod&& eventMethod) const {
             std::lock_guard<std::recursive_mutex> lock(actorChangeListenerLock);
 
-            if (actorChangeEventListeners.size() == 0) {
+            if (actorChangeEventListeners.empty()) {
                 return;
             }
 

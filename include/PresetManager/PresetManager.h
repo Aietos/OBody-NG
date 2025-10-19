@@ -4,7 +4,10 @@
 
 namespace PresetManager {
     enum class BodyType { CBBE, UNP };
-
+#pragma push_macro("max")
+#pragma push_macro("min")
+#undef max
+#undef min
     struct Slider {
         Slider() = default;
         Slider(const char* a_name, const float a_val) : name(a_name), min(a_val), max(a_val) {}
@@ -21,6 +24,8 @@ namespace PresetManager {
         float min = 0.f;
         float max = 0.f;
     };
+#pragma pop_macro("max")
+#pragma pop_macro("min")
 
     using SliderSet = boost::unordered_flat_map<std::string, Slider>;
 
@@ -48,7 +53,7 @@ namespace PresetManager {
     // Note that because we keep preset indexes stable even if a player removes a preset, the preset indexes
     // are thus sparse when it comes to accessing a contiguous sequence of usable presets.
     //
-    // We keep the preset indexes stable for removed presets so as to gracefully handle the event of a player
+    // We keep the preset indexes stable for removed presets to gracefully handle the event of a player
     // accidentally removing a preset and not realising until after they've played for a bit and saved a few times.
     // It would make for a poor UX if we clobbered their preset assignment in that scenario.
     struct AssignedPresetIndex {
@@ -58,8 +63,8 @@ namespace PresetManager {
 
         uint32_t value = 0;
 
-        Preset* GetPreset(bool actorIsFemale) const;
-        std::string_view GetPresetNameView(bool actorIsFemale) const;
+        [[nodiscard]] Preset* GetPreset(bool actorIsFemale) const;
+        [[nodiscard]] std::string_view GetPresetNameView(bool actorIsFemale) const;
     };
 
     using SparsePresetIndex = uint32_t;

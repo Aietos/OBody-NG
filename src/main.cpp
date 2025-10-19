@@ -84,15 +84,20 @@ namespace {
 
                         break;
                     }
+                    default:
+                        break;
                 }
 
                 logger::info("A plugin interface of plugin-API version {} was supplied to {}.",
                              std::to_underlying(requestedVersion), a_msg->sender);
                 return;
             }
+            default:
+                return;
         }
     }
 
+    // ReSharper disable once CppParameterMayBeConstPtrOrRef
     void SKSEMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
         auto& obody{Body::OBody::GetInstance()};
 
