@@ -35,6 +35,10 @@ namespace PapyrusBody {
         Body::OBody::GetInstance().setRespectfulMorphApplication = a_enabled;
     }
 
+    void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, const bool a_enabled) {
+        Body::OBody::GetInstance().setLegacyStorageUtilUsageEnabled = a_enabled;
+    }
+
     // ReSharper disable once CppPassValueParameterByConstReference
     void SetDistributionKey(RE::StaticFunctionTag*,
                             const std::string a_distributionKey) {  // NOLINT(*-unnecessary-value-param)
@@ -267,6 +271,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(SetGenitalRand);
         OBODY_PAPYRUS_BIND(SetPerformanceMode);
         OBODY_PAPYRUS_BIND(SetRespectfulMorphApplication);
+        OBODY_PAPYRUS_BIND(SetLegacyStorageUtilUsageEnabled);
         OBODY_PAPYRUS_BIND(SetDistributionKey);
 #undef OBODY_PAPYRUS_BIND
         return true;

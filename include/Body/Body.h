@@ -119,6 +119,7 @@ namespace Body {
         bool setGenitalRand = true;
         bool setPerformanceMode = true;
         bool setRespectfulMorphApplication = false;
+        bool setLegacyStorageUtilUsageEnabled = true;
 
         std::string distributionKey;
 
