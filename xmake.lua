@@ -53,9 +53,11 @@ target("OBody")
         author = "Aietos"
     })
 
-    -- add MSVC preprocessor flag for __VA_OPT__ support
     if is_plat("windows") then
+        -- add MSVC preprocessor flag for __VA_OPT__ support
         add_cxflags("cl::/Zc:preprocessor")
+        -- Anonymous aggregate types are _fine_.
+        add_cxflags("cl::/wd4201")
     end
 
     -- add src files

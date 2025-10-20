@@ -25,6 +25,15 @@ namespace SaveFileState {
         } else {
             logger::critical("Failed to open a record for the preset-name-index-map!");
         }
+
+        if (save->OpenRecord(BackwardsCompatibilityStateTypeID, 0)) {
+            if (!WriteRecordDataForBackwardsCompatibilityStateV0(save, buffer,
+                                                                 BackwardsCompatibility::State::GetInstance())) {
+                logger::critical("Failed to save the backwards-compatibility-state!");
+            }
+        } else {
+            logger::critical("Failed to open a record for the backwards-compatibility-state!");
+        }
     }
 
     void LoadState(SKSE::SerializationInterface* load) {
@@ -32,6 +41,7 @@ namespace SaveFileState {
 
         size_t actorRegistryCount = 0;
         size_t presetNameMapCount = 0;
+        size_t backwardsCompatibilityStateCount = 0;
 
         uint32_t type;
         uint32_t version;
@@ -79,6 +89,27 @@ namespace SaveFileState {
                     }
                     break;
                 }
+                case BackwardsCompatibilityStateTypeID: {
+                    switch (version) {
+                        case 0: {
+                            if (++backwardsCompatibilityStateCount == 1) {
+                                if (!ReadRecordDataForBackwardsCompatibilityStateV0(
+                                        load, buffer, BackwardsCompatibility::State::GetInstance())) {
+                                    logger::critical("Failed to load the backwards-compatibility-state!");
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            logger::error(
+                                "A backwards-compatibility-state record of an unknown version '{}' was found in the "
+                                "cosave.",
+                                version);
+                            break;
+                        }
+                    }
+                    break;
+                }
                 default: {
                     logger::error("A record of unknown type {:#010x} was found in the cosave.", type);
                     break;
@@ -86,9 +117,17 @@ namespace SaveFileState {
             }
         }
 
+        if (actorRegistryCount > 1) {
+            logger::error("Multiple actor-registry records were found in the cosave. Only the first one was read.");
+        }
         if (presetNameMapCount > 1) {
             logger::error(
                 "Multiple preset-name-index-map records were found in the cosave. Only the first one was read.");
+        }
+        if (backwardsCompatibilityStateCount > 1) {
+            logger::error(
+                "Multiple backwards-compatibility-state records were found in the cosave. Only the first one was "
+                "read.");
         }
     }
 
@@ -102,6 +141,9 @@ namespace SaveFileState {
         presetContainer.malePresetIndexByName.clear();
         presetContainer.nextFemalePresetIndex.value = 0;
         presetContainer.nextMalePresetIndex.value = 0;
+
+        auto& backwardsCompatibility = BackwardsCompatibility::State::GetInstance();
+        backwardsCompatibility.flags = 0;
     }
 
     bool WriteRecordDataForActorRegistryV0(SKSE::SerializationInterface* save, Buffer buffer,
@@ -386,6 +428,43 @@ namespace SaveFileState {
                 "{{remainingBytes: {}}}",
                 remainingBytes);
         }
+
+        return true;
+    }
+
+    bool WriteRecordDataForBackwardsCompatibilityStateV0(SKSE::SerializationInterface* save, Buffer buffer,
+                                                         const BackwardsCompatibility::State& backwardsCompatibility) {
+        static_assert(sizeof(decltype(backwardsCompatibility)) <= BufferSize);
+
+        std::memcpy(&buffer[0], &backwardsCompatibility, sizeof(decltype(backwardsCompatibility)));
+
+        if (!save->WriteRecordData(buffer, sizeof(decltype(backwardsCompatibility)))) return false;
+
+        return true;
+    }
+
+    bool ReadRecordDataForBackwardsCompatibilityStateV0(SKSE::SerializationInterface* load, Buffer buffer,
+                                                        BackwardsCompatibility::State& backwardsCompatibility) {
+        static_assert(sizeof(decltype(backwardsCompatibility)) <= BufferSize);
+
+        size_t remainingBytes = load->ReadRecordData(buffer, BufferSize);
+
+        // Presently, we assume that the backwards-compatibility-state can never be larger than 4-bytes.
+        // If the `BackwardsCompatibility::State` structure is made larger in the future,
+        // this code for reading the backwards-compatibility-state will need to be amended
+        // to handle reading the first 4-bytes and then reading more if those 4-bytes indicate that
+        // the structure is larger than that.
+        // Alternatively, the version of this record in the SKSE cosave can be incremented
+        // and functions for reading and writing the V1 structures can be implemented.
+        static_assert(sizeof(decltype(backwardsCompatibility)) == 4);
+
+        if (remainingBytes < 4) {
+            logger::critical("This save file's backwards-compatibility-state is invalid! {{remainingBytes: {}}}",
+                             remainingBytes);
+            return false;
+        }
+
+        std::memcpy(&backwardsCompatibility, &buffer[0], sizeof(decltype(backwardsCompatibility)));
 
         return true;
     }

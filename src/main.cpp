@@ -1,3 +1,4 @@
+#include "BackwardsCompatibility/BackwardsCompatibility.h"
 #include "Body/Body.h"
 #include "Body/Event.h"
 #include "Papyrus/Papyrus.h"
@@ -160,6 +161,8 @@ namespace {
             case SKSE::MessagingInterface::kNewGame: {
                 logger::info("New Game started");
 
+                BackwardsCompatibility::State::GetInstance().SetStateUponStartOfNewGame();
+
                 PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
 
                 Event::OBodyEventHandler::Register();
@@ -191,6 +194,8 @@ namespace {
 
                 // Now that our cosave has loaded, we can assign indexes to the presets that we loaded earlier.
                 PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
+
+                BackwardsCompatibility::State::GetInstance().FixupAfterLoadingGame();
 
                 Event::OBodyEventHandler::Register();
 

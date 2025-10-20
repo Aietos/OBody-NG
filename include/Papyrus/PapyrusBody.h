@@ -17,6 +17,8 @@ namespace PapyrusBody {
 
     void SetRespectfulMorphApplication(RE::StaticFunctionTag*, bool a_enabled);
 
+    void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, bool a_enabled);
+
     void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey);
 
     int GetFemaleDatabaseSize(RE::StaticFunctionTag*);
