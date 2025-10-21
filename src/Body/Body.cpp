@@ -189,7 +189,7 @@ namespace Body {
             // Clear their preset assignment, if they have one.
             auto& registry{ActorTracker::Registry::GetInstance()};
             uint32_t previousPresetIndex = 0;
-            registry.stateForActor.visit(actorID, [&](auto& entry) {
+            registry.stateForActor.visit(a_actor->formID, [&](auto& entry) {
                 previousPresetIndex = entry.second.presetIndex;
                 entry.second.presetIndex = 0;
             });
