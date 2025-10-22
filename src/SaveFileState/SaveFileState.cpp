@@ -217,9 +217,10 @@ namespace SaveFileState {
             offset += sizeof(decltype(actorState));
             remainingBytes -= sizeof(decltype(actorState));
 
-            actorState.value = actorState.value & ActorTracker::ActorState::PersistedInCosaveMask;
-
-            registry.stateForActor.insert_or_assign(formID, actorState);
+            if (load->ResolveFormID(formID, formID)) {
+                actorState.value = actorState.value & ActorTracker::ActorState::PersistedInCosaveMask;
+                registry.stateForActor.insert_or_assign(formID, actorState);
+            }
         }
 
         assert(false);
