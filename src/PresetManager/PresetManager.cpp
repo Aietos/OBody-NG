@@ -115,7 +115,7 @@ namespace PresetManager {
                     auto& presetInSubset = subset[loadedIndex];
                     auto& presetInAll = allLoadedPresets[loadedIndexOffset + loadedIndex];
 
-                    assert(presetInSubset.name.data() == presetInAll.name.data());
+                    assert(presetInSubset.name == presetInAll.name);
 
                     auto indexAssignment = presetIndexMap.emplace(presetInSubset.name, nextPresetIndex.value);
 
