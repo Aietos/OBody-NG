@@ -24,6 +24,7 @@ namespace Body {
 
         void SetMorph(RE::Actor* a_actor, const char* a_morphName, const char* a_key, float a_value) const;
         float GetMorph(RE::Actor* a_actor, const char* a_morphName) const;
+        void NotifyMorphApplied(RE::Actor* actor) const;
         void ApplyMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer, bool applyProcessedMorph = true) const;
 
         void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) const;

@@ -208,12 +208,11 @@ namespace PresetManager {
         return {};
     }
 
-    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
                                  const bool female) {
         if (a_presetNames.empty()) {
-            logger::info("Preset names size is empty, returning a random one");
-            const auto& container{PresetManager::PresetContainer::GetInstance()};
-            return GetRandomPreset(female ? container.femalePresets : container.malePresets);
+            logger::info("Preset names size is empty, returning none");
+            return std::nullopt;
         }
 
         static_assert(std::is_same_v<decltype(0llu), decltype(a_presetNames.size())>,

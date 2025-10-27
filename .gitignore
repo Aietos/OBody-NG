@@ -6,8 +6,7 @@
 /*.zip
 /*.pex
 /SkyrimSE.code-workspace
-/.vscode/launch.json
-/.vscode/tasks.json
+/.vscode/
 /.vs/
 /build/
 /contrib/**

@@ -22,6 +22,17 @@ namespace Body {
         return morphInterface->GetMorph(a_actor, a_morphName, "OBody");
     }
 
+    void OBody::NotifyMorphApplied(RE::Actor* actor) const {
+        if (auto* evSrc = SKSE::GetModCallbackEventSource()) {
+            SKSE::ModCallbackEvent ev{};
+            ev.eventName = "Obody_ApplyMorph";
+            ev.strArg = "ApplyMorphs";
+            ev.numArg = 1.0F;
+            ev.sender = actor;
+            evSrc->SendEvent(&ev);
+        }
+    }
+
     void OBody::ApplyMorphs(RE::Actor* a_actor, const bool updateMorphsWithoutTimer,
                             const bool applyProcessedMorph) const {
         // If updateMorphsWithoutTimer is true, OBody NG will call the ApplyBodyMorphs function without waiting a random
@@ -38,8 +49,12 @@ namespace Body {
 
                 // ReSharper disable once CppDFAConstantConditions
                 if (actor && actor->Is3DLoaded()) {
-                    morphInterface->ApplyBodyMorphs(actor, true);
-                    morphInterface->UpdateModelWeight(actor, false);
+                    SKSE::GetTaskInterface()->AddTask([this, actor]() {
+                        morphInterface->ApplyBodyMorphs(actor, true);
+                        morphInterface->UpdateModelWeight(actor, false);
+
+                        NotifyMorphApplied(actor);
+                    });
                 }
             }
         } else {
@@ -47,19 +62,8 @@ namespace Body {
             // ReSharper disable CppDFAUnusedValue
             auto actorName{a_actor->GetActorBase()->GetName()};
 
-            const unsigned long seed{
-                static_cast<unsigned long>(std::chrono::system_clock::now().time_since_epoch().count())};
-            std::mt19937 rng{seed};
-            std::uniform_int_distribution gen{3, 7};
-
-            auto sleepFor{gen(rng)};
-            // ReSharper restore CppDFAUnusedValue
-            // ReSharper restore CppDFAUnreadVariable
-
             // We do this to prevent stutters due to Racemenu attempting to update morphs for too many NPCs
-            std::thread([this, actorHandle, actorName, sleepFor] {
-                std::this_thread::sleep_for(std::chrono::seconds(sleepFor));
-
+            std::thread([this, actorHandle, actorName] {
                 if (RE::Actor * actor{actorHandle.get().get()}) {
                     logger::info("Actor {} is valid, updating morphs now", actorName);
 
@@ -70,6 +74,8 @@ namespace Body {
                         !morphInterface->HasBodyMorph(actor, "obody_synthebd", "OBody")) {
                         morphInterface->ApplyBodyMorphs(actor, true);
                         morphInterface->UpdateModelWeight(actor, false);
+
+                        NotifyMorphApplied(actor);
                     }
                 } else {
                     logger::info("Actor {} is no longer valid, not updating morphs", actorName);

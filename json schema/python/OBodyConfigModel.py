@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing import Dict, List, Annotated
 
 type NonEmptyTrimmedString = Annotated[str, Field(pattern=r"^(?=\S)(?=.*\S$).*")]
+type NonEmptyString = Annotated[str, Field(pattern=r"^(?!\s*$).+")]
 
 type BSTFile = NonEmptyTrimmedString
 
@@ -15,7 +16,7 @@ type EditorID = NonEmptyTrimmedString
 
 type RaceName = NonEmptyTrimmedString
 
-type PresetName = NonEmptyTrimmedString
+type PresetName = NonEmptyString
 
 type NPCName = NonEmptyTrimmedString
 
