@@ -85,11 +85,15 @@
       "pattern": "^(?=\\S)(?=.*\\S$).*",
       "type": "string"
     },
+    "NonEmptyString": {
+      "pattern": "^(?!\\s*$).+",
+      "type": "string"
+    },
     "OutfitName": {
       "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "PresetName": {
-      "$ref": "#/definitions/NonEmptyTrimmedString"
+      "$ref": "#/definitions/NonEmptyString"
     },
     "RaceName": {
       "$ref": "#/definitions/NonEmptyTrimmedString"

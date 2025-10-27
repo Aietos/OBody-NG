@@ -134,7 +134,7 @@ namespace PresetManager {
 
     Preset GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female);
     Preset GetRandomPreset(const PresetSet& a_presetSet);
-    Preset GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
                                  bool female);
 
     std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
