@@ -49,12 +49,8 @@ namespace Body {
 
                 // ReSharper disable once CppDFAConstantConditions
                 if (actor && actor->Is3DLoaded()) {
-                    SKSE::GetTaskInterface()->AddTask([this, actor]() {
-                        morphInterface->ApplyBodyMorphs(actor, true);
-                        morphInterface->UpdateModelWeight(actor, false);
-
-                        NotifyMorphApplied(actor);
-                    });
+                    morphInterface->ApplyBodyMorphs(actor, true);
+                    NotifyMorphApplied(actor);
                 }
             }
         } else {
@@ -73,7 +69,6 @@ namespace Body {
                     if (actor && actor->Is3DLoaded() &&
                         !morphInterface->HasBodyMorph(actor, "obody_synthebd", "OBody")) {
                         morphInterface->ApplyBodyMorphs(actor, true);
-                        morphInterface->UpdateModelWeight(actor, false);
 
                         NotifyMorphApplied(actor);
                     }

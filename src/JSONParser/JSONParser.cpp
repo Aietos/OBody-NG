@@ -311,13 +311,8 @@ namespace Parser {
             if (AnyNotEnd(end, npc)) {
                 auto& original = npc->value;
                 for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
-                    if (!npc_names.contains(it->name.GetString())) {
-                        logger::info("removed '{}'", it->name.GetString());
-                        it = original.EraseMember(it);
-                    } else {
-                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
-                        ++it;
-                    }
+                    stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
+                    ++it;
                 }
             }
 
@@ -325,14 +320,6 @@ namespace Parser {
             if (AnyNotEnd(end, blacklistedNpcs)) {
                 auto& original = blacklistedNpcs->value;
                 stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
-                for (auto it = original.Begin(); it != original.End();) {
-                    if (!npc_names.contains(it->GetString())) {
-                        logger::info("removed '{}'", it->GetString());
-                        it = original.Erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
             }
         }
 
