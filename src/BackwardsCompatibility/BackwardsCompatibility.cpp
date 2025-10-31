@@ -71,7 +71,21 @@ namespace BackwardsCompatibility {
                 continue;
             }
 
-            bool isFemale = Body::OBody::IsFemale(actor);
+            const RE::TESNPC* actorBase = actor->GetActorBase();
+
+            if (actorBase == nullptr) {
+                logger::info("\tAn actor could be found with a form-ID of {:#010x}, but it has no actor-base.", (uint32_t)formID);
+
+                // Maybe the NPC template can act as substitute?
+                actorBase = actor->GetTemplateBase();
+
+                if (actorBase == nullptr) {
+                    logger::info("\t\tIt also has no template-base, so the actor is being ignored.");
+                    continue;
+                }
+            }
+
+            bool isFemale = actorBase->IsFemale();
 
             std::string presetName{value, valueLength};
 
