@@ -36,6 +36,10 @@ namespace ActorTracker {
     public:
         static Registry& GetInstance();
 
+        uint32_t GetPresetIndexForActor(RE::Actor* a_actor) const;
+        std::optional<PresetManager::Preset> GetPresetForActor(RE::Actor* a_actor, const bool isFemale) const;
+        std::optional<std::string> GetPresetNameForActor(RE::Actor* a_actor, const bool isFemale) const;
+
         boost::concurrent_flat_map<RE::FormID, ActorState> stateForActor;
 
     private:

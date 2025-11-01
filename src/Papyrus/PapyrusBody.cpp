@@ -130,20 +130,9 @@ namespace PapyrusBody {
     }
 
     std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        auto& registry{ActorTracker::Registry::GetInstance()};
-        auto formID = a_actor->formID;
-        uint32_t actorPresetIndex = 0;
-
-        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
-
-        if (actorPresetIndex != 0) {
-            // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
-            auto preset =
-                PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(Body::OBody::IsFemale(a_actor));
-
-            if (preset != nullptr) {
-                return preset->name;
-            }
+        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, Body::OBody::IsFemale(a_actor));
+        if(a_presetName) {
+            return *a_presetName;
         }
 
         return "";

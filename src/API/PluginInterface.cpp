@@ -122,11 +122,7 @@ namespace OBody::API {
 
         payload.flags = flags;
 
-        auto& registry{ActorTracker::Registry::GetInstance()};
-        auto formID = a_actor->formID;
-        uint32_t actorPresetIndex = 0;
-
-        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
+        uint32_t actorPresetIndex = ActorTracker::Registry::GetInstance().GetPresetIndexForActor(a_actor);
 
         if (actorPresetIndex != 0) {
             // Minus one because an index of zero assigned to the actor signifies the absence of a preset.

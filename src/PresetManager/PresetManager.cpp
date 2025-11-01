@@ -54,14 +54,14 @@ namespace PresetManager {
 
                 if (IsFemalePreset(*preset)) {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd) {
+                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
                         blacklistedFemalePresets.push_back(*preset);
                     } else {
                         femalePresets.push_back(*preset);
                     }
                 } else {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd) {
+                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
                         blacklistedMalePresets.push_back(*preset);
                     } else {
                         malePresets.push_back(*preset);
