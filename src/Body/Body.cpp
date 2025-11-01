@@ -375,8 +375,34 @@ namespace Body {
     }
 
     void OBody::ApplyClothePreset(RE::Actor* a_actor) const {
-        auto set{GenerateClotheSliders(a_actor)};
-        ApplySliderSet(a_actor, set, "OClothe");
+        const auto& presetContainer{PresetContainer::GetInstance()};
+
+        bool isFemale = IsFemale(a_actor);
+
+        std::optional<Preset> a_preset = std::nullopt;
+
+        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, isFemale);
+        if (a_presetName) {
+            const std::string refitPresetName = *a_presetName + "-Refit";
+            a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, refitPresetName);
+        }
+        
+        if (!a_preset) {
+            if (isFemale) {
+                a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, "Female-Refit");
+            }
+            else {
+                a_preset = GetPresetByNameForRandom(presetContainer.allMalePresets, "Male-Refit");
+            }
+        }
+
+        if (a_preset) {
+            ApplySliderSet(a_actor, a_preset->sliders, "OClothe");
+        }
+        else {
+            auto set{GenerateClotheSliders(a_actor)};
+            ApplySliderSet(a_actor, set, "OClothe");
+        }
     }
 
     void OBody::ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
@@ -400,20 +426,11 @@ namespace Body {
     }
 
     void OBody::ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
-        auto& registry{ActorTracker::Registry::GetInstance()};
-        auto formID = a_actor->formID;
-        uint32_t actorPresetIndex = 0;
+        std::optional<PresetManager::Preset> preset = ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
 
-        registry.stateForActor.cvisit(formID, [&](auto& entry) { actorPresetIndex = entry.second.presetIndex; });
-
-        if (actorPresetIndex != 0) {
-            // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
-            auto preset = PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(IsFemale(a_actor));
-
-            if (preset != nullptr) {
-                GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
-                return;
-            }
+        if (preset) {
+            GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
+            return;
         }
 
         // No preset is assigned to the actor, we fallback to GenerateActorBody.
