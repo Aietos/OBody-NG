@@ -30,9 +30,8 @@
                 OBody::API::SKSEMessages::RequestPluginInterface req{};
                 req.version = OBody::API::PluginAPIVersion::Latest;
                 req.pluginInterface = &yourGlobalState.obodyAPI;
+                yourGlobalState.obodyReadinessListener = new OBodyReadinessListener();
                 req.readinessEventListener = &yourGlobalState.obodyReadinessListener;
-
-                assert(yourGlobalState.obodyAPI == nullptr);
 
                 SKSE::GetMessagingInterface()->Dispatch(decltype(req)::type, &req, sizeof(decltype(req)), "OBody");
 
