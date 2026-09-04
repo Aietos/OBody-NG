@@ -35,48 +35,29 @@ namespace Body {
 
     void OBody::ApplyMorphs(RE::Actor* a_actor, const bool updateMorphsWithoutTimer,
                             const bool applyProcessedMorph) const {
-        // If updateMorphsWithoutTimer is true, OBody NG will call the ApplyBodyMorphs function without waiting a random
-        // amount of time. That is useful for undressing/redressing.
-        // If performance mode is turned off, we also apply morphs randomly immediately no matter the context.
-
-        RE::ActorHandle actorHandle{a_actor->GetHandle()};
-
-        if (updateMorphsWithoutTimer || !setPerformanceMode) {
-            if (RE::Actor* actor = actorHandle.get().get()) {
-                if (applyProcessedMorph) {
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
-                }
-
-                // ReSharper disable once CppDFAConstantConditions
-                if (actor && actor->Is3DLoaded()) {
-                    morphInterface->ApplyBodyMorphs(actor, true);
-                    NotifyMorphApplied(actor);
-                }
-            }
-        } else {
-            // ReSharper disable CppDFAUnreadVariable
-            // ReSharper disable CppDFAUnusedValue
-            auto actorName{a_actor->GetActorBase()->GetName()};
-
-            // We do this to prevent stutters due to Racemenu attempting to update morphs for too many NPCs
-            std::thread([this, actorHandle, actorName] {
-                if (RE::Actor * actor{actorHandle.get().get()}) {
-                    logger::info("Actor {} is valid, updating morphs now", actorName);
-
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
-
-                    // ReSharper disable once CppDFAConstantConditions
-                    if (actor && actor->Is3DLoaded() &&
-                        !morphInterface->HasBodyMorph(actor, "obody_synthebd", "OBody")) {
-                        morphInterface->ApplyBodyMorphs(actor, true);
-
-                        NotifyMorphApplied(actor);
-                    }
-                } else {
-                    logger::info("Actor {} is no longer valid, not updating morphs", actorName);
-                }
-            }).detach();
+        auto actorPtr{a_actor->GetHandle().get()};
+        auto* actor{actorPtr.get()};
+        if (!actor) {
+            return;
         }
+
+        if (applyProcessedMorph) {
+            SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
+        }
+
+        if (!actor->Is3DLoaded()) {
+            return;
+        }
+
+        if (!updateMorphsWithoutTimer && setPerformanceMode &&
+            morphInterface->HasBodyMorph(actor, "obody_synthebd", "OBody")) {
+            return;
+        }
+
+        // Actor and RaceMenu operations must stay on the calling game thread. ApplyBodyMorphs already defers the
+        // expensive model update; dispatching it from a detached worker races cell teardown and unloaded 3D.
+        morphInterface->ApplyBodyMorphs(actor, true);
+        NotifyMorphApplied(actor);
     }
 
     void OBody::ProcessActorEquipEvent(RE::Actor* a_actor, const bool a_removingArmor,
