@@ -6,7 +6,7 @@ includes ("lib/commonlibsse-ng")
 
 -- set project
 set_project("OBody")
-set_version("4.4.4")
+set_version("4.5.0-beta-1")
 set_license("GPL-3.0")
 
 -- set defaults
