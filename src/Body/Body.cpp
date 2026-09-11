@@ -229,15 +229,21 @@ namespace Body {
 
         if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
+            auto actorClass{actorBase->npcClass ? stl::get_editorID(actorBase->npcClass->As<RE::TESForm>()) : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
-            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), female)) {
+            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), actorClass.c_str(), female)) {
                 blacklistNPC();
                 return;
             }
 
             // Next up, we check if we have a preset defined in one of the NPC's factions
             preset = jsonParser.GetNPCFactionPreset(actorBase, female);
+
+            // If that also fails, we check if we have a preset in the NPC's class
+            if (!preset.has_value() && !actorClass.empty()) {
+                preset = jsonParser.GetNPCClassPreset(actorClass.c_str(), female);
+            }
 
             // If that also fails, we check if we have a preset in the NPC's plugin
             if (!preset.has_value()) {
@@ -292,15 +298,9 @@ namespace Body {
         registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
                                                 [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
 
-        // Start by clearing any previous OBody morphs
-        if (setRespectfulMorphApplication) {
-            morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
-            morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
-        } else {
-            // For backwards compatibility we clear all morphs instead of just our own,
-            // unless the user has opted-in for us to be more respectful.
-            morphInterface->ClearMorphs(a_actor);
-        }
+
+        morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
+        morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
 
         // Apply the preset's sliders
         ApplySliderSet(a_actor, a_preset.sliders, "OBody");
@@ -825,6 +825,100 @@ namespace Body {
 
         return std::find(actorChangeEventListeners.begin(), actorChangeEventListeners.end(), &eventListener) !=
                actorChangeEventListeners.end();
+    }
+
+    void OBody::AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
+                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
+        const auto& obody{Body::OBody::GetInstance()};
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        auto formID = a_actor->formID;
+
+        if (a_presetName.size() == 0) {
+            // Clear their preset assignment, if they have one.
+            uint32_t previousPresetIndex = 0;
+            registry.stateForActor.visit(formID, [&](auto& entry) {
+                previousPresetIndex = entry.second.presetIndex;
+                entry.second.presetIndex = 0;
+            });
+
+            if (!a_doNotApplyMorphs) {
+                obody.ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+            }
+
+            if (previousPresetIndex != 0) {
+                obody.SendActorChangeEvent(
+                    a_actor,
+                    [&] {
+                        using Event = ::OBody::API::IActorChangeEventListener;
+
+                        Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                            &obody.specialPapyrusPluginInterface,
+                            // Note that the plugin-API mandates that this be a null-terminated string.
+                            // Minus one because an index of zero assigned to the actor signifies the absence of a
+                            // preset.
+                            PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(
+                                obody.IsFemale(a_actor))};
+
+                        auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
+
+                        return std::make_pair(flags, payload);
+                    },
+                    [](auto listener, auto actor, auto&& args) {
+                        listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                    });
+            }
+
+            return;
+        }
+
+        bool isFemale = Body::OBody::IsFemale(a_actor);
+
+        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        auto preset = GetPresetByNameForRandom(
+            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_presetName);
+
+        if (!preset) {
+            return;
+        }
+
+        // Like OBody::GenerateBodyByName, we set this morph to prevent a crash with SynthEBD/Synthesis.
+        if (obody.synthesisInstalled) {
+            obody.SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
+        }
+
+        if (!a_doNotApplyMorphs) {
+            obody.GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
+                                       &obody.specialPapyrusPluginInterface);
+        } else {
+            // Assign the preset to the actor.
+            auto assignedPresetIndex = preset->assignedIndex;
+            // Plus one because an index of zero on the actor signifies the absence of a preset.
+            uint32_t actorPresetIndex = assignedPresetIndex.value + 1;
+            ActorTracker::ActorState fallbackActorState{};
+            fallbackActorState.presetIndex = actorPresetIndex;
+
+            registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
+                                                    [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
+
+            obody.SendActorChangeEvent(
+                a_actor,
+                [&] {
+                    using Event = ::OBody::API::IActorChangeEventListener;
+
+                    Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                        &obody.specialPapyrusPluginInterface,
+                        // Note that the plugin-API mandates that this be a null-terminated string.
+                        assignedPresetIndex.GetPresetNameView(isFemale)};
+
+                    Event::OnActorPresetChangedWithoutGeneration::Flags flags{};
+
+                    return std::make_pair(flags, payload);
+                },
+                [](auto listener, auto actor, auto&& args) {
+                    listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+                });
+        }
     }
 
 }  // namespace Body

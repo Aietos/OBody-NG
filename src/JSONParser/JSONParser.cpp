@@ -284,6 +284,10 @@ namespace Parser {
         OBODY_DEFINITION(blacklistedOutfitsFromORefit)
         OBODY_DEFINITION(outfitsForceRefit)
         OBODY_DEFINITION(blacklistedOutfitsFromORefitPlugin)
+        OBODY_DEFINITION(classFemale)
+        OBODY_DEFINITION(classMale)
+        OBODY_DEFINITION(blacklistedClassesFemale)
+        OBODY_DEFINITION(blacklistedClassesMale)
 
 #undef OBODY_DEFINITION
 
@@ -470,6 +474,70 @@ namespace Parser {
             }
         }
 
+        logger::info(TitleFormatSpecifier, "classFemale|classMale|blacklistedClassesFemale|blacklistedClassesMale");
+        if (AnyNotEnd(end, classFemale, classMale, blacklistedClassesFemale, blacklistedClassesMale)) {
+            auto d = data_handler->GetFormArray<RE::TESClass>() | std::views::transform([&](const RE::TESClass* npcClass) {
+                        return stl::get_editorID(npcClass->As<RE::TESForm>());
+                    });
+            const std::set d_set(d.begin(), d.end());
+
+            logger::info(TitleFormatSpecifier, classFemale->name.GetString());
+            if (AnyNotEnd(end, classFemale)) {
+                auto& original = classFemale->value;
+                for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                    if (!d_set.contains(it->name.GetString())) {
+                        logger::info("removed '{}'", it->name.GetString());
+                        it = original.EraseMember(it);
+                    } else {
+                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
+                        ++it;
+                    }
+                }
+            }
+
+            logger::info(TitleFormatSpecifier, classMale->name.GetString());
+            if (AnyNotEnd(end, classMale)) {
+                auto& original = classMale->value;
+                for (auto it = original.MemberBegin(); it != original.MemberEnd();) {
+                    if (!d_set.contains(it->name.GetString())) {
+                        logger::info("removed '{}'", it->name.GetString());
+                        it = original.EraseMember(it);
+                    } else {
+                        stl::RemoveDuplicatesInJsonArray(it->value, presetDistributionConfig.GetAllocator());
+                        ++it;
+                    }
+                }
+            }
+
+            logger::info(TitleFormatSpecifier, blacklistedClassesFemale->name.GetString());
+            if (AnyNotEnd(end, blacklistedClassesFemale)) {
+                auto& original = blacklistedClassesFemale->value;
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+
+            logger::info(TitleFormatSpecifier, blacklistedClassesMale->name.GetString());
+            if (AnyNotEnd(end, blacklistedClassesMale)) {
+                auto& original = blacklistedClassesMale->value;
+                stl::RemoveDuplicatesInJsonArray(original, presetDistributionConfig.GetAllocator());
+                for (auto it = original.Begin(); it != original.End();) {
+                    if (!d_set.contains(it->GetString())) {
+                        logger::info("removed '{}'", it->GetString());
+                        it = original.Erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+        }
+
         logger::info(TitleFormatSpecifier, "blacklistedOutfitsFromORefit|outfitsForceRefit");
         if (AnyNotEnd(end, blacklistedOutfitsFromORefit, outfitsForceRefit)) {
             auto d = data_handler->GetFormArray<RE::TESObjectARMO>() |
@@ -527,6 +595,7 @@ namespace Parser {
         ProcessNPCsFormID();
         ProcessOutfitsFormIDBlacklist();
         ProcessOutfitsForceRefitFormIDBlacklist();
+        ProcessDisablePresetDistribution();
         FilterOutNonLoaded();
         logger::info(TitleFormatSpecifier, "Finished: Removing Not-Loaded Items");
         rapidjson::StringBuffer buffer;
@@ -549,6 +618,28 @@ namespace Parser {
     bool JSONParser::IsSubKeyInJsonConfigKey(const char* key, const std::string_view subKey) {
         const auto obj{presetDistributionConfig.FindMember(key)};
         return obj != presetDistributionConfig.MemberEnd() && obj->value.HasMember(subKey.data());
+    }
+
+    void JSONParser::ProcessDisablePresetDistribution() {
+        distributionDisabledForMale = false;
+        distributionDisabledForFemale = false;
+
+        const auto distributionIterator = presetDistributionConfig.FindMember("disablePresetDistribution");
+        if (distributionIterator == presetDistributionConfig.MemberEnd() || !distributionIterator->value.IsString()) {
+            return;
+        }
+
+        const std::string_view value{distributionIterator->value.GetString(), distributionIterator->value.GetStringLength()};
+        if (value == "male") {
+            distributionDisabledForMale = true;
+        } else if (value == "female") {
+            distributionDisabledForFemale = true;
+        } else if (value == "all") {
+            distributionDisabledForMale = true;
+            distributionDisabledForFemale = true;
+        } else if (value != "none") {
+            logger::warn("Unknown disablePresetDistribution value '{}', treating as 'none'", value);
+        }
     }
 
     bool JSONParser::IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit) {
@@ -603,15 +694,18 @@ namespace Parser {
         return false;
     }
 
-    bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const bool female) {
+    bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
+                                                const bool female) {
         const auto actorOwningMod{GetNthFormLocationName(a_actor, 0)};
 
         if (female) {
             return IsStringInJsonConfigKey(actorOwningMod, "blacklistedNpcsPluginFemale") ||
-                   IsStringInJsonConfigKey(actorRace, "blacklistedRacesFemale");
+                   IsStringInJsonConfigKey(actorRace, "blacklistedRacesFemale") ||
+                   IsStringInJsonConfigKey(actorClass, "blacklistedClassesFemale");
         }
         return IsStringInJsonConfigKey(actorOwningMod, "blacklistedNpcsPluginMale") ||
-               IsStringInJsonConfigKey(actorRace, "blacklistedRacesMale");
+               IsStringInJsonConfigKey(actorRace, "blacklistedRacesMale") ||
+               IsStringInJsonConfigKey(actorClass, "blacklistedClassesMale");
     }
 
     std::optional<PresetManager::Preset> JSONParser::GetNPCFactionPreset(const RE::TESNPC* a_actor, const bool female) {
@@ -716,6 +810,24 @@ namespace Parser {
                                                             : presetContainer.allMalePresets};
             std::vector<std::string_view> presets_copy{presetDistributionConfig[key][actorRace].Size()};
             for (const auto& item : presetDistributionConfig[key][actorRace].GetArray()) {
+                presets_copy.emplace_back(item.GetString());
+            }
+            return PresetManager::GetRandomPresetByName(presetSet, presets_copy, female);
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<PresetManager::Preset> JSONParser::GetNPCClassPreset(const char* actorClass, const bool female) {
+        const char* key{female ? "classFemale" : "classMale"};
+
+        if (IsSubKeyInJsonConfigKey(key, actorClass)) {
+            const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+
+            const PresetManager::PresetSet presetSet{female ? presetContainer.allFemalePresets
+                                                            : presetContainer.allMalePresets};
+            std::vector<std::string_view> presets_copy{presetDistributionConfig[key][actorClass].Size()};
+            for (const auto& item : presetDistributionConfig[key][actorClass].GetArray()) {
                 presets_copy.emplace_back(item.GetString());
             }
             return PresetManager::GetRandomPresetByName(presetSet, presets_copy, female);

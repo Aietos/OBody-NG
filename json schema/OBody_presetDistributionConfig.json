@@ -7,10 +7,14 @@
   "npcPluginMale": {},
   "raceFemale": {},
   "raceMale": {},
+  "classFemale": {},
+  "classMale": {},
   "blacklistedNpcs": [],
   "blacklistedNpcsFormID": {},
   "blacklistedNpcsPluginFemale": [],
   "blacklistedNpcsPluginMale": [],
+  "blacklistedClassesFemale": [],
+  "blacklistedClassesMale": [],
   "blacklistedRacesFemale": [
     "ElderRace"
   ],
@@ -31,5 +35,8 @@
     "Zeroed Sliders",
     "HIMBO Zero for OBody"
   ],
-  "blacklistedPresetsShowInOBodyMenu": true
+  "refitOutfitPresetsFemale": {},
+  "refitOutfitPresetsMale": {},
+  "blacklistedPresetsShowInOBodyMenu": true,
+  "disablePresetDistribution": "none"
 }
