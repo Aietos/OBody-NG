@@ -11,7 +11,7 @@
             },
             version = "3.31.4"
         },
-        ["directxmath#f56260b5"] = {
+        ["directxmath 2024.02#f56260b5"] = {
             repo = {
                 branch = "master",
                 commit = "af695e2f9c6f2ed5fdc2c27d00ca2923bc33335b",
@@ -19,7 +19,7 @@
             },
             version = "2024.02"
         },
-        ["directxtk#f56260b5"] = {
+        ["directxtk 24.2.0#f56260b5"] = {
             repo = {
                 branch = "master",
                 commit = "af695e2f9c6f2ed5fdc2c27d00ca2923bc33335b",
@@ -43,13 +43,14 @@
             },
             version = "v1.15"
         },
-        ["rapidcsv#f56260b5"] = {
+        ["rapidcsv v8.92#f56260b5"] = {
+            branch = "v8.92",
             repo = {
                 branch = "master",
                 commit = "af695e2f9c6f2ed5fdc2c27d00ca2923bc33335b",
                 url = "https://github.com/xmake-io/xmake-repo.git"
             },
-            version = "v8.89"
+            version = "v8.92"
         },
         ["rapidjson#f56260b5"] = {
             repo = {
@@ -59,7 +60,7 @@
             },
             version = "2025.02.05"
         },
-        ["spdlog#09c8c173"] = {
+        ["spdlog v1.16.0#09c8c173"] = {
             repo = {
                 branch = "master",
                 commit = "af695e2f9c6f2ed5fdc2c27d00ca2923bc33335b",

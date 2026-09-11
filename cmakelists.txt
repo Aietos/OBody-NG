@@ -5,7 +5,7 @@
 # project
 cmake_minimum_required(VERSION 3.15.0)
 cmake_policy(SET CMP0091 NEW)
-project(OBody VERSION 4.4.4 LANGUAGES CXX)
+project(OBody VERSION 5.0.0 LANGUAGES CXX)
 set(CURRENT_COMPILER_ID ${CMAKE_CXX_COMPILER_ID})
 
 # target
@@ -46,6 +46,7 @@ target_compile_options(OBody PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
     $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+    $<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
     $<$<COMPILE_LANGUAGE:CUDA>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
 )
@@ -53,6 +54,8 @@ if(CURRENT_COMPILER_ID STREQUAL "MSVC")
 target_compile_options(OBody PRIVATE
     $<$<COMPILE_LANGUAGE:C>:/Zc:preprocessor>
     $<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
+    $<$<COMPILE_LANGUAGE:C>:/wd4201>
+    $<$<COMPILE_LANGUAGE:CXX>:/wd4201>
 )
 endif()
 if(CURRENT_COMPILER_ID STREQUAL "MSVC")
@@ -104,22 +107,23 @@ target_link_libraries(OBody PRIVATE
     user32
     version
 )
-add_library(target_objectfiles_OBody_90F558FB OBJECT IMPORTED GLOBAL)
-set_property(TARGET target_objectfiles_OBody_90F558FB PROPERTY IMPORTED_OBJECTS
+add_library(target_objectfiles_OBody_561053e1bbac8b5e OBJECT IMPORTED GLOBAL)
+set_property(TARGET target_objectfiles_OBody_561053e1bbac8b5e PROPERTY IMPORTED_OBJECTS
     ${CMAKE_SOURCE_DIR}/build/.objs/OBody/windows/x64/releasedbg/gens/include/cxx/PCH.h_v143.pch.obj
 )
-target_link_libraries(OBody PRIVATE target_objectfiles_OBody_90F558FB)
+target_link_libraries(OBody PRIVATE target_objectfiles_OBody_561053e1bbac8b5e)
 target_link_directories(OBody PRIVATE
     C:/Users/Judah/AppData/Local/.xmake/packages/p/pugixml/v1.15/62451b04cb8d446fb52d4c6d38b1e19b/lib
     build/.packages/v/vcpkg_ryml/latest/26563ad9dadf4267b5b8edf7f93e90ee/vcpkg_installed/x64-windows-static-md/lib
     build/windows/x64/releasedbg
     C:/Users/Judah/AppData/Local/.xmake/packages/d/directxtk/24.2.0/f6fb9eaf439246fdb823f48a8816ec0c/lib
-    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.15.3/6425784fcb5c43dea6fd2000c451e041/lib
+    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.16.0/7bae04142e1f4c54bcfba6e938f18a95/lib
 )
 # private sourcefiles from sourcebatch c++.build for target OBody
 target_sources(OBody PRIVATE 
     src/ActorTracker/ActorTracker.cpp
     src/API/PluginInterface.cpp
+    src/BackwardsCompatibility/BackwardsCompatibility.cpp
     src/Body/Body.cpp
     src/Body/Event.cpp
     src/JSONParser/JSONParser.cpp
@@ -130,17 +134,20 @@ target_sources(OBody PRIVATE
     src/PresetManager/PresetManager.cpp
     src/SaveFileState/SaveFileState.cpp
     src/STL.cpp
-    build/.gens/OBody/windows/x64/releasedbg/rules/commonlibsse-ng/plugin/plugin.cpp
+    src/UI/Translations.cpp
+    src/UI/UI.cpp
+    build/.gens/OBody/windows/x64/releasedbg/commonlibsse-ng-plugin.cpp
 )
 # private sourcefiles from sourcebatch win.sdk.resource for target OBody
 target_sources(OBody PRIVATE 
-    build/.gens/OBody/windows/x64/releasedbg/rules/commonlibsse-ng/plugin/version.rc
+    build/.gens/OBody/windows/x64/releasedbg/commonlib-plugin.rc
 )
 # private headers for target OBody
 target_sources(OBody PRIVATE FILE_SET HEADERS FILES
     include/ActorTracker/ActorTracker.h
     include/API/API.h
     include/API/PluginInterface.h
+    include/BackwardsCompatibility/BackwardsCompatibility.h
     include/Body/Body.h
     include/Body/Event.h
     include/JSONParser/JSONParser.h
@@ -150,7 +157,10 @@ target_sources(OBody PRIVATE FILE_SET HEADERS FILES
     include/PresetManager/PresetManager.h
     include/SaveFileState/SaveFileState.h
     include/SKEE.h
+    include/SKSEMenuFramework.h
     include/STL.h
+    include/UI/Translations.h
+    include/UI/UI.h
     include/ActorTracker/ActorTracker.h
 )
 
@@ -159,7 +169,7 @@ add_library(commonlibsse-ng STATIC "")
 set_target_properties(commonlibsse-ng PROPERTIES OUTPUT_NAME "commonlibsse-ng")
 set_target_properties(commonlibsse-ng PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/windows/x64/releasedbg")
 target_precompile_headers(commonlibsse-ng PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/build/.gens/commonlibsse-ng/windows/x64/releasedbg/lib/commonlibsse-ng/include/SKSE/Impl/PCH.h>
+    $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/build/.gens/commonlibsse-ng/windows/x64/releasedbg/d41792c72b314c095929b447cf94ab87/PCH.h>
 )
 target_include_directories(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/extern/openvr/headers
@@ -172,10 +182,11 @@ target_include_directories(commonlibsse-ng INTERFACE
 target_include_directories(commonlibsse-ng SYSTEM PRIVATE
     C:/Users/Judah/AppData/Local/.xmake/packages/d/directxmath/2024.02/b43cee1705a040bdb171c586b0ad9685/include/directxmath
     C:/Users/Judah/AppData/Local/.xmake/packages/d/directxtk/24.2.0/f6fb9eaf439246fdb823f48a8816ec0c/include
-    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.15.3/6425784fcb5c43dea6fd2000c451e041/include
-    C:/Users/Judah/AppData/Local/.xmake/packages/r/rapidcsv/v8.89/db521808c69746e586bc1366a7ce9679/include
+    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.16.0/7bae04142e1f4c54bcfba6e938f18a95/include
+    C:/Users/Judah/AppData/Local/.xmake/packages/r/rapidcsv/v8.92/10253c39aca14760ae4382272800b680/include
 )
 target_compile_definitions(commonlibsse-ng PRIVATE
+    COMMONLIB_VERSION="v7.5.2"
     ENABLE_SKYRIM_SE=1
     ENABLE_SKYRIM_AE=1
     ENABLE_SKYRIM_VR=1
@@ -188,6 +199,7 @@ target_compile_options(commonlibsse-ng PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
     $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+    $<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
     $<$<COMPILE_LANGUAGE:CUDA>:-DNDEBUG>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
 )
@@ -289,14 +301,14 @@ target_link_libraries(commonlibsse-ng PRIVATE
     user32
     version
 )
-add_library(target_objectfiles_commonlibsse-ng_C23DE795 OBJECT IMPORTED GLOBAL)
-set_property(TARGET target_objectfiles_commonlibsse-ng_C23DE795 PROPERTY IMPORTED_OBJECTS
-    ${CMAKE_SOURCE_DIR}/build/.objs/commonlibsse-ng/windows/x64/releasedbg/gens/lib/commonlibsse-ng/include/SKSE/Impl/cxx/PCH.h_v143.pch.obj
+add_library(target_objectfiles_commonlibsse-ng_f663b3678ea92bf9 OBJECT IMPORTED GLOBAL)
+set_property(TARGET target_objectfiles_commonlibsse-ng_f663b3678ea92bf9 PROPERTY IMPORTED_OBJECTS
+    ${CMAKE_SOURCE_DIR}/build/.objs/commonlibsse-ng/windows/x64/releasedbg/gens/d41792c72b314c095929b447cf94ab87/cxx/PCH.h_v143.pch.obj
 )
-target_link_libraries(commonlibsse-ng PRIVATE target_objectfiles_commonlibsse-ng_C23DE795)
+target_link_libraries(commonlibsse-ng PRIVATE target_objectfiles_commonlibsse-ng_f663b3678ea92bf9)
 target_link_directories(commonlibsse-ng PRIVATE
     C:/Users/Judah/AppData/Local/.xmake/packages/d/directxtk/24.2.0/f6fb9eaf439246fdb823f48a8816ec0c/lib
-    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.15.3/6425784fcb5c43dea6fd2000c451e041/lib
+    C:/Users/Judah/AppData/Local/.xmake/packages/s/spdlog/v1.16.0/7bae04142e1f4c54bcfba6e938f18a95/lib
 )
 # private sourcefiles from sourcebatch c++.build for target commonlibsse-ng
 target_sources(commonlibsse-ng PRIVATE 
@@ -310,24 +322,34 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/A/AddCallbackVisitor.cpp
     lib/commonlibsse-ng/src/RE/A/AIFormulas.cpp
     lib/commonlibsse-ng/src/RE/A/AIProcess.cpp
+    lib/commonlibsse-ng/src/RE/A/AITimer.cpp
+    lib/commonlibsse-ng/src/RE/A/AnimationClipDataSingleton.cpp
+    lib/commonlibsse-ng/src/RE/A/AnimationSystemUtils.cpp
     lib/commonlibsse-ng/src/RE/A/ArmorRatingVisitor.cpp
     lib/commonlibsse-ng/src/RE/A/ArmorRatingVisitorBase.cpp
     lib/commonlibsse-ng/src/RE/A/Array.cpp
     lib/commonlibsse-ng/src/RE/A/AutoVanityState.cpp
     lib/commonlibsse-ng/src/RE/B/BarterMenu.cpp
+    lib/commonlibsse-ng/src/RE/B/BeamProjectile.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSAcousticSpace.cpp
     lib/commonlibsse-ng/src/RE/B/BGSAttackData.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSAutoWater.cpp
     lib/commonlibsse-ng/src/RE/B/BGSBaseAlias.cpp
     lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp
     lib/commonlibsse-ng/src/RE/B/BGSColorForm.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSConstructibleObject.cpp
     lib/commonlibsse-ng/src/RE/B/BGSCreatedObjectManager.cpp
     lib/commonlibsse-ng/src/RE/B/BGSDebris.cpp
     lib/commonlibsse-ng/src/RE/B/BGSDecalNode.cpp
     lib/commonlibsse-ng/src/RE/B/BGSDefaultObjectManager.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSDistantObjectBlock.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSDistantTreeBlock.cpp
     lib/commonlibsse-ng/src/RE/B/BGSEntryPointFunctionDataActivateChoice.cpp
     lib/commonlibsse-ng/src/RE/B/BGSEntryPointPerkEntry.cpp
     lib/commonlibsse-ng/src/RE/B/BGSFootstepManager.cpp
     lib/commonlibsse-ng/src/RE/B/BGSHeadPart.cpp
     lib/commonlibsse-ng/src/RE/B/BGSIdleCollection.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSKeyword.cpp
     lib/commonlibsse-ng/src/RE/B/BGSKeywordForm.cpp
     lib/commonlibsse-ng/src/RE/B/BGSListForm.cpp
     lib/commonlibsse-ng/src/RE/B/BGSLocation.cpp
@@ -339,6 +361,8 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/B/BGSSkillPerkTreeNode.cpp
     lib/commonlibsse-ng/src/RE/B/BGSSoundCategory.cpp
     lib/commonlibsse-ng/src/RE/B/BGSStoryTeller.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSTerrainChunk.cpp
+    lib/commonlibsse-ng/src/RE/B/BGSTerrainManager.cpp
     lib/commonlibsse-ng/src/RE/B/bhkCharProxyController.cpp
     lib/commonlibsse-ng/src/RE/B/bhkRigidBody.cpp
     lib/commonlibsse-ng/src/RE/B/BipedAnim.cpp
@@ -347,36 +371,56 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/B/BooksRead.cpp
     lib/commonlibsse-ng/src/RE/B/BSAtomic.cpp
     lib/commonlibsse-ng/src/RE/B/BSAudioManager.cpp
+    lib/commonlibsse-ng/src/RE/B/BSCompoundFrustum.cpp
+    lib/commonlibsse-ng/src/RE/B/BSCubeMapCamera.cpp
+    lib/commonlibsse-ng/src/RE/B/BSCullingProcess.cpp
     lib/commonlibsse-ng/src/RE/B/BSDirectInputManager.cpp
     lib/commonlibsse-ng/src/RE/B/BSEffectShaderData.cpp
     lib/commonlibsse-ng/src/RE/B/BSExtraData.cpp
+    lib/commonlibsse-ng/src/RE/B/BSFaceGenAnimationData.cpp
+    lib/commonlibsse-ng/src/RE/B/BSFaceGenKeyframeMultiple.cpp
     lib/commonlibsse-ng/src/RE/B/BSFaceGenNiNode.cpp
     lib/commonlibsse-ng/src/RE/B/BSFadeNode.cpp
     lib/commonlibsse-ng/src/RE/B/BSFixedString.cpp
     lib/commonlibsse-ng/src/RE/B/BSGamepadDevice.cpp
+    lib/commonlibsse-ng/src/RE/B/BSGameSound.cpp
     lib/commonlibsse-ng/src/RE/B/BSGeometry.cpp
     lib/commonlibsse-ng/src/RE/B/BSHandleRefObject.cpp
+    lib/commonlibsse-ng/src/RE/B/BSImagespaceShader.cpp
     lib/commonlibsse-ng/src/RE/B/BSInputDevice.cpp
     lib/commonlibsse-ng/src/RE/B/BSInputDeviceFactory.cpp
     lib/commonlibsse-ng/src/RE/B/BSInputDeviceManager.cpp
     lib/commonlibsse-ng/src/RE/B/BSInputEventQueue.cpp
     lib/commonlibsse-ng/src/RE/B/BSInstanceTriShape.cpp
+    lib/commonlibsse-ng/src/RE/B/BSInvMarker.cpp
+    lib/commonlibsse-ng/src/RE/B/BSIStream.cpp
     lib/commonlibsse-ng/src/RE/B/BSKeyboardDevice.cpp
+    lib/commonlibsse-ng/src/RE/B/BSLeafAnimNode.cpp
     lib/commonlibsse-ng/src/RE/B/BSLightingShaderMaterialBase.cpp
     lib/commonlibsse-ng/src/RE/B/BSLightingShaderProperty.cpp
     lib/commonlibsse-ng/src/RE/B/BSModelDB.cpp
     lib/commonlibsse-ng/src/RE/B/BSMouseDevice.cpp
     lib/commonlibsse-ng/src/RE/B/BSMultiBoundNode.cpp
+    lib/commonlibsse-ng/src/RE/B/BSMultiStreamInstanceTriShape.cpp
+    lib/commonlibsse-ng/src/RE/B/BSOcclusionPlane.cpp
     lib/commonlibsse-ng/src/RE/B/BSOpenVR.cpp
+    lib/commonlibsse-ng/src/RE/B/BSParticleSystemManager.cpp
+    lib/commonlibsse-ng/src/RE/B/BSPathingLocation.cpp
+    lib/commonlibsse-ng/src/RE/B/BSPathingRequest.cpp
     lib/commonlibsse-ng/src/RE/B/BSPCGamepadDeviceDelegate.cpp
     lib/commonlibsse-ng/src/RE/B/BSPCGamepadDeviceHandler.cpp
     lib/commonlibsse-ng/src/RE/B/BSPCOrbisGamepadDevice.cpp
     lib/commonlibsse-ng/src/RE/B/BSPointerHandle.cpp
+    lib/commonlibsse-ng/src/RE/B/BSPortalGraph.cpp
+    lib/commonlibsse-ng/src/RE/B/BSPortalGraphEntry.cpp
+    lib/commonlibsse-ng/src/RE/B/BSProceduralLightningController.cpp
+    lib/commonlibsse-ng/src/RE/B/BSProceduralLightningTasklet.cpp
     lib/commonlibsse-ng/src/RE/B/BSResourceNiBinaryStream.cpp
     lib/commonlibsse-ng/src/RE/B/BSResponse.cpp
     lib/commonlibsse-ng/src/RE/B/BSScaleformManager.cpp
     lib/commonlibsse-ng/src/RE/B/BSScaleformTranslator.cpp
     lib/commonlibsse-ng/src/RE/B/BSScriptObjectBindPolicy.cpp
+    lib/commonlibsse-ng/src/RE/B/BSShaderAccumulator.cpp
     lib/commonlibsse-ng/src/RE/B/BSShaderProperty.cpp
     lib/commonlibsse-ng/src/RE/B/BSShaderTextureSet.cpp
     lib/commonlibsse-ng/src/RE/B/BSSoundHandle.cpp
@@ -384,6 +428,9 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/B/BSSystemFileStorage.cpp
     lib/commonlibsse-ng/src/RE/B/BSTArray.cpp
     lib/commonlibsse-ng/src/RE/B/BSTCreateFactoryManager.cpp
+    lib/commonlibsse-ng/src/RE/B/BSTempNodeManager.cpp
+    lib/commonlibsse-ng/src/RE/B/BSTreeNode.cpp
+    lib/commonlibsse-ng/src/RE/B/BSUIMessageData.cpp
     lib/commonlibsse-ng/src/RE/B/BSVirtualKeyboardDevice.cpp
     lib/commonlibsse-ng/src/RE/B/BSVisit.cpp
     lib/commonlibsse-ng/src/RE/B/BSWin32GamepadDevice.cpp
@@ -392,14 +439,84 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/B/BSWin32SaveDataSystemUtility.cpp
     lib/commonlibsse-ng/src/RE/B/BSWin32VirtualKeyboardDevice.cpp
     lib/commonlibsse-ng/src/RE/B/BSWindModifier.cpp
+    lib/commonlibsse-ng/src/RE/B/BSXAudio2GameSound.cpp
     lib/commonlibsse-ng/src/RE/B/BSXFlags.cpp
     lib/commonlibsse-ng/src/RE/C/Calendar.cpp
     lib/commonlibsse-ng/src/RE/C/CFilter.cpp
+    lib/commonlibsse-ng/src/RE/C/ChainExplosion.cpp
     lib/commonlibsse-ng/src/RE/C/ChestsLooted.cpp
+    lib/commonlibsse-ng/src/RE/C/ChildSelectorBase.cpp
     lib/commonlibsse-ng/src/RE/C/CollisionLayers.cpp
     lib/commonlibsse-ng/src/RE/C/Color.cpp
     lib/commonlibsse-ng/src/RE/C/ColorUtil.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatAcquireItem.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatAimController.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatAnimation.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehavior.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorAccessors.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorAcquireItem.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorAcquireResource.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorAdvance.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorBackoff.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorBlock.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorBlockAttack.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorChildSelector.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorCircle.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorCircleDistant.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContext.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextAcquireWeapon.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextBlock.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextCloseMovement.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextDodgeThreat.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextFlankingMovement.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextFlee.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextMagic.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextMelee.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextRangedMovement.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextSearch.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorContextShout.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorController.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorDodgeThreat.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorDynamicConditionalNode.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorEquipContext.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorFallback.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorFallbackSelector.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorFallbackToRanged.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorFindWeapon.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorIdle.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorParallel.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorPause.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorRepeat.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorReposition.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorResource.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorSequence.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorSpawnParallel.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorStack.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorSurround.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorThread.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTree.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeLinkNode.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeManager.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeNode.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeNodeEvaluateFunction.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeNodeObject.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeRootNode.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTrees.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBehaviorTreeUtils.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBlackboard.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBlackboardFlag.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatBlackboardManager.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatController.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatGroup.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatInventory.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatPath.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatState.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatTargetLocation.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatTargetLocationSearch.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatTargetLocationSearchResult.cpp
+    lib/commonlibsse-ng/src/RE/C/CombatThreat.cpp
     lib/commonlibsse-ng/src/RE/C/CommandTable.cpp
+    lib/commonlibsse-ng/src/RE/C/ConditionalChildSelector.cpp
     lib/commonlibsse-ng/src/RE/C/ConeProjectile.cpp
     lib/commonlibsse-ng/src/RE/C/Console.cpp
     lib/commonlibsse-ng/src/RE/C/ConsoleLog.cpp
@@ -411,7 +528,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/D/DragonCameraState.cpp
     lib/commonlibsse-ng/src/RE/D/DragonSoulsGained.cpp
     lib/commonlibsse-ng/src/RE/E/Effect.cpp
-    lib/commonlibsse-ng/src/RE/E/EffectArchetypes.cpp
+    lib/commonlibsse-ng/src/RE/E/EffectSetting.cpp
     lib/commonlibsse-ng/src/RE/E/EnchantConstructMenu.cpp
     lib/commonlibsse-ng/src/RE/E/Explosion.cpp
     lib/commonlibsse-ng/src/RE/E/ExtraAliasInstanceArray.cpp
@@ -448,6 +565,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/F/FxDelegateArgs.cpp
     lib/commonlibsse-ng/src/RE/G/GameSettingCollection.cpp
     lib/commonlibsse-ng/src/RE/G/GAtomic.cpp
+    lib/commonlibsse-ng/src/RE/G/GetWornMaskVisitor.cpp
     lib/commonlibsse-ng/src/RE/G/GFxLoader.cpp
     lib/commonlibsse-ng/src/RE/G/GFxLog.cpp
     lib/commonlibsse-ng/src/RE/G/GFxMovie.cpp
@@ -477,12 +595,20 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/H/HeapBlock.cpp
     lib/commonlibsse-ng/src/RE/H/HeldStateHandler.cpp
     lib/commonlibsse-ng/src/RE/H/hkBaseTypes.cpp
+    lib/commonlibsse-ng/src/RE/H/hkbBehaviorGraph.cpp
+    lib/commonlibsse-ng/src/RE/H/hkbBehaviorGraphData.cpp
+    lib/commonlibsse-ng/src/RE/H/hkbVariableValueSet.cpp
+    lib/commonlibsse-ng/src/RE/H/hkpAabbPhantom.cpp
+    lib/commonlibsse-ng/src/RE/H/hkpAddModifierUtil.cpp
     lib/commonlibsse-ng/src/RE/H/hkpBroadPhase.cpp
     lib/commonlibsse-ng/src/RE/H/hkpCdBody.cpp
     lib/commonlibsse-ng/src/RE/H/hkpCharacterProxyListener.cpp
+    lib/commonlibsse-ng/src/RE/H/hkpCharacterRigidBody.cpp
     lib/commonlibsse-ng/src/RE/H/hkpMaterial.cpp
     lib/commonlibsse-ng/src/RE/H/hkpProperty.cpp
+    lib/commonlibsse-ng/src/RE/H/hkpResponseModifier.cpp
     lib/commonlibsse-ng/src/RE/H/hkpRigidBody.cpp
+    lib/commonlibsse-ng/src/RE/H/hkpShapePhantom.cpp
     lib/commonlibsse-ng/src/RE/H/hkpWorldObject.cpp
     lib/commonlibsse-ng/src/RE/H/hkReferencedObject.cpp
     lib/commonlibsse-ng/src/RE/H/hkStringPtr.cpp
@@ -496,6 +622,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/I/IHandlerFunctor.cpp
     lib/commonlibsse-ng/src/RE/I/IMemoryStore.cpp
     lib/commonlibsse-ng/src/RE/I/IMenu.cpp
+    lib/commonlibsse-ng/src/RE/I/IMovementState.cpp
     lib/commonlibsse-ng/src/RE/I/IngredientItem.cpp
     lib/commonlibsse-ng/src/RE/I/INIPrefSettingCollection.cpp
     lib/commonlibsse-ng/src/RE/I/INISettingCollection.cpp
@@ -524,6 +651,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/M/MagicFormulas.cpp
     lib/commonlibsse-ng/src/RE/M/MagicItem.cpp
     lib/commonlibsse-ng/src/RE/M/MagicItemDataCollector.cpp
+    lib/commonlibsse-ng/src/RE/M/MagicItemList.cpp
     lib/commonlibsse-ng/src/RE/M/MagicSystem.cpp
     lib/commonlibsse-ng/src/RE/M/MagicTarget.cpp
     lib/commonlibsse-ng/src/RE/M/MagicUtilities.cpp
@@ -533,12 +661,16 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/M/MenuControls.cpp
     lib/commonlibsse-ng/src/RE/M/MenuCursor.cpp
     lib/commonlibsse-ng/src/RE/M/MenuEventHandler.cpp
+    lib/commonlibsse-ng/src/RE/M/MessageBoxMenu.cpp
     lib/commonlibsse-ng/src/RE/M/Misc.cpp
     lib/commonlibsse-ng/src/RE/M/MissileProjectile.cpp
     lib/commonlibsse-ng/src/RE/N/NativeFunctionBase.cpp
+    lib/commonlibsse-ng/src/RE/N/NextChildSelector.cpp
     lib/commonlibsse-ng/src/RE/N/NiAlphaProperty.cpp
     lib/commonlibsse-ng/src/RE/N/NiAnimationKey.cpp
     lib/commonlibsse-ng/src/RE/N/NiAVObject.cpp
+    lib/commonlibsse-ng/src/RE/N/NiBackToFrontAccumulator.cpp
+    lib/commonlibsse-ng/src/RE/N/NiBinaryExtraData.cpp
     lib/commonlibsse-ng/src/RE/N/NiBinaryStream.cpp
     lib/commonlibsse-ng/src/RE/N/NiBooleanExtraData.cpp
     lib/commonlibsse-ng/src/RE/N/NiCamera.cpp
@@ -547,6 +679,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/N/NiColorKey.cpp
     lib/commonlibsse-ng/src/RE/N/NiControllerManager.cpp
     lib/commonlibsse-ng/src/RE/N/NiControllerSequence.cpp
+    lib/commonlibsse-ng/src/RE/N/NiCullingProcess.cpp
     lib/commonlibsse-ng/src/RE/N/NiExtraData.cpp
     lib/commonlibsse-ng/src/RE/N/NiFloatData.cpp
     lib/commonlibsse-ng/src/RE/N/NiFloatExtraData.cpp
@@ -562,8 +695,10 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/N/NiNode.cpp
     lib/commonlibsse-ng/src/RE/N/NiObject.cpp
     lib/commonlibsse-ng/src/RE/N/NiObjectNET.cpp
+    lib/commonlibsse-ng/src/RE/N/NiPick.cpp
     lib/commonlibsse-ng/src/RE/N/NiPoint2.cpp
     lib/commonlibsse-ng/src/RE/N/NiPoint3.cpp
+    lib/commonlibsse-ng/src/RE/N/NiQuaternion.cpp
     lib/commonlibsse-ng/src/RE/N/NiRefObject.cpp
     lib/commonlibsse-ng/src/RE/N/NiSkinInstance.cpp
     lib/commonlibsse-ng/src/RE/N/NiStringsExtraData.cpp
@@ -575,6 +710,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/O/Object.cpp
     lib/commonlibsse-ng/src/RE/O/ObjectiveState.cpp
     lib/commonlibsse-ng/src/RE/O/ObjectTypeInfo.cpp
+    lib/commonlibsse-ng/src/RE/O/ObjectTypes.cpp
     lib/commonlibsse-ng/src/RE/P/PackedInstructionStream.cpp
     lib/commonlibsse-ng/src/RE/P/PackUnpack.cpp
     lib/commonlibsse-ng/src/RE/P/PlayerCamera.cpp
@@ -582,17 +718,21 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/P/PlayerCharacter.cpp
     lib/commonlibsse-ng/src/RE/P/PlayerControls.cpp
     lib/commonlibsse-ng/src/RE/P/PlayerInputHandler.cpp
+    lib/commonlibsse-ng/src/RE/P/PriorityChildSelector.cpp
     lib/commonlibsse-ng/src/RE/P/ProcessLists.cpp
     lib/commonlibsse-ng/src/RE/P/Projectile.cpp
     lib/commonlibsse-ng/src/RE/Q/QuestStatus.cpp
     lib/commonlibsse-ng/src/RE/R/RaceSexMenu.cpp
+    lib/commonlibsse-ng/src/RE/R/RandomValueChildSelector.cpp
     lib/commonlibsse-ng/src/RE/R/ReferenceEffectController.cpp
     lib/commonlibsse-ng/src/RE/R/RemoveCallbackVisitor.cpp
     lib/commonlibsse-ng/src/RE/R/Renderer.cpp
+    lib/commonlibsse-ng/src/RE/R/RenderTargetManager.cpp
     lib/commonlibsse-ng/src/RE/R/Rumble.cpp
     lib/commonlibsse-ng/src/RE/S/ScrapHeap.cpp
     lib/commonlibsse-ng/src/RE/S/Script.cpp
     lib/commonlibsse-ng/src/RE/S/ScriptEventSourceHolder.cpp
+    lib/commonlibsse-ng/src/RE/S/SendHUDMessage.cpp
     lib/commonlibsse-ng/src/RE/S/SendUIMessage.cpp
     lib/commonlibsse-ng/src/RE/S/Setting.cpp
     lib/commonlibsse-ng/src/RE/S/ShadowSceneNode.cpp
@@ -607,6 +747,7 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/S/StackFrame.cpp
     lib/commonlibsse-ng/src/RE/S/Stream.cpp
     lib/commonlibsse-ng/src/RE/S/StreamBase.cpp
+    lib/commonlibsse-ng/src/RE/S/Sun.cpp
     lib/commonlibsse-ng/src/RE/Skyrim.cpp
     lib/commonlibsse-ng/src/RE/T/TaskQueueInterface.cpp
     lib/commonlibsse-ng/src/RE/T/TES.cpp
@@ -639,10 +780,13 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/T/TESSpellList.cpp
     lib/commonlibsse-ng/src/RE/T/TESTopic.cpp
     lib/commonlibsse-ng/src/RE/T/TESTopicInfo.cpp
+    lib/commonlibsse-ng/src/RE/T/TESValueForm.cpp
+    lib/commonlibsse-ng/src/RE/T/TESWaterReflections.cpp
     lib/commonlibsse-ng/src/RE/T/TESWaterSystem.cpp
     lib/commonlibsse-ng/src/RE/T/TESWorldSpace.cpp
     lib/commonlibsse-ng/src/RE/T/ThirdPersonState.cpp
     lib/commonlibsse-ng/src/RE/T/ThumbstickEvent.cpp
+    lib/commonlibsse-ng/src/RE/T/TutorialMenu.cpp
     lib/commonlibsse-ng/src/RE/T/TweenMenuCameraState.cpp
     lib/commonlibsse-ng/src/RE/T/TypeInfo.cpp
     lib/commonlibsse-ng/src/RE/U/UI.cpp
@@ -651,14 +795,18 @@ target_sources(commonlibsse-ng PRIVATE
     lib/commonlibsse-ng/src/RE/U/UIMessageQueue.cpp
     lib/commonlibsse-ng/src/RE/U/UnlinkedTypes.cpp
     lib/commonlibsse-ng/src/RE/U/UserEvents.cpp
+    lib/commonlibsse-ng/src/RE/V/ValueChildSelector.cpp
     lib/commonlibsse-ng/src/RE/V/Variable.cpp
     lib/commonlibsse-ng/src/RE/V/VATSCameraState.cpp
     lib/commonlibsse-ng/src/RE/V/VirtualMachine.cpp
+    lib/commonlibsse-ng/src/RE/W/WeightedRandomChildSelector.cpp
     lib/commonlibsse-ng/src/RE/W/WorldSpaceMenu.cpp
     lib/commonlibsse-ng/src/RE/Z/ZeroFunctionArguments.cpp
-    lib/commonlibsse-ng/src/REL/ID.cpp
+    lib/commonlibsse-ng/src/REL/IDDB.cpp
     lib/commonlibsse-ng/src/REL/Module.cpp
+    lib/commonlibsse-ng/src/REL/Offset2ID.cpp
     lib/commonlibsse-ng/src/REL/Relocation.cpp
+    lib/commonlibsse-ng/src/REL/Verify.cpp
     lib/commonlibsse-ng/src/REL/Version.cpp
     lib/commonlibsse-ng/src/REX/REX.cpp
     lib/commonlibsse-ng/src/REX/W32.cpp
@@ -680,6 +828,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/A/AccumulatingValueModifierEffect.h
     lib/commonlibsse-ng/include/RE/A/ActionInput.h
     lib/commonlibsse-ng/include/RE/A/ActionOutput.h
+    lib/commonlibsse-ng/include/RE/A/ActivateChoiceMenuCallbackFunctor.h
     lib/commonlibsse-ng/include/RE/A/ActivateHandler.h
     lib/commonlibsse-ng/include/RE/A/ActiveEffect.h
     lib/commonlibsse-ng/include/RE/A/ActiveEffectFactory.h
@@ -690,9 +839,11 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/A/ActorInventoryEvent.h
     lib/commonlibsse-ng/include/RE/A/ActorKill.h
     lib/commonlibsse-ng/include/RE/A/ActorKnowledge.h
+    lib/commonlibsse-ng/include/RE/A/ActorLOSLocation.h
     lib/commonlibsse-ng/include/RE/A/ActorMagicCaster.h
     lib/commonlibsse-ng/include/RE/A/ActorMover.h
     lib/commonlibsse-ng/include/RE/A/ActorPackage.h
+    lib/commonlibsse-ng/include/RE/A/ActorPackageData.h
     lib/commonlibsse-ng/include/RE/A/ActorSpeedChannel.h
     lib/commonlibsse-ng/include/RE/A/ActorState.h
     lib/commonlibsse-ng/include/RE/A/ActorTargetCheck.h
@@ -710,14 +861,18 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/A/AITimeStamp.h
     lib/commonlibsse-ng/include/RE/A/AlchemyItem.h
     lib/commonlibsse-ng/include/RE/A/AlchemyMenu.h
+    lib/commonlibsse-ng/include/RE/A/AmiiboEvent.h
+    lib/commonlibsse-ng/include/RE/A/AnimationClipDataSingleton.h
     lib/commonlibsse-ng/include/RE/A/AnimationFileManagerSingleton.h
     lib/commonlibsse-ng/include/RE/A/AnimationObjects.h
+    lib/commonlibsse-ng/include/RE/A/AnimationSystemUtils.h
     lib/commonlibsse-ng/include/RE/A/Archive.h
     lib/commonlibsse-ng/include/RE/A/ArchiveStream.h
     lib/commonlibsse-ng/include/RE/A/ArmorRatingVisitor.h
     lib/commonlibsse-ng/include/RE/A/ArmorRatingVisitorBase.h
     lib/commonlibsse-ng/include/RE/A/Array.h
     lib/commonlibsse-ng/include/RE/A/ArrowProjectile.h
+    lib/commonlibsse-ng/include/RE/A/AStarNode.h
     lib/commonlibsse-ng/include/RE/A/AsyncStream.h
     lib/commonlibsse-ng/include/RE/A/Atmosphere.h
     lib/commonlibsse-ng/include/RE/A/AttachAshPileFunctor.h
@@ -726,6 +881,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/A/AttachTechniqueInput.h
     lib/commonlibsse-ng/include/RE/A/AttackAnimationArrayMap.h
     lib/commonlibsse-ng/include/RE/A/AttackBlockHandler.h
+    lib/commonlibsse-ng/include/RE/A/AudioDefs.h
     lib/commonlibsse-ng/include/RE/A/AutoMoveHandler.h
     lib/commonlibsse-ng/include/RE/A/AutoRegisterCreator.h
     lib/commonlibsse-ng/include/RE/A/AutoRegisterFactory.h
@@ -736,8 +892,10 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BaseFormComponent.h
     lib/commonlibsse-ng/include/RE/B/BaseHandleReaderWriter.h
     lib/commonlibsse-ng/include/RE/B/BeamProjectile.h
+    lib/commonlibsse-ng/include/RE/B/BeamProjectileImpactEvent.h
     lib/commonlibsse-ng/include/RE/B/BGSAbilityPerkEntry.h
     lib/commonlibsse-ng/include/RE/B/BGSAcousticSpace.h
+    lib/commonlibsse-ng/include/RE/B/BGSAcousticSpaceListener.h
     lib/commonlibsse-ng/include/RE/B/BGSAction.h
     lib/commonlibsse-ng/include/RE/B/BGSActionData.h
     lib/commonlibsse-ng/include/RE/B/BGSActorCellEvent.h
@@ -751,17 +909,23 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BGSAttackData.h
     lib/commonlibsse-ng/include/RE/B/BGSAttackDataForm.h
     lib/commonlibsse-ng/include/RE/B/BGSAttackDataMap.h
+    lib/commonlibsse-ng/include/RE/B/BGSAutoWater.h
     lib/commonlibsse-ng/include/RE/B/BGSBaseAlias.h
     lib/commonlibsse-ng/include/RE/B/BGSBehaviorGraphModel.h
     lib/commonlibsse-ng/include/RE/B/BGSBipedObjectForm.h
     lib/commonlibsse-ng/include/RE/B/BGSBlockBashData.h
     lib/commonlibsse-ng/include/RE/B/BGSBodyPartData.h
     lib/commonlibsse-ng/include/RE/B/BGSBodyPartDefs.h
+    lib/commonlibsse-ng/include/RE/B/BGSBtoDB.h
+    lib/commonlibsse-ng/include/RE/B/BGSBtrDB.h
+    lib/commonlibsse-ng/include/RE/B/BGSBttDB.h
     lib/commonlibsse-ng/include/RE/B/BGSCameraPath.h
     lib/commonlibsse-ng/include/RE/B/BGSCameraShot.h
     lib/commonlibsse-ng/include/RE/B/BGSCollisionLayer.h
     lib/commonlibsse-ng/include/RE/B/BGSColorForm.h
+    lib/commonlibsse-ng/include/RE/B/BGSConstructFormsInAllFilesMap.h
     lib/commonlibsse-ng/include/RE/B/BGSConstructibleObject.h
+    lib/commonlibsse-ng/include/RE/B/BGSCraftItemEvent.h
     lib/commonlibsse-ng/include/RE/B/BGSCreatedObjectManager.h
     lib/commonlibsse-ng/include/RE/B/BGSDebris.h
     lib/commonlibsse-ng/include/RE/B/BGSDecalEmitter.h
@@ -772,6 +936,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BGSDestructibleObjectForm.h
     lib/commonlibsse-ng/include/RE/B/BGSDialogueBranch.h
     lib/commonlibsse-ng/include/RE/B/BGSDirectionalAmbientLightingColors.h
+    lib/commonlibsse-ng/include/RE/B/BGSDistantObjectBlock.h
     lib/commonlibsse-ng/include/RE/B/BGSDistantTreeBlock.h
     lib/commonlibsse-ng/include/RE/B/BGSDualCastData.h
     lib/commonlibsse-ng/include/RE/B/BGSDynamicPersistenceManager.h
@@ -787,10 +952,12 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BGSEquipSlot.h
     lib/commonlibsse-ng/include/RE/B/BGSEquipType.h
     lib/commonlibsse-ng/include/RE/B/BGSExplosion.h
+    lib/commonlibsse-ng/include/RE/B/BGSFootIkRaycastInterfaceDB.h
     lib/commonlibsse-ng/include/RE/B/BGSFootstep.h
     lib/commonlibsse-ng/include/RE/B/BGSFootstepEvent.h
     lib/commonlibsse-ng/include/RE/B/BGSFootstepManager.h
     lib/commonlibsse-ng/include/RE/B/BGSFootstepSet.h
+    lib/commonlibsse-ng/include/RE/B/BGSFormChanges.h
     lib/commonlibsse-ng/include/RE/B/BGSGrassManager.h
     lib/commonlibsse-ng/include/RE/B/BGSHazard.h
     lib/commonlibsse-ng/include/RE/B/BGSHeadPart.h
@@ -879,6 +1046,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BGSStoryTeller.h
     lib/commonlibsse-ng/include/RE/B/BGSTalkingActivator.h
     lib/commonlibsse-ng/include/RE/B/BGSTerrainBlock.h
+    lib/commonlibsse-ng/include/RE/B/BGSTerrainChunk.h
     lib/commonlibsse-ng/include/RE/B/BGSTerrainManager.h
     lib/commonlibsse-ng/include/RE/B/BGSTerrainNode.h
     lib/commonlibsse-ng/include/RE/B/BGSTextureModel.h
@@ -886,9 +1054,11 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BGSTypedItem.h
     lib/commonlibsse-ng/include/RE/B/BGSVoiceType.h
     lib/commonlibsse-ng/include/RE/B/BGSVolumetricLighting.h
+    lib/commonlibsse-ng/include/RE/B/BGSWaterUpdateI.h
     lib/commonlibsse-ng/include/RE/B/BGSWorldLocation.h
     lib/commonlibsse-ng/include/RE/B/bhkAction.h
     lib/commonlibsse-ng/include/RE/B/bhkBackfaceContactListener.h
+    lib/commonlibsse-ng/include/RE/B/bhkBlendCollisionObject.h
     lib/commonlibsse-ng/include/RE/B/bhkCachingShapePhantom.h
     lib/commonlibsse-ng/include/RE/B/bhkCharacterController.h
     lib/commonlibsse-ng/include/RE/B/bhkCharacterPointCollector.h
@@ -907,26 +1077,37 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/bhkCollisionObject.h
     lib/commonlibsse-ng/include/RE/B/bhkCompressedMeshShape.h
     lib/commonlibsse-ng/include/RE/B/bhkCompressedMeshShapeData.h
+    lib/commonlibsse-ng/include/RE/B/bhkConstraint.h
     lib/commonlibsse-ng/include/RE/B/bhkContactListener.h
     lib/commonlibsse-ng/include/RE/B/bhkEntity.h
+    lib/commonlibsse-ng/include/RE/B/bhkGroupConstraint.h
     lib/commonlibsse-ng/include/RE/B/bhkListShape.h
+    lib/commonlibsse-ng/include/RE/B/bhkListShapeCinfo.h
+    lib/commonlibsse-ng/include/RE/B/bhkMalleableConstraint.h
     lib/commonlibsse-ng/include/RE/B/bhkMeshMaterial.h
     lib/commonlibsse-ng/include/RE/B/bhkMouseSpringAction.h
     lib/commonlibsse-ng/include/RE/B/bhkNiCollisionObject.h
     lib/commonlibsse-ng/include/RE/B/bhkPCollisionObject.h
     lib/commonlibsse-ng/include/RE/B/bhkPhantom.h
     lib/commonlibsse-ng/include/RE/B/bhkPickData.h
+    lib/commonlibsse-ng/include/RE/B/bhkPlaceableWater.h
+    lib/commonlibsse-ng/include/RE/B/bhkRagdollConstraint.h
     lib/commonlibsse-ng/include/RE/B/bhkRefObject.h
     lib/commonlibsse-ng/include/RE/B/bhkRigidBody.h
+    lib/commonlibsse-ng/include/RE/B/bhkRigidBodyCinfo.h
+    lib/commonlibsse-ng/include/RE/B/bhkRigidBodyT.h
     lib/commonlibsse-ng/include/RE/B/bhkSerializable.h
     lib/commonlibsse-ng/include/RE/B/bhkShape.h
     lib/commonlibsse-ng/include/RE/B/bhkShapeCollection.h
     lib/commonlibsse-ng/include/RE/B/bhkShapePhantom.h
+    lib/commonlibsse-ng/include/RE/B/bhkSimpleShapePhantom.h
     lib/commonlibsse-ng/include/RE/B/bhkSPCollisionObject.h
     lib/commonlibsse-ng/include/RE/B/bhkTelekinesisListener.h
     lib/commonlibsse-ng/include/RE/B/bhkThreadMemorySource.h
     lib/commonlibsse-ng/include/RE/B/bhkUnaryAction.h
+    lib/commonlibsse-ng/include/RE/B/bhkWaterfall.h
     lib/commonlibsse-ng/include/RE/B/bhkWorld.h
+    lib/commonlibsse-ng/include/RE/B/bhkWorldCinfo.h
     lib/commonlibsse-ng/include/RE/B/bhkWorldObject.h
     lib/commonlibsse-ng/include/RE/B/BipedAnim.h
     lib/commonlibsse-ng/include/RE/B/BipedObjects.h
@@ -944,8 +1125,12 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSArchive.h
     lib/commonlibsse-ng/include/RE/B/BSArchiveHeader.h
     lib/commonlibsse-ng/include/RE/B/BSAtomic.h
+    lib/commonlibsse-ng/include/RE/B/BSAudio.h
+    lib/commonlibsse-ng/include/RE/B/BSAudioInit.h
+    lib/commonlibsse-ng/include/RE/B/BSAudioListener.h
     lib/commonlibsse-ng/include/RE/B/BSAudioManager.h
     lib/commonlibsse-ng/include/RE/B/BSAudioManagerThread.h
+    lib/commonlibsse-ng/include/RE/B/BSAudioMonitor.h
     lib/commonlibsse-ng/include/RE/B/BSBatchRenderer.h
     lib/commonlibsse-ng/include/RE/B/BSBitField.h
     lib/commonlibsse-ng/include/RE/B/BSBloodSplatterShaderProperty.h
@@ -954,7 +1139,10 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSComputeShader.h
     lib/commonlibsse-ng/include/RE/B/BSContainer.h
     lib/commonlibsse-ng/include/RE/B/BSCoreTypes.h
+    lib/commonlibsse-ng/include/RE/B/BSCubeMapCamera.h
+    lib/commonlibsse-ng/include/RE/B/BSCullingJob.h
     lib/commonlibsse-ng/include/RE/B/BSCullingProcess.h
+    lib/commonlibsse-ng/include/RE/B/BSCyclicBlendTransitionGenerator.h
     lib/commonlibsse-ng/include/RE/B/BSDirectInputManager.h
     lib/commonlibsse-ng/include/RE/B/BSDismemberSkinInstance.h
     lib/commonlibsse-ng/include/RE/B/BSDistantTreeShaderProperty.h
@@ -964,6 +1152,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSEffectShaderProperty.h
     lib/commonlibsse-ng/include/RE/B/BSExtraData.h
     lib/commonlibsse-ng/include/RE/B/BSFaceGenAnimationData.h
+    lib/commonlibsse-ng/include/RE/B/BSFaceGenBaseMorphExtraData.h
     lib/commonlibsse-ng/include/RE/B/BSFaceGenKeyframe.h
     lib/commonlibsse-ng/include/RE/B/BSFaceGenKeyframeMultiple.h
     lib/commonlibsse-ng/include/RE/B/BSFaceGenManager.h
@@ -972,14 +1161,19 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSFaceGenNiNode.h
     lib/commonlibsse-ng/include/RE/B/BSFadeNode.h
     lib/commonlibsse-ng/include/RE/B/BSFadeNodeCuller.h
+    lib/commonlibsse-ng/include/RE/B/BSFastNavmeshTriLocation.h
     lib/commonlibsse-ng/include/RE/B/BSFile.h
     lib/commonlibsse-ng/include/RE/B/BSFixedString.h
+    lib/commonlibsse-ng/include/RE/B/BSFlattenedBoneTree.h
+    lib/commonlibsse-ng/include/RE/B/BSFogProperty.h
     lib/commonlibsse-ng/include/RE/B/BSFurnitureMarkerNode.h
     lib/commonlibsse-ng/include/RE/B/BSGamepadDevice.h
     lib/commonlibsse-ng/include/RE/B/BSGameSound.h
     lib/commonlibsse-ng/include/RE/B/BSGeometry.h
+    lib/commonlibsse-ng/include/RE/B/BSGeometryListCullingProcess.h
     lib/commonlibsse-ng/include/RE/B/BSGrassShaderProperty.h
     lib/commonlibsse-ng/include/RE/B/BSHandleRefObject.h
+    lib/commonlibsse-ng/include/RE/B/bshkAutoWater.h
     lib/commonlibsse-ng/include/RE/B/BShkbAnimationGraph.h
     lib/commonlibsse-ng/include/RE/B/BSIInputDevice.h
     lib/commonlibsse-ng/include/RE/B/BSImagespaceShader.h
@@ -993,12 +1187,16 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSInputEventQueue.h
     lib/commonlibsse-ng/include/RE/B/BSInstanceTriShape.h
     lib/commonlibsse-ng/include/RE/B/BSIntrusiveRefCounted.h
+    lib/commonlibsse-ng/include/RE/B/BSInvMarker.h
     lib/commonlibsse-ng/include/RE/B/BSIRagdollDriver.h
     lib/commonlibsse-ng/include/RE/B/BSIReverbType.h
     lib/commonlibsse-ng/include/RE/B/BSISoundCategory.h
     lib/commonlibsse-ng/include/RE/B/BSISoundDescriptor.h
     lib/commonlibsse-ng/include/RE/B/BSISoundOutputModel.h
+    lib/commonlibsse-ng/include/RE/B/BSIStream.h
+    lib/commonlibsse-ng/include/RE/B/BSJobs.h
     lib/commonlibsse-ng/include/RE/B/BSKeyboardDevice.h
+    lib/commonlibsse-ng/include/RE/B/BSLeafAnimNode.h
     lib/commonlibsse-ng/include/RE/B/BSLensFlareRenderData.h
     lib/commonlibsse-ng/include/RE/B/BSLight.h
     lib/commonlibsse-ng/include/RE/B/BSLightingShader.h
@@ -1017,6 +1215,8 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSLightingShaderMaterialParallaxOcc.h
     lib/commonlibsse-ng/include/RE/B/BSLightingShaderMaterialSnow.h
     lib/commonlibsse-ng/include/RE/B/BSLightingShaderProperty.h
+    lib/commonlibsse-ng/include/RE/B/BSLookAtModifier.h
+    lib/commonlibsse-ng/include/RE/B/BSLookAtModifierBoneData.h
     lib/commonlibsse-ng/include/RE/B/BSMasterParticleSystem.h
     lib/commonlibsse-ng/include/RE/B/BSMaterialObject.h
     lib/commonlibsse-ng/include/RE/B/BSMemStorage.h
@@ -1026,6 +1226,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSMultiBoundAABB.h
     lib/commonlibsse-ng/include/RE/B/BSMultiBoundNode.h
     lib/commonlibsse-ng/include/RE/B/BSMultiBoundOBB.h
+    lib/commonlibsse-ng/include/RE/B/BSMultiBoundRoom.h
     lib/commonlibsse-ng/include/RE/B/BSMultiBoundShape.h
     lib/commonlibsse-ng/include/RE/B/BSMultiIndexTriShape.h
     lib/commonlibsse-ng/include/RE/B/BSMultiStreamInstanceTriShape.h
@@ -1033,6 +1234,8 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSMusicManager.h
     lib/commonlibsse-ng/include/RE/B/BSNavmesh.h
     lib/commonlibsse-ng/include/RE/B/BSNavmeshInfoMap.h
+    lib/commonlibsse-ng/include/RE/B/BSNavmeshInfoSearch.h
+    lib/commonlibsse-ng/include/RE/B/BSNavmeshSearch.h
     lib/commonlibsse-ng/include/RE/B/BSNiAllocator.h
     lib/commonlibsse-ng/include/RE/B/BSNiNode.h
     lib/commonlibsse-ng/include/RE/B/BSOcclusionBox.h
@@ -1048,7 +1251,16 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSParticleShaderProperty.h
     lib/commonlibsse-ng/include/RE/B/BSParticleShaderRainEmitter.h
     lib/commonlibsse-ng/include/RE/B/BSParticleShaderSnowEmitter.h
+    lib/commonlibsse-ng/include/RE/B/BSParticleSystemManager.h
+    lib/commonlibsse-ng/include/RE/B/BSPathBuilder.h
+    lib/commonlibsse-ng/include/RE/B/BSPathing.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingActorAttributes.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingAvoidNode.h
     lib/commonlibsse-ng/include/RE/B/BSPathingCell.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingDoor.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingLocation.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingRequest.h
+    lib/commonlibsse-ng/include/RE/B/BSPathingSearchParameters.h
     lib/commonlibsse-ng/include/RE/B/BSPCGamepadDeviceDelegate.h
     lib/commonlibsse-ng/include/RE/B/BSPCGamepadDeviceHandler.h
     lib/commonlibsse-ng/include/RE/B/BSPCOrbisGamepadDevice.h
@@ -1060,6 +1272,11 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSPortalGraphEntry.h
     lib/commonlibsse-ng/include/RE/B/BSPortalSharedNode.h
     lib/commonlibsse-ng/include/RE/B/BSPrecomputedNavmeshInfoPathMap.h
+    lib/commonlibsse-ng/include/RE/B/BSPrecomputedNavmeshInfoSearch.h
+    lib/commonlibsse-ng/include/RE/B/BSProceduralGeomEvent.h
+    lib/commonlibsse-ng/include/RE/B/BSProceduralLightningController.h
+    lib/commonlibsse-ng/include/RE/B/BSProceduralLightningTasklet.h
+    lib/commonlibsse-ng/include/RE/B/BSQueuedResourceCollectionBase.h
     lib/commonlibsse-ng/include/RE/B/BSReloadShaderI.h
     lib/commonlibsse-ng/include/RE/B/BSRenderManager.h
     lib/commonlibsse-ng/include/RE/B/BSRenderPass.h
@@ -1079,6 +1296,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSSceneGraph.h
     lib/commonlibsse-ng/include/RE/B/BSScriptObjectBindPolicy.h
     lib/commonlibsse-ng/include/RE/B/BSShader.h
+    lib/commonlibsse-ng/include/RE/B/BSShaderAccumulator.h
     lib/commonlibsse-ng/include/RE/B/BSShaderManager.h
     lib/commonlibsse-ng/include/RE/B/BSShaderMaterial.h
     lib/commonlibsse-ng/include/RE/B/BSShaderProperty.h
@@ -1089,18 +1307,33 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSShadowFrustumLight.h
     lib/commonlibsse-ng/include/RE/B/BSShadowLight.h
     lib/commonlibsse-ng/include/RE/B/BSShadowParabolicLight.h
+    lib/commonlibsse-ng/include/RE/B/BSSimpleList.h
     lib/commonlibsse-ng/include/RE/B/BSSimpleScaleController.h
     lib/commonlibsse-ng/include/RE/B/BSSkyShaderProperty.h
     lib/commonlibsse-ng/include/RE/B/BSSmallBlockAllocator.h
     lib/commonlibsse-ng/include/RE/B/BSSoundHandle.h
+    lib/commonlibsse-ng/include/RE/B/BSSoundInfo.h
+    lib/commonlibsse-ng/include/RE/B/BSSoundMessage.h
     lib/commonlibsse-ng/include/RE/B/BSStorage.h
     lib/commonlibsse-ng/include/RE/B/BSStream.h
     lib/commonlibsse-ng/include/RE/B/BSString.h
     lib/commonlibsse-ng/include/RE/B/BSStringPool.h
+    lib/commonlibsse-ng/include/RE/B/BSStripParticleSystem.h
+    lib/commonlibsse-ng/include/RE/B/BSStripPSysData.h
+    lib/commonlibsse-ng/include/RE/B/BSSubIndexTriShape.h
+    lib/commonlibsse-ng/include/RE/B/BSSynchronizedClipGenerator.h
+    lib/commonlibsse-ng/include/RE/B/BSSystemEvent.h
     lib/commonlibsse-ng/include/RE/B/BSSystemFile.h
     lib/commonlibsse-ng/include/RE/B/BSSystemFileStorage.h
+    lib/commonlibsse-ng/include/RE/B/BSSystemUtility.h
     lib/commonlibsse-ng/include/RE/B/BSTAnimationGraphDataChannel.h
     lib/commonlibsse-ng/include/RE/B/BSTArray.h
+    lib/commonlibsse-ng/include/RE/B/BSTask.h
+    lib/commonlibsse-ng/include/RE/B/BSTasklet.h
+    lib/commonlibsse-ng/include/RE/B/BSTaskletData.h
+    lib/commonlibsse-ng/include/RE/B/BSTaskletGroup.h
+    lib/commonlibsse-ng/include/RE/B/BSTaskletGroupData.h
+    lib/commonlibsse-ng/include/RE/B/BSTaskletManager.h
     lib/commonlibsse-ng/include/RE/B/BSTCaseInsensitiveStringMap.h
     lib/commonlibsse-ng/include/RE/B/BSTCreateFactoryManager.h
     lib/commonlibsse-ng/include/RE/B/BSTDerivedCreator.h
@@ -1111,22 +1344,27 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSTempEffectSimpleDecal.h
     lib/commonlibsse-ng/include/RE/B/BSTempEffectSPG.h
     lib/commonlibsse-ng/include/RE/B/BSTempEffectWeaponBlood.h
+    lib/commonlibsse-ng/include/RE/B/BSTempNodeManager.h
     lib/commonlibsse-ng/include/RE/B/BSTerrainEffect.h
     lib/commonlibsse-ng/include/RE/B/BSTEvent.h
+    lib/commonlibsse-ng/include/RE/B/BSTextureDB.h
     lib/commonlibsse-ng/include/RE/B/BSTextureSet.h
     lib/commonlibsse-ng/include/RE/B/BSTFreeList.h
     lib/commonlibsse-ng/include/RE/B/BSTHashMap.h
     lib/commonlibsse-ng/include/RE/B/BSThread.h
     lib/commonlibsse-ng/include/RE/B/BSThreadEvent.h
+    lib/commonlibsse-ng/include/RE/B/BSThreadStagesManager.h
     lib/commonlibsse-ng/include/RE/B/BSTimer.h
     lib/commonlibsse-ng/include/RE/B/BSTList.h
     lib/commonlibsse-ng/include/RE/B/BSTLocklessQueue.h
     lib/commonlibsse-ng/include/RE/B/BSTMessageQueue.h
+    lib/commonlibsse-ng/include/RE/B/BSTObjectArena.h
     lib/commonlibsse-ng/include/RE/B/BSTObjectDictionary.h
     lib/commonlibsse-ng/include/RE/B/BSTPoint.h
     lib/commonlibsse-ng/include/RE/B/BSTPointerAndFlags.h
     lib/commonlibsse-ng/include/RE/B/BSTrackedControllerDevice.h
     lib/commonlibsse-ng/include/RE/B/BSTreeManager.h
+    lib/commonlibsse-ng/include/RE/B/BSTreeNode.h
     lib/commonlibsse-ng/include/RE/B/BSTriShape.h
     lib/commonlibsse-ng/include/RE/B/BSTSingleton.h
     lib/commonlibsse-ng/include/RE/B/BSTSmartPointer.h
@@ -1145,24 +1383,101 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/B/BSWin32KeyboardDevice.h
     lib/commonlibsse-ng/include/RE/B/BSWin32MouseDevice.h
     lib/commonlibsse-ng/include/RE/B/BSWin32SaveDataSystemUtility.h
+    lib/commonlibsse-ng/include/RE/B/BSWin32SystemUtility.h
+    lib/commonlibsse-ng/include/RE/B/BSWin32TaskletManager.h
     lib/commonlibsse-ng/include/RE/B/BSWin32VirtualKeyboardDevice.h
     lib/commonlibsse-ng/include/RE/B/BSWindModifier.h
+    lib/commonlibsse-ng/include/RE/B/BSXAudio2Audio.h
+    lib/commonlibsse-ng/include/RE/B/BSXAudio2AudioListener.h
+    lib/commonlibsse-ng/include/RE/B/BSXAudio2DataSrc.h
     lib/commonlibsse-ng/include/RE/B/BSXAudio2GameSound.h
     lib/commonlibsse-ng/include/RE/B/BSXFlags.h
     lib/commonlibsse-ng/include/RE/B/ButtonEvent.h
     lib/commonlibsse-ng/include/RE/C/Calendar.h
     lib/commonlibsse-ng/include/RE/C/CalibrationOptionMenu.h
     lib/commonlibsse-ng/include/RE/C/CalmEffect.h
+    lib/commonlibsse-ng/include/RE/C/CCallback.h
+    lib/commonlibsse-ng/include/RE/C/CellMopp.h
     lib/commonlibsse-ng/include/RE/C/CFilter.h
+    lib/commonlibsse-ng/include/RE/C/ChainExplosion.h
     lib/commonlibsse-ng/include/RE/C/Character.h
     lib/commonlibsse-ng/include/RE/C/CharEvent.h
     lib/commonlibsse-ng/include/RE/C/ChestsLooted.h
+    lib/commonlibsse-ng/include/RE/C/ChildSelectorBase.h
+    lib/commonlibsse-ng/include/RE/C/ClickHandler.h
     lib/commonlibsse-ng/include/RE/C/CloakEffect.h
     lib/commonlibsse-ng/include/RE/C/Clouds.h
     lib/commonlibsse-ng/include/RE/C/CodeTasklet.h
     lib/commonlibsse-ng/include/RE/C/CollisionLayers.h
     lib/commonlibsse-ng/include/RE/C/Color.h
     lib/commonlibsse-ng/include/RE/C/ColorUtil.h
+    lib/commonlibsse-ng/include/RE/C/CombatAcquireItem.h
+    lib/commonlibsse-ng/include/RE/C/CombatAimController.h
+    lib/commonlibsse-ng/include/RE/C/CombatAnimation.h
+    lib/commonlibsse-ng/include/RE/C/CombatAttackData.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehavior.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorAccessors.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorAcquireItem.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorAcquireResource.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorAdvance.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorBackoff.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorBlock.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorBlockAttack.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorChildSelector.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorCircle.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorCircleDistant.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContext.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextAcquireWeapon.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextBlock.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextCloseMovement.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextDodgeThreat.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextFlankingMovement.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextFlee.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextMagic.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextMelee.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextRangedMovement.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextSearch.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorContextShout.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorController.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorDodgeThreat.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorDynamicConditionalNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorDynamicSelector.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorEquipContext.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorExpression.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorFallback.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorFallbackSelector.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorFallbackToRanged.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorFindWeapon.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorIdle.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorParallel.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorPause.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorRepeat.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorReposition.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorResource.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorSequence.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorSpawnParallel.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorStack.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorSurround.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorThread.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTree.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeConditionalNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeCreateContextNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeLinkNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeManager.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeNodeEvaluateFunction.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeNodeObject.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeRootNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTrees.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeUtils.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeValueNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeValueNodeT.h
+    lib/commonlibsse-ng/include/RE/C/CombatBehaviorTreeWrapperNode.h
+    lib/commonlibsse-ng/include/RE/C/CombatBlackboard.h
+    lib/commonlibsse-ng/include/RE/C/CombatBlackboardFlag.h
+    lib/commonlibsse-ng/include/RE/C/CombatBlackboardKey.h
+    lib/commonlibsse-ng/include/RE/C/CombatBlackboardKeyBase.h
+    lib/commonlibsse-ng/include/RE/C/CombatBlackboardManager.h
     lib/commonlibsse-ng/include/RE/C/CombatController.h
     lib/commonlibsse-ng/include/RE/C/CombatGroup.h
     lib/commonlibsse-ng/include/RE/C/CombatGroupDetectionListener.h
@@ -1190,24 +1505,39 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/C/CombatMagicCasterTargetEffect.h
     lib/commonlibsse-ng/include/RE/C/CombatMagicCasterWard.h
     lib/commonlibsse-ng/include/RE/C/CombatManager.h
+    lib/commonlibsse-ng/include/RE/C/CombatMeleeAimController.h
+    lib/commonlibsse-ng/include/RE/C/CombatNavmeshSearch.h
     lib/commonlibsse-ng/include/RE/C/CombatObject.h
+    lib/commonlibsse-ng/include/RE/C/CombatPath.h
     lib/commonlibsse-ng/include/RE/C/CombatSearchLocation.h
     lib/commonlibsse-ng/include/RE/C/CombatState.h
+    lib/commonlibsse-ng/include/RE/C/CombatTargetLocation.h
+    lib/commonlibsse-ng/include/RE/C/CombatTargetLocationSearch.h
+    lib/commonlibsse-ng/include/RE/C/CombatTargetLocationSearchResult.h
+    lib/commonlibsse-ng/include/RE/C/CombatThreat.h
+    lib/commonlibsse-ng/include/RE/C/CombatUtilities.h
     lib/commonlibsse-ng/include/RE/C/CommandEffect.h
     lib/commonlibsse-ng/include/RE/C/CommandSummonedEffect.h
     lib/commonlibsse-ng/include/RE/C/CommandTable.h
     lib/commonlibsse-ng/include/RE/C/CommonTypeTraits.h
     lib/commonlibsse-ng/include/RE/C/CompactingStore.h
+    lib/commonlibsse-ng/include/RE/C/Compass.h
     lib/commonlibsse-ng/include/RE/C/CompiledScriptLoader.h
     lib/commonlibsse-ng/include/RE/C/CompressedArchiveStream.h
     lib/commonlibsse-ng/include/RE/C/ConcreteFormFactory.h
     lib/commonlibsse-ng/include/RE/C/ConcreteObjectFormFactory.h
     lib/commonlibsse-ng/include/RE/C/ConcussionEffect.h
+    lib/commonlibsse-ng/include/RE/C/ConditionalChildSelector.h
     lib/commonlibsse-ng/include/RE/C/ConeProjectile.h
+    lib/commonlibsse-ng/include/RE/C/ConfirmAndNameCallback.h
+    lib/commonlibsse-ng/include/RE/C/ConfirmCloseRaceSexMenuCallback.h
+    lib/commonlibsse-ng/include/RE/C/ConfirmDestructiveChangesCallback.h
+    lib/commonlibsse-ng/include/RE/C/ConfirmLevelUpAttributeCallback.h
     lib/commonlibsse-ng/include/RE/C/Console.h
     lib/commonlibsse-ng/include/RE/C/ConsoleData.h
     lib/commonlibsse-ng/include/RE/C/ConsoleLog.h
     lib/commonlibsse-ng/include/RE/C/ConsoleNativeUIMenu.h
+    lib/commonlibsse-ng/include/RE/C/ConsoleOpenHandler.h
     lib/commonlibsse-ng/include/RE/C/ConstructibleObjectMenu.h
     lib/commonlibsse-ng/include/RE/C/ContainerItemExtra.h
     lib/commonlibsse-ng/include/RE/C/ContainerMenu.h
@@ -1215,6 +1545,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/C/CraftingMenu.h
     lib/commonlibsse-ng/include/RE/C/CraftingSubMenu.h
     lib/commonlibsse-ng/include/RE/C/CRC.h
+    lib/commonlibsse-ng/include/RE/C/CreateGrassParams.h
     lib/commonlibsse-ng/include/RE/C/CreationClubMenu.h
     lib/commonlibsse-ng/include/RE/C/CreditsMenu.h
     lib/commonlibsse-ng/include/RE/C/Crime.h
@@ -1222,6 +1553,8 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/C/CrosshairPickData.h
     lib/commonlibsse-ng/include/RE/C/CureEffect.h
     lib/commonlibsse-ng/include/RE/C/CursorMenu.h
+    lib/commonlibsse-ng/include/RE/C/CustomActorPackageData.h
+    lib/commonlibsse-ng/include/RE/C/CXAPOBase.h
     lib/commonlibsse-ng/include/RE/D/DamageImpactData.h
     lib/commonlibsse-ng/include/RE/D/DarknessEffect.h
     lib/commonlibsse-ng/include/RE/D/DecalData.h
@@ -1234,6 +1567,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/D/DetectionState.h
     lib/commonlibsse-ng/include/RE/D/DetectLifeEffect.h
     lib/commonlibsse-ng/include/RE/D/DeviceConnectEvent.h
+    lib/commonlibsse-ng/include/RE/D/DeviceSelectCallback.h
     lib/commonlibsse-ng/include/RE/D/DevNull.h
     lib/commonlibsse-ng/include/RE/D/DialogueItem.h
     lib/commonlibsse-ng/include/RE/D/DialogueMenu.h
@@ -1247,6 +1581,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/D/DoNothingUnhandledPolicy.h
     lib/commonlibsse-ng/include/RE/D/DragonCameraState.h
     lib/commonlibsse-ng/include/RE/D/DragonSoulsGained.h
+    lib/commonlibsse-ng/include/RE/D/DrawWorld.h
     lib/commonlibsse-ng/include/RE/D/DropObjectFunctor.h
     lib/commonlibsse-ng/include/RE/D/DualValueModifierEffect.h
     lib/commonlibsse-ng/include/RE/E/Effect.h
@@ -1258,6 +1593,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/E/EnhanceWeaponEffect.h
     lib/commonlibsse-ng/include/RE/E/ErrorCodes.h
     lib/commonlibsse-ng/include/RE/E/ErrorLogger.h
+    lib/commonlibsse-ng/include/RE/E/EscortActorPackageData.h
     lib/commonlibsse-ng/include/RE/E/EtherealizationEffect.h
     lib/commonlibsse-ng/include/RE/E/Explosion.h
     lib/commonlibsse-ng/include/RE/E/ExtraAction.h
@@ -1427,13 +1763,16 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/E/ExtraWorn.h
     lib/commonlibsse-ng/include/RE/E/ExtraWornLeft.h
     lib/commonlibsse-ng/include/RE/F/FactionRank.h
+    lib/commonlibsse-ng/include/RE/F/FaderData.h
     lib/commonlibsse-ng/include/RE/F/FaderMenu.h
     lib/commonlibsse-ng/include/RE/F/FastTravelConfirmCallback.h
     lib/commonlibsse-ng/include/RE/F/FavoritesHandler.h
     lib/commonlibsse-ng/include/RE/F/FavoritesMenu.h
     lib/commonlibsse-ng/include/RE/F/FightReactions.h
     lib/commonlibsse-ng/include/RE/F/FileID.h
+    lib/commonlibsse-ng/include/RE/F/FindFormTypeHelper.h
     lib/commonlibsse-ng/include/RE/F/FindMaxMagnitudeVisitor.h
+    lib/commonlibsse-ng/include/RE/F/FindTriangleForLocationFilterCheckDeltaZ.h
     lib/commonlibsse-ng/include/RE/F/FirstPersonState.h
     lib/commonlibsse-ng/include/RE/F/FixedStrings.h
     lib/commonlibsse-ng/include/RE/F/FlameProjectile.h
@@ -1482,6 +1821,8 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/G/GAtomic.h
     lib/commonlibsse-ng/include/RE/G/GColor.h
     lib/commonlibsse-ng/include/RE/G/GConstructorMov.h
+    lib/commonlibsse-ng/include/RE/G/GetArmorInSlotFunctor.h
+    lib/commonlibsse-ng/include/RE/G/GetWornMaskVisitor.h
     lib/commonlibsse-ng/include/RE/G/GEvent.h
     lib/commonlibsse-ng/include/RE/G/GFixedSizeHash.h
     lib/commonlibsse-ng/include/RE/G/GFxActionControl.h
@@ -1569,6 +1910,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/G/GHashSetUncached.h
     lib/commonlibsse-ng/include/RE/G/GHashUncached.h
     lib/commonlibsse-ng/include/RE/G/GiftMenu.h
+    lib/commonlibsse-ng/include/RE/G/GiftMenuCallbackFunc.h
     lib/commonlibsse-ng/include/RE/G/GImage.h
     lib/commonlibsse-ng/include/RE/G/GImageBase.h
     lib/commonlibsse-ng/include/RE/G/GImageInfo.h
@@ -1611,6 +1953,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/G/GSysAllocBase.h
     lib/commonlibsse-ng/include/RE/G/GSysAllocPaged.h
     lib/commonlibsse-ng/include/RE/G/GTexture.h
+    lib/commonlibsse-ng/include/RE/G/GuardActorPackageData.h
     lib/commonlibsse-ng/include/RE/G/GuideEffect.h
     lib/commonlibsse-ng/include/RE/G/GViewport.h
     lib/commonlibsse-ng/include/RE/G/GWaitable.h
@@ -1620,6 +1963,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/Hazard.h
     lib/commonlibsse-ng/include/RE/H/HeapBlock.h
     lib/commonlibsse-ng/include/RE/H/HeapBlockFreeHead.h
+    lib/commonlibsse-ng/include/RE/H/HeightFieldCInfo.h
     lib/commonlibsse-ng/include/RE/H/HeldStateHandler.h
     lib/commonlibsse-ng/include/RE/H/HighActorCuller.h
     lib/commonlibsse-ng/include/RE/H/HighProcessData.h
@@ -1630,9 +1974,13 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkaAnimationBinding.h
     lib/commonlibsse-ng/include/RE/H/hkaAnimationControl.h
     lib/commonlibsse-ng/include/RE/H/hkaAnnotationTrack.h
+    lib/commonlibsse-ng/include/RE/H/hkaBone.h
     lib/commonlibsse-ng/include/RE/H/hkaDefaultAnimationControl.h
     lib/commonlibsse-ng/include/RE/H/hkaRagdollInstance.h
     lib/commonlibsse-ng/include/RE/H/hkArray.h
+    lib/commonlibsse-ng/include/RE/H/hkaSkeleton.h
+    lib/commonlibsse-ng/include/RE/H/hkaSplineCompressedAnimation.h
+    lib/commonlibsse-ng/include/RE/H/hkBallAndSocketConstraintCinfo.h
     lib/commonlibsse-ng/include/RE/H/hkbAnimationBindingSet.h
     lib/commonlibsse-ng/include/RE/H/hkBaseObject.h
     lib/commonlibsse-ng/include/RE/H/hkBaseTypes.h
@@ -1641,6 +1989,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkbBehaviorGraphData.h
     lib/commonlibsse-ng/include/RE/H/hkbBehaviorGraphStringData.h
     lib/commonlibsse-ng/include/RE/H/hkbBindable.h
+    lib/commonlibsse-ng/include/RE/H/hkbBlendingTransitionEffect.h
     lib/commonlibsse-ng/include/RE/H/hkbCharacter.h
     lib/commonlibsse-ng/include/RE/H/hkbCharacterControllerSetup.h
     lib/commonlibsse-ng/include/RE/H/hkbCharacterData.h
@@ -1650,28 +1999,54 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkbContext.h
     lib/commonlibsse-ng/include/RE/H/hkbEvent.h
     lib/commonlibsse-ng/include/RE/H/hkbEventBase.h
+    lib/commonlibsse-ng/include/RE/H/hkbFootIkDriver.h
     lib/commonlibsse-ng/include/RE/H/hkbGenerator.h
+    lib/commonlibsse-ng/include/RE/H/hkbGeneratorOutput.h
+    lib/commonlibsse-ng/include/RE/H/hkbModifier.h
     lib/commonlibsse-ng/include/RE/H/hkbNode.h
     lib/commonlibsse-ng/include/RE/H/hkbNodeInfo.h
+    lib/commonlibsse-ng/include/RE/H/hkbPoweredRagdollControlData.h
     lib/commonlibsse-ng/include/RE/H/hkbProjectData.h
     lib/commonlibsse-ng/include/RE/H/hkbProjectStringData.h
     lib/commonlibsse-ng/include/RE/H/hkbRagdollDriver.h
     lib/commonlibsse-ng/include/RE/H/hkbRigidBodySetup.h
     lib/commonlibsse-ng/include/RE/H/hkbShapeSetup.h
     lib/commonlibsse-ng/include/RE/H/hkbStateMachine.h
+    lib/commonlibsse-ng/include/RE/H/hkbSymbolIdMap.h
+    lib/commonlibsse-ng/include/RE/H/hkbTransitionEffect.h
+    lib/commonlibsse-ng/include/RE/H/hkbVariableBindingSet.h
+    lib/commonlibsse-ng/include/RE/H/hkbVariableInfo.h
+    lib/commonlibsse-ng/include/RE/H/hkbVariableValueSet.h
+    lib/commonlibsse-ng/include/RE/H/hkClass.h
+    lib/commonlibsse-ng/include/RE/H/hkClassEnum.h
+    lib/commonlibsse-ng/include/RE/H/hkClassMember.h
+    lib/commonlibsse-ng/include/RE/H/hkConstraintCinfo.h
     lib/commonlibsse-ng/include/RE/H/hkContactPoint.h
     lib/commonlibsse-ng/include/RE/H/hkContactPointMaterial.h
     lib/commonlibsse-ng/include/RE/H/hkContainerAllocators.h
     lib/commonlibsse-ng/include/RE/H/hkFinishLoadedObjectFlag.h
+    lib/commonlibsse-ng/include/RE/H/hkFixedConstraintCinfo.h
+    lib/commonlibsse-ng/include/RE/H/hkLifoAllocator.h
+    lib/commonlibsse-ng/include/RE/H/hkLocalFrame.h
+    lib/commonlibsse-ng/include/RE/H/hkLocalFrameGroup.h
+    lib/commonlibsse-ng/include/RE/H/hkMalleableConstraintCinfo.h
     lib/commonlibsse-ng/include/RE/H/hkMatrix3.h
     lib/commonlibsse-ng/include/RE/H/hkMemoryAllocator.h
+    lib/commonlibsse-ng/include/RE/H/hkMemoryRouter.h
+    lib/commonlibsse-ng/include/RE/H/hkMemorySystem.h
     lib/commonlibsse-ng/include/RE/H/hkMoppBvTreeShapeBase.h
     lib/commonlibsse-ng/include/RE/H/hkMotionState.h
     lib/commonlibsse-ng/include/RE/H/hkMultiThreadCheck.h
     lib/commonlibsse-ng/include/RE/H/hkp3AxisSweep.h
+    lib/commonlibsse-ng/include/RE/H/hkpAabbPhantom.h
     lib/commonlibsse-ng/include/RE/H/hkpAction.h
+    lib/commonlibsse-ng/include/RE/H/hkpAddModifierUtil.h
+    lib/commonlibsse-ng/include/RE/H/hkpAgent1nSector.h
+    lib/commonlibsse-ng/include/RE/H/hkpAgent3ProcessInput.h
     lib/commonlibsse-ng/include/RE/H/hkpAgentNnTrack.h
     lib/commonlibsse-ng/include/RE/H/hkpAllCdPointCollector.h
+    lib/commonlibsse-ng/include/RE/H/hkpAllRayHitCollector.h
+    lib/commonlibsse-ng/include/RE/H/hkpAllRayHitTempCollector.h
     lib/commonlibsse-ng/include/RE/H/hkpArrayAction.h
     lib/commonlibsse-ng/include/RE/H/hkpBoxShape.h
     lib/commonlibsse-ng/include/RE/H/hkpBroadPhase.h
@@ -1694,9 +2069,11 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkpClosestRayHitCollector.h
     lib/commonlibsse-ng/include/RE/H/hkpCollidable.h
     lib/commonlibsse-ng/include/RE/H/hkpCollidableCollidableFilter.h
+    lib/commonlibsse-ng/include/RE/H/hkpCollisionAgentConfig.h
     lib/commonlibsse-ng/include/RE/H/hkpCollisionEvent.h
     lib/commonlibsse-ng/include/RE/H/hkpCollisionFilter.h
     lib/commonlibsse-ng/include/RE/H/hkpCollisionInput.h
+    lib/commonlibsse-ng/include/RE/H/hkpCollisionQualityInfo.h
     lib/commonlibsse-ng/include/RE/H/hkpCompressedMeshShape.h
     lib/commonlibsse-ng/include/RE/H/hkpConstraintAtom.h
     lib/commonlibsse-ng/include/RE/H/hkpConstraintData.h
@@ -1705,11 +2082,14 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkpConstraintMotor.h
     lib/commonlibsse-ng/include/RE/H/hkpConstraintOwner.h
     lib/commonlibsse-ng/include/RE/H/hkpContactListener.h
+    lib/commonlibsse-ng/include/RE/H/hkpContactMgr.h
     lib/commonlibsse-ng/include/RE/H/hkpContactPointEvent.h
     lib/commonlibsse-ng/include/RE/H/hkpContactPointProperties.h
     lib/commonlibsse-ng/include/RE/H/hkpConvexListFilter.h
     lib/commonlibsse-ng/include/RE/H/hkpConvexShape.h
     lib/commonlibsse-ng/include/RE/H/hkpConvexVerticesShape.h
+    lib/commonlibsse-ng/include/RE/H/hkpDynamicsContactMgr.h
+    lib/commonlibsse-ng/include/RE/H/hkpDynamicsCpIdMgr.h
     lib/commonlibsse-ng/include/RE/H/hkpEaseConstraintsAction.h
     lib/commonlibsse-ng/include/RE/H/hkpEntity.h
     lib/commonlibsse-ng/include/RE/H/hkpEntityListener.h
@@ -1728,13 +2108,16 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkpMotion.h
     lib/commonlibsse-ng/include/RE/H/hkpMouseSpringAction.h
     lib/commonlibsse-ng/include/RE/H/hkpPhantom.h
+    lib/commonlibsse-ng/include/RE/H/hkpPhantomCallbackShape.h
     lib/commonlibsse-ng/include/RE/H/hkpPhantomListener.h
     lib/commonlibsse-ng/include/RE/H/hkpPhantomType.h
+    lib/commonlibsse-ng/include/RE/H/hkpProcessCollisionInput.h
     lib/commonlibsse-ng/include/RE/H/hkpProperty.h
     lib/commonlibsse-ng/include/RE/H/hkpRagdollConstraintData.h
     lib/commonlibsse-ng/include/RE/H/hkpRayCollidableFilter.h
     lib/commonlibsse-ng/include/RE/H/hkpRayHitCollector.h
     lib/commonlibsse-ng/include/RE/H/hkpRayShapeCollectionFilter.h
+    lib/commonlibsse-ng/include/RE/H/hkpResponseModifier.h
     lib/commonlibsse-ng/include/RE/H/hkpRigidBody.h
     lib/commonlibsse-ng/include/RE/H/hkpRootCdPoint.h
     lib/commonlibsse-ng/include/RE/H/hkpShape.h
@@ -1744,8 +2127,13 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkpShapeContainer.h
     lib/commonlibsse-ng/include/RE/H/hkpShapePhantom.h
     lib/commonlibsse-ng/include/RE/H/hkpShapeRayCastCollectorOutput.h
+    lib/commonlibsse-ng/include/RE/H/hkpShapeRayCastInput.h
     lib/commonlibsse-ng/include/RE/H/hkpShapeRayCastOutput.h
     lib/commonlibsse-ng/include/RE/H/hkpShapeType.h
+    lib/commonlibsse-ng/include/RE/H/hkpSimpleConstraintContactMgr.h
+    lib/commonlibsse-ng/include/RE/H/hkpSimpleContactConstraintData.h
+    lib/commonlibsse-ng/include/RE/H/hkpSimpleShapePhantom.h
+    lib/commonlibsse-ng/include/RE/H/hkpSimpleWorldRayCaster.h
     lib/commonlibsse-ng/include/RE/H/hkpSimplexSolver.h
     lib/commonlibsse-ng/include/RE/H/hkpSimulationIsland.h
     lib/commonlibsse-ng/include/RE/H/hkpSingleShapeContainer.h
@@ -1761,14 +2149,17 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/hkpWorldLinearCaster.h
     lib/commonlibsse-ng/include/RE/H/hkpWorldObject.h
     lib/commonlibsse-ng/include/RE/H/hkpWorldPostSimulationListener.h
+    lib/commonlibsse-ng/include/RE/H/hkpWorldRayCaster.h
     lib/commonlibsse-ng/include/RE/H/hkpWorldRayCastInput.h
     lib/commonlibsse-ng/include/RE/H/hkpWorldRayCastOutput.h
     lib/commonlibsse-ng/include/RE/H/hkQsTransform.h
     lib/commonlibsse-ng/include/RE/H/hkQuaternion.h
+    lib/commonlibsse-ng/include/RE/H/hkRagdollConstraintCinfo.h
     lib/commonlibsse-ng/include/RE/H/hkReferencedObject.h
     lib/commonlibsse-ng/include/RE/H/hkRefPtr.h
     lib/commonlibsse-ng/include/RE/H/hkRefVariant.h
     lib/commonlibsse-ng/include/RE/H/hkRotation.h
+    lib/commonlibsse-ng/include/RE/H/hkSimpleLocalFrame.h
     lib/commonlibsse-ng/include/RE/H/hkSmallArray.h
     lib/commonlibsse-ng/include/RE/H/hkSseMathTypes.h
     lib/commonlibsse-ng/include/RE/H/hkStepInfo.h
@@ -1785,7 +2176,6 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/H/HudModeChangeEvent.h
     lib/commonlibsse-ng/include/RE/H/HUDNotifications.h
     lib/commonlibsse-ng/include/RE/H/HUDObject.h
-    lib/commonlibsse-ng/include/RE/H/SendHUDMessage.h
     lib/commonlibsse-ng/include/RE/I/IAIWorldLocationHandle.h
     lib/commonlibsse-ng/include/RE/I/IAnimationClipLoaderSingleton.h
     lib/commonlibsse-ng/include/RE/I/IAnimationGraphManagerHolder.h
@@ -1794,11 +2184,13 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/I/ICellAttachDetachEventSource.h
     lib/commonlibsse-ng/include/RE/I/ID.h
     lib/commonlibsse-ng/include/RE/I/IDEvent.h
+    lib/commonlibsse-ng/include/RE/I/IExplosionFactory.h
     lib/commonlibsse-ng/include/RE/I/IFormFactory.h
     lib/commonlibsse-ng/include/RE/I/IFreezeQuery.h
     lib/commonlibsse-ng/include/RE/I/IFuncCallQuery.h
     lib/commonlibsse-ng/include/RE/I/IFunction.h
     lib/commonlibsse-ng/include/RE/I/IFunctionArguments.h
+    lib/commonlibsse-ng/include/RE/I/IGiftMenuScriptCallback.h
     lib/commonlibsse-ng/include/RE/I/IHandleReaderWriter.h
     lib/commonlibsse-ng/include/RE/I/IHandlerFunctor.h
     lib/commonlibsse-ng/include/RE/I/ILoader.h
@@ -1849,9 +2241,14 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/I/InvisibilityEffect.h
     lib/commonlibsse-ng/include/RE/I/IObjectHandlePolicy.h
     lib/commonlibsse-ng/include/RE/I/IObjectProcessor.h
+    lib/commonlibsse-ng/include/RE/I/IOManager.h
+    lib/commonlibsse-ng/include/RE/I/IOTask.h
     lib/commonlibsse-ng/include/RE/I/IPackageData.h
     lib/commonlibsse-ng/include/RE/I/IPackageDataAIWorldLocationHandle.h
+    lib/commonlibsse-ng/include/RE/I/IPathBuilder.h
+    lib/commonlibsse-ng/include/RE/I/IPathBuilderTracker.h
     lib/commonlibsse-ng/include/RE/I/IPostAnimationChannelUpdateFunctor.h
+    lib/commonlibsse-ng/include/RE/I/IProcedureTreeExecState.h
     lib/commonlibsse-ng/include/RE/I/IProcedureTreeItem.h
     lib/commonlibsse-ng/include/RE/I/IProfilePolicy.h
     lib/commonlibsse-ng/include/RE/I/ISavePatcherInterface.h
@@ -1865,11 +2262,16 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/I/ItemRemoveReason.h
     lib/commonlibsse-ng/include/RE/I/ItemsPickpocketed.h
     lib/commonlibsse-ng/include/RE/I/IUIMessageData.h
+    lib/commonlibsse-ng/include/RE/I/IUnknown.h
     lib/commonlibsse-ng/include/RE/I/IVirtualMachine.h
     lib/commonlibsse-ng/include/RE/I/IVMDebugInterface.h
     lib/commonlibsse-ng/include/RE/I/IVMObjectBindInterface.h
     lib/commonlibsse-ng/include/RE/I/IVMSaveLoadInterface.h
+    lib/commonlibsse-ng/include/RE/I/IXAudio2.h
+    lib/commonlibsse-ng/include/RE/I/IXAudio2EngineCallback.h
+    lib/commonlibsse-ng/include/RE/I/IXAudio2Voice.h
     lib/commonlibsse-ng/include/RE/I/IXAudio2VoiceCallback.h
+    lib/commonlibsse-ng/include/RE/J/JobListManager.h
     lib/commonlibsse-ng/include/RE/J/JournalMenu.h
     lib/commonlibsse-ng/include/RE/J/JournalTab.h
     lib/commonlibsse-ng/include/RE/J/Journal_QuestsTab.h
@@ -1878,12 +2280,18 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/J/JumpHandler.h
     lib/commonlibsse-ng/include/RE/K/KinectEvent.h
     lib/commonlibsse-ng/include/RE/K/KinectMenu.h
+    lib/commonlibsse-ng/include/RE/K/KinectStateChangeData.h
+    lib/commonlibsse-ng/include/RE/K/KinectUserEventData.h
+    lib/commonlibsse-ng/include/RE/L/LandCollisionDesc.h
     lib/commonlibsse-ng/include/RE/L/LegendarySkillResetConfirmCallback.h
     lib/commonlibsse-ng/include/RE/L/LevelIncrease.h
     lib/commonlibsse-ng/include/RE/L/LevelUpMenu.h
     lib/commonlibsse-ng/include/RE/L/LightEffect.h
     lib/commonlibsse-ng/include/RE/L/LinkerProcessor.h
+    lib/commonlibsse-ng/include/RE/L/LoadedAreaBound.h
+    lib/commonlibsse-ng/include/RE/L/LoadGameMissingContentCallBack.h
     lib/commonlibsse-ng/include/RE/L/LoadingMenu.h
+    lib/commonlibsse-ng/include/RE/L/LoadingMenuData.h
     lib/commonlibsse-ng/include/RE/L/LoadStorageWrapper.h
     lib/commonlibsse-ng/include/RE/L/LoadWaitSpinner.h
     lib/commonlibsse-ng/include/RE/L/LocalMapCamera.h
@@ -1895,6 +2303,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/L/LocationTree.h
     lib/commonlibsse-ng/include/RE/L/LockEffect.h
     lib/commonlibsse-ng/include/RE/L/LockpickingMenu.h
+    lib/commonlibsse-ng/include/RE/L/LocksPicked.h
     lib/commonlibsse-ng/include/RE/L/LogEvent.h
     lib/commonlibsse-ng/include/RE/L/Logger.h
     lib/commonlibsse-ng/include/RE/L/LoggingDisabler.h
@@ -1906,11 +2315,15 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/M/MagicFavorites.h
     lib/commonlibsse-ng/include/RE/M/MagicFormulas.h
     lib/commonlibsse-ng/include/RE/M/MagicItem.h
+    lib/commonlibsse-ng/include/RE/M/MagicItemData.h
     lib/commonlibsse-ng/include/RE/M/MagicItemDataCollector.h
     lib/commonlibsse-ng/include/RE/M/MagicItemFindFunctor.h
     lib/commonlibsse-ng/include/RE/M/MagicItemFindKeywordFunctor.h
+    lib/commonlibsse-ng/include/RE/M/MagicItemList.h
     lib/commonlibsse-ng/include/RE/M/MagicItemTraversalFunctor.h
     lib/commonlibsse-ng/include/RE/M/MagicMenu.h
+    lib/commonlibsse-ng/include/RE/M/MagicMenuAddActiveEffectVisitor.h
+    lib/commonlibsse-ng/include/RE/M/MagicMenuAddSpellVisitor.h
     lib/commonlibsse-ng/include/RE/M/MagicSystem.h
     lib/commonlibsse-ng/include/RE/M/MagicTarget.h
     lib/commonlibsse-ng/include/RE/M/MagicUtilities.h
@@ -1931,6 +2344,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/M/MenuControls.h
     lib/commonlibsse-ng/include/RE/M/MenuCursor.h
     lib/commonlibsse-ng/include/RE/M/MenuEventHandler.h
+    lib/commonlibsse-ng/include/RE/M/MenuEventHandlerEx.h
     lib/commonlibsse-ng/include/RE/M/MenuModeChangeEvent.h
     lib/commonlibsse-ng/include/RE/M/MenuOpenCloseEvent.h
     lib/commonlibsse-ng/include/RE/M/MenuOpenHandler.h
@@ -1943,13 +2357,18 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/M/MistMenu.h
     lib/commonlibsse-ng/include/RE/M/MobIterOperator.h
     lib/commonlibsse-ng/include/RE/M/ModelReferenceEffect.h
+    lib/commonlibsse-ng/include/RE/M/ModManagerData.h
     lib/commonlibsse-ng/include/RE/M/ModManagerMenu.h
     lib/commonlibsse-ng/include/RE/M/Moon.h
+    lib/commonlibsse-ng/include/RE/M/MotionDataContainer.h
+    lib/commonlibsse-ng/include/RE/M/MotionGestureEvent.h
     lib/commonlibsse-ng/include/RE/M/MouseMoveEvent.h
     lib/commonlibsse-ng/include/RE/M/Movement.h
+    lib/commonlibsse-ng/include/RE/M/MovementActorAvoidanceParameters.h
     lib/commonlibsse-ng/include/RE/M/MovementControllerAI.h
     lib/commonlibsse-ng/include/RE/M/MovementControllerNPC.h
     lib/commonlibsse-ng/include/RE/M/MovementHandler.h
+    lib/commonlibsse-ng/include/RE/M/MovementParameters.h
     lib/commonlibsse-ng/include/RE/M/MoveToFunctor.h
     lib/commonlibsse-ng/include/RE/M/MoviePlayer.h
     lib/commonlibsse-ng/include/RE/M/MultiBoundMarkerData.h
@@ -1958,14 +2377,18 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/N/NativeLatentFunction.h
     lib/commonlibsse-ng/include/RE/N/NavMesh.h
     lib/commonlibsse-ng/include/RE/N/NavMeshInfoMap.h
+    lib/commonlibsse-ng/include/RE/N/NeedToUpdateCreationClubCallback.h
+    lib/commonlibsse-ng/include/RE/N/NextChildSelector.h
     lib/commonlibsse-ng/include/RE/N/NiAccumulator.h
     lib/commonlibsse-ng/include/RE/N/NiAllocator.h
     lib/commonlibsse-ng/include/RE/N/NiAlphaAccumulator.h
     lib/commonlibsse-ng/include/RE/N/NiAlphaProperty.h
     lib/commonlibsse-ng/include/RE/N/NiAnimationKey.h
     lib/commonlibsse-ng/include/RE/N/NiAVObject.h
+    lib/commonlibsse-ng/include/RE/N/NiAVObjectPalette.h
     lib/commonlibsse-ng/include/RE/N/NiBackToFrontAccumulator.h
     lib/commonlibsse-ng/include/RE/N/NiBillboardNode.h
+    lib/commonlibsse-ng/include/RE/N/NiBinaryExtraData.h
     lib/commonlibsse-ng/include/RE/N/NiBinaryStream.h
     lib/commonlibsse-ng/include/RE/N/NiBoneMatrixSetterI.h
     lib/commonlibsse-ng/include/RE/N/NiBooleanExtraData.h
@@ -1980,6 +2403,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/N/NiControllerManager.h
     lib/commonlibsse-ng/include/RE/N/NiControllerSequence.h
     lib/commonlibsse-ng/include/RE/N/NiCullingProcess.h
+    lib/commonlibsse-ng/include/RE/N/NiDefaultAVObjectPalette.h
     lib/commonlibsse-ng/include/RE/N/NiDirectionalLight.h
     lib/commonlibsse-ng/include/RE/N/NiExtraData.h
     lib/commonlibsse-ng/include/RE/N/NiFile.h
@@ -1988,6 +2412,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/N/NiFloatInterpolator.h
     lib/commonlibsse-ng/include/RE/N/NiFloatKey.h
     lib/commonlibsse-ng/include/RE/N/NiFloatsExtraData.h
+    lib/commonlibsse-ng/include/RE/N/NiFogProperty.h
     lib/commonlibsse-ng/include/RE/N/NiFrustum.h
     lib/commonlibsse-ng/include/RE/N/NiFrustumPlanes.h
     lib/commonlibsse-ng/include/RE/N/NiGeometry.h
@@ -2011,6 +2436,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/N/NiParticles.h
     lib/commonlibsse-ng/include/RE/N/NiParticlesData.h
     lib/commonlibsse-ng/include/RE/N/NiParticleSystem.h
+    lib/commonlibsse-ng/include/RE/N/NiPick.h
     lib/commonlibsse-ng/include/RE/N/NiPlane.h
     lib/commonlibsse-ng/include/RE/N/NiPoint2.h
     lib/commonlibsse-ng/include/RE/N/NiPoint3.h
@@ -2048,18 +2474,24 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/N/NiTPointerListBase.h
     lib/commonlibsse-ng/include/RE/N/NiTPointerMap.h
     lib/commonlibsse-ng/include/RE/N/NiTransform.h
+    lib/commonlibsse-ng/include/RE/N/NiTriBasedGeomData.h
     lib/commonlibsse-ng/include/RE/N/NiTriBasedGeometry.h
     lib/commonlibsse-ng/include/RE/N/NiTriShape.h
+    lib/commonlibsse-ng/include/RE/N/NiTriShapeData.h
+    lib/commonlibsse-ng/include/RE/N/NiTriStrips.h
+    lib/commonlibsse-ng/include/RE/N/NiTriStripsData.h
     lib/commonlibsse-ng/include/RE/N/NiTSet.h
     lib/commonlibsse-ng/include/RE/N/NiTStringMap.h
+    lib/commonlibsse-ng/include/RE/N/NiVisibleArray.h
     lib/commonlibsse-ng/include/RE/N/NonActorMagicCaster.h
     lib/commonlibsse-ng/include/RE/N/NonActorMagicTarget.h
+    lib/commonlibsse-ng/include/RE/N/NullPathBuilderTracker.h
     lib/commonlibsse-ng/include/RE/O/Object.h
     lib/commonlibsse-ng/include/RE/O/ObjectiveState.h
     lib/commonlibsse-ng/include/RE/O/ObjectTypeInfo.h
+    lib/commonlibsse-ng/include/RE/O/ObjectTypes.h
     lib/commonlibsse-ng/include/RE/O/OldMessageBoxCallback.h
     lib/commonlibsse-ng/include/RE/O/OpenEffect.h
-    lib/commonlibsse-ng/include/RE/Offsets.h
     lib/commonlibsse-ng/include/RE/Offsets_NiRTTI.h
     lib/commonlibsse-ng/include/RE/Offsets_RTTI.h
     lib/commonlibsse-ng/include/RE/Offsets_VTABLE.h
@@ -2068,22 +2500,29 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/P/PackUnpack.h
     lib/commonlibsse-ng/include/RE/P/PackUnpackImpl.h
     lib/commonlibsse-ng/include/RE/P/ParalysisEffect.h
+    lib/commonlibsse-ng/include/RE/P/Pathing.h
     lib/commonlibsse-ng/include/RE/P/PathingCell.h
+    lib/commonlibsse-ng/include/RE/P/PathingDoor.h
+    lib/commonlibsse-ng/include/RE/P/PatrolActorPackageData.h
     lib/commonlibsse-ng/include/RE/P/PCGamepadType.h
     lib/commonlibsse-ng/include/RE/P/PeakValueModifierEffect.h
     lib/commonlibsse-ng/include/RE/P/PerkEntryVisitor.h
     lib/commonlibsse-ng/include/RE/P/PerkRankVisitor.h
+    lib/commonlibsse-ng/include/RE/P/PerkSelectConfirmCallback.h
     lib/commonlibsse-ng/include/RE/P/PermanentMagicFunctor.h
+    lib/commonlibsse-ng/include/RE/P/PlacePlayerMarkerCallbackFunctor.h
     lib/commonlibsse-ng/include/RE/P/PlayerCamera.h
     lib/commonlibsse-ng/include/RE/P/PlayerCameraTransitionState.h
     lib/commonlibsse-ng/include/RE/P/PlayerCharacter.h
     lib/commonlibsse-ng/include/RE/P/PlayerControls.h
     lib/commonlibsse-ng/include/RE/P/PlayerControlsData.h
     lib/commonlibsse-ng/include/RE/P/PlayerInputHandler.h
+    lib/commonlibsse-ng/include/RE/P/PlayerRegionState.h
     lib/commonlibsse-ng/include/RE/P/PoisonedWeapon.h
     lib/commonlibsse-ng/include/RE/P/PositionPlayerEvent.h
     lib/commonlibsse-ng/include/RE/P/Precipitation.h
     lib/commonlibsse-ng/include/RE/P/PrecomputedNavmeshInfoPathMap.h
+    lib/commonlibsse-ng/include/RE/P/PriorityChildSelector.h
     lib/commonlibsse-ng/include/RE/P/ProcessLists.h
     lib/commonlibsse-ng/include/RE/P/ProcessType.h
     lib/commonlibsse-ng/include/RE/P/Profiler.h
@@ -2092,11 +2531,14 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/Q/QuestEvents.h
     lib/commonlibsse-ng/include/RE/Q/QuestObjectiveStates.h
     lib/commonlibsse-ng/include/RE/Q/QuestStatus.h
+    lib/commonlibsse-ng/include/RE/Q/QueuedFile.h
     lib/commonlibsse-ng/include/RE/Q/QuickSaveLoadHandler.h
+    lib/commonlibsse-ng/include/RE/R/RaceMenuSlider.h
     lib/commonlibsse-ng/include/RE/R/RaceSexCamera.h
     lib/commonlibsse-ng/include/RE/R/RaceSexMenu.h
     lib/commonlibsse-ng/include/RE/R/RaceSexMenuEvent.h
     lib/commonlibsse-ng/include/RE/R/RallyEffect.h
+    lib/commonlibsse-ng/include/RE/R/RandomValueChildSelector.h
     lib/commonlibsse-ng/include/RE/R/RawFuncCallQuery.h
     lib/commonlibsse-ng/include/RE/R/ReadyWeaponHandler.h
     lib/commonlibsse-ng/include/RE/R/ReanimateEffect.h
@@ -2105,6 +2547,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/R/ReferenceArray.h
     lib/commonlibsse-ng/include/RE/R/ReferenceEffect.h
     lib/commonlibsse-ng/include/RE/R/ReferenceEffectController.h
+    lib/commonlibsse-ng/include/RE/R/RefHandleUIData.h
     lib/commonlibsse-ng/include/RE/R/REFREventCallbacks.h
     lib/commonlibsse-ng/include/RE/R/RefrInteraction.h
     lib/commonlibsse-ng/include/RE/R/RegisterPrefix.h
@@ -2112,6 +2555,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/R/RemoveCallbackVisitor.h
     lib/commonlibsse-ng/include/RE/R/RemoveItemFunctor.h
     lib/commonlibsse-ng/include/RE/R/Renderer.h
+    lib/commonlibsse-ng/include/RE/R/RendererShadowState.h
     lib/commonlibsse-ng/include/RE/R/RenderTargetData.h
     lib/commonlibsse-ng/include/RE/R/RenderTargetManager.h
     lib/commonlibsse-ng/include/RE/R/RenderTargetProperties.h
@@ -2121,6 +2565,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/R/RunHandler.h
     lib/commonlibsse-ng/include/RE/RTTI.h
     lib/commonlibsse-ng/include/RE/S/SafeZoneMenu.h
+    lib/commonlibsse-ng/include/RE/S/SandBoxActorPackageData.h
     lib/commonlibsse-ng/include/RE/S/SaveFileHandleReaderWriter.h
     lib/commonlibsse-ng/include/RE/S/SavePatcher.h
     lib/commonlibsse-ng/include/RE/S/SaveStorageWrapper.h
@@ -2133,7 +2578,9 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/S/ScriptEffect.h
     lib/commonlibsse-ng/include/RE/S/ScriptEventSourceHolder.h
     lib/commonlibsse-ng/include/RE/S/ScriptFunction.h
+    lib/commonlibsse-ng/include/RE/S/ScriptMessageBoxCallback.h
     lib/commonlibsse-ng/include/RE/S/ScrollItem.h
+    lib/commonlibsse-ng/include/RE/S/SendHUDMessage.h
     lib/commonlibsse-ng/include/RE/S/SendPlayerToJailFunctor.h
     lib/commonlibsse-ng/include/RE/S/SendUIMessage.h
     lib/commonlibsse-ng/include/RE/S/SetEventData.h
@@ -2149,12 +2596,12 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/S/ShaderAccumulator.h
     lib/commonlibsse-ng/include/RE/S/ShaderReferenceEffect.h
     lib/commonlibsse-ng/include/RE/S/ShadowSceneNode.h
-    lib/commonlibsse-ng/include/RE/S/ShadowState.h
     lib/commonlibsse-ng/include/RE/S/ShoutAttack.h
     lib/commonlibsse-ng/include/RE/S/ShoutHandler.h
     lib/commonlibsse-ng/include/RE/S/ShoutMeter.h
     lib/commonlibsse-ng/include/RE/S/SimpleAllocMemoryPagePolicy.h
     lib/commonlibsse-ng/include/RE/S/SimpleAnimationGraphManagerHolder.h
+    lib/commonlibsse-ng/include/RE/S/SixaxisEvent.h
     lib/commonlibsse-ng/include/RE/S/SkillIncrease.h
     lib/commonlibsse-ng/include/RE/S/Sky.h
     lib/commonlibsse-ng/include/RE/S/SkyEffectController.h
@@ -2170,11 +2617,14 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/S/SoulsTrapped.h
     lib/commonlibsse-ng/include/RE/S/SoulTrapEffect.h
     lib/commonlibsse-ng/include/RE/S/SoundLevels.h
+    lib/commonlibsse-ng/include/RE/S/SoundMessageList.h
+    lib/commonlibsse-ng/include/RE/S/SoundMessageStack.h
     lib/commonlibsse-ng/include/RE/S/SourceActionMap.h
     lib/commonlibsse-ng/include/RE/S/SpawnHazardEffect.h
     lib/commonlibsse-ng/include/RE/S/SpecificItemCollector.h
     lib/commonlibsse-ng/include/RE/S/SpellItem.h
     lib/commonlibsse-ng/include/RE/S/SpellsLearned.h
+    lib/commonlibsse-ng/include/RE/S/SpendSoulCallback.h
     lib/commonlibsse-ng/include/RE/S/SprintHandler.h
     lib/commonlibsse-ng/include/RE/S/Stack.h
     lib/commonlibsse-ng/include/RE/S/StackFrame.h
@@ -2242,6 +2692,7 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/T/TESFlora.h
     lib/commonlibsse-ng/include/RE/T/TESForm.h
     lib/commonlibsse-ng/include/RE/T/TESFormDeleteEvent.h
+    lib/commonlibsse-ng/include/RE/T/TESFormUIData.h
     lib/commonlibsse-ng/include/RE/T/TESFullName.h
     lib/commonlibsse-ng/include/RE/T/TESFurniture.h
     lib/commonlibsse-ng/include/RE/T/TESFurnitureEvent.h
@@ -2300,9 +2751,11 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/T/TESProduceForm.h
     lib/commonlibsse-ng/include/RE/T/TESQualityForm.h
     lib/commonlibsse-ng/include/RE/T/TESQuest.h
+    lib/commonlibsse-ng/include/RE/T/TESQuestInitEvent.h
     lib/commonlibsse-ng/include/RE/T/TESQuestStageEvent.h
     lib/commonlibsse-ng/include/RE/T/TESQuestStageItem.h
     lib/commonlibsse-ng/include/RE/T/TESQuestStartStopEvent.h
+    lib/commonlibsse-ng/include/RE/T/TESQueuedHandles.h
     lib/commonlibsse-ng/include/RE/T/TESRace.h
     lib/commonlibsse-ng/include/RE/T/TESRaceForm.h
     lib/commonlibsse-ng/include/RE/T/TESReactionForm.h
@@ -2364,13 +2817,19 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/U/UI3DSceneManager.h
     lib/commonlibsse-ng/include/RE/U/UIBlurManager.h
     lib/commonlibsse-ng/include/RE/U/UIMessage.h
+    lib/commonlibsse-ng/include/RE/U/UIMessageDataFactory.h
     lib/commonlibsse-ng/include/RE/U/UIMessageQueue.h
     lib/commonlibsse-ng/include/RE/U/UIRenderManager.h
     lib/commonlibsse-ng/include/RE/U/UISaveLoadManager.h
+    lib/commonlibsse-ng/include/RE/U/UIUtils.h
     lib/commonlibsse-ng/include/RE/U/UnlinkedTypes.h
+    lib/commonlibsse-ng/include/RE/U/UpdateConstellationAnims.h
+    lib/commonlibsse-ng/include/RE/U/UpdateStarText.h
     lib/commonlibsse-ng/include/RE/U/UserEventEnabled.h
     lib/commonlibsse-ng/include/RE/U/UserEvents.h
+    lib/commonlibsse-ng/include/RE/U/UseWeaponActorPackageData.h
     lib/commonlibsse-ng/include/RE/V/ValueAndConditionsEffect.h
+    lib/commonlibsse-ng/include/RE/V/ValueChildSelector.h
     lib/commonlibsse-ng/include/RE/V/ValueModifierEffect.h
     lib/commonlibsse-ng/include/RE/V/VampireLordEffect.h
     lib/commonlibsse-ng/include/RE/V/Variable.h
@@ -2389,19 +2848,27 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/RE/W/WeaponAnimationGraphManagerHolder.h
     lib/commonlibsse-ng/include/RE/W/WeaponEnchantmentController.h
     lib/commonlibsse-ng/include/RE/W/WeatherType.h
+    lib/commonlibsse-ng/include/RE/W/WeightedRandomChildSelector.h
     lib/commonlibsse-ng/include/RE/W/WerewolfEffect.h
     lib/commonlibsse-ng/include/RE/W/WerewolfFeedEffect.h
     lib/commonlibsse-ng/include/RE/W/WorldSpaceMenu.h
     lib/commonlibsse-ng/include/RE/W/WSActivateRollover.h
+    lib/commonlibsse-ng/include/RE/X/X3DAudio.h
+    lib/commonlibsse-ng/include/RE/X/XAPO.h
+    lib/commonlibsse-ng/include/RE/X/XAudio2.h
     lib/commonlibsse-ng/include/RE/Z/ZeroFunctionArguments.h
     lib/commonlibsse-ng/include/RE/Z/ZeroOverheadHeap.h
     lib/commonlibsse-ng/include/REL/Common.h
     lib/commonlibsse-ng/include/REL/ID.h
+    lib/commonlibsse-ng/include/REL/IDDB.h
     lib/commonlibsse-ng/include/REL/Module.h
     lib/commonlibsse-ng/include/REL/Offset.h
+    lib/commonlibsse-ng/include/REL/Offset2ID.h
     lib/commonlibsse-ng/include/REL/Pattern.h
     lib/commonlibsse-ng/include/REL/REL.h
     lib/commonlibsse-ng/include/REL/Relocation.h
+    lib/commonlibsse-ng/include/REL/RuntimeDataAccessors.h
+    lib/commonlibsse-ng/include/REL/Verify.h
     lib/commonlibsse-ng/include/REL/Version.h
     lib/commonlibsse-ng/include/REX/PS4/SCEPAD.h
     lib/commonlibsse-ng/include/REX/PS4.h
@@ -2442,11 +2909,13 @@ target_sources(commonlibsse-ng PRIVATE FILE_SET HEADERS FILES
     lib/commonlibsse-ng/include/REX/W32/XINPUT.h
     lib/commonlibsse-ng/include/REX/W32.h
     lib/commonlibsse-ng/include/SKSE/API.h
+    lib/commonlibsse-ng/include/SKSE/ContextHook.h
     lib/commonlibsse-ng/include/SKSE/Events.h
     lib/commonlibsse-ng/include/SKSE/IAT.h
     lib/commonlibsse-ng/include/SKSE/Impl/PCH.h
     lib/commonlibsse-ng/include/SKSE/Impl/RegistrationTraits.h
     lib/commonlibsse-ng/include/SKSE/Impl/Stubs.h
+    lib/commonlibsse-ng/include/SKSE/Impl/Util.h
     lib/commonlibsse-ng/include/SKSE/InputMap.h
     lib/commonlibsse-ng/include/SKSE/Interfaces.h
     lib/commonlibsse-ng/include/SKSE/Logger.h

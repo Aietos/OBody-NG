@@ -77,6 +77,21 @@ void stl::MergeJsonDocument(rapidjson::Value& target, rapidjson::Value& source,
     }
 }
 
+void stl::MergeJsonArray(rapidjson::Value& target, rapidjson::Value& source,
+                          rapidjson::Document::AllocatorType& allocator) {
+    if (!source.IsArray() || !target.IsArray()) return;
+
+    for (auto& item : source.GetArray()) {
+        const bool alreadyPresent = std::any_of(
+            target.Begin(), target.End(), [&item](const rapidjson::Value& existing) { return existing == item; });
+        if (!alreadyPresent) {
+            rapidjson::Value val;
+            val.CopyFrom(item, allocator);
+            target.PushBack(val, allocator);
+        }
+    }
+}
+
 stl::timeit::~timeit() {
     const auto stop{std::chrono::steady_clock::now() - start};
     logger::info(

@@ -6,7 +6,7 @@ includes ("lib/commonlibsse-ng")
 
 -- set project
 set_project("OBody")
-set_version("4.4.4")
+set_version("5.0.0")
 set_license("GPL-3.0")
 
 -- set defaults
@@ -63,7 +63,7 @@ target("OBody")
     -- add src files
     add_files("src/**.cpp")
     add_headerfiles("include/**.h", "include/ActorTracker/*.h")
-    add_includedirs("include")
+    add_includedirs("include", "lib/skse-menu-framework-api")
     set_pcxxheader("include/PCH.h")
 
     -- postbuild: copy .dll and .pdb files to contrib/Distribution/data/skse/plugins
