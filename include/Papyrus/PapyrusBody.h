@@ -15,8 +15,6 @@ namespace PapyrusBody {
 
     void SetPerformanceMode(RE::StaticFunctionTag*, bool a_enabled);
 
-    void SetRespectfulMorphApplication(RE::StaticFunctionTag*, bool a_enabled);
-
     void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, bool a_enabled);
 
     void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey);
@@ -45,6 +43,8 @@ namespace PapyrusBody {
 
     bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
                              bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs);
+
+    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key);
 
     bool Bind(VM* a_vm);
 }  // namespace PapyrusBody

@@ -6,6 +6,7 @@
 #include "PresetManager/PresetManager.h"
 #include "JSONParser/JSONParser.h"
 #include "Papyrus/PapyrusBody.h"
+#include "UI/UI.h"
 
 namespace PapyrusBody {
     void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
@@ -29,10 +30,6 @@ namespace PapyrusBody {
 
     void SetPerformanceMode(RE::StaticFunctionTag*, const bool a_enabled) {
         Body::OBody::GetInstance().setPerformanceMode = a_enabled;
-    }
-
-    void SetRespectfulMorphApplication(RE::StaticFunctionTag*, const bool a_enabled) {
-        Body::OBody::GetInstance().setRespectfulMorphApplication = a_enabled;
     }
 
     void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, const bool a_enabled) {
@@ -234,6 +231,10 @@ namespace PapyrusBody {
         return true;
     }
 
+    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key) {
+        UI::PresetList::SetHotkeyScanCode(a_key);
+    }
+
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;
 
@@ -259,9 +260,9 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(SetNippleRand);
         OBODY_PAPYRUS_BIND(SetGenitalRand);
         OBODY_PAPYRUS_BIND(SetPerformanceMode);
-        OBODY_PAPYRUS_BIND(SetRespectfulMorphApplication);
         OBODY_PAPYRUS_BIND(SetLegacyStorageUtilUsageEnabled);
         OBODY_PAPYRUS_BIND(SetDistributionKey);
+        OBODY_PAPYRUS_BIND(UpdatePresetMenuKey);
 #undef OBODY_PAPYRUS_BIND
         return true;
     }
