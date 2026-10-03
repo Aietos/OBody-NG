@@ -19,6 +19,9 @@ namespace Parser {
 
         static JSONParser& GetInstance();
 
+        bool distributionDisabledForMale{};
+        bool distributionDisabledForFemale{};
+
         void ProcessNPCsFormID();
         void ProcessNPCsFormIDBlacklist();
         void ProcessOutfitsFormIDBlacklist();
@@ -35,10 +38,11 @@ namespace Parser {
         bool IsStringInJsonConfigKey(std::string_view a_value, const char* key);
         bool IsSubKeyInJsonConfigKey(const char* key, std::string_view subKey);
 
+        void ProcessDisablePresetDistribution();
         bool IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit);
         bool IsAnyForceRefitItemEquipped(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
         bool IsNPCBlacklisted(std::string_view actorName, uint32_t actorID);
-        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, bool female);
+        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass, bool female);
 
         std::optional<PresetManager::Preset> GetNPCFactionPreset(const RE::TESNPC* a_actor, bool female);
 
@@ -46,6 +50,7 @@ namespace Parser {
         std::optional<PresetManager::Preset> GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName,
                                                                 bool female);
         std::optional<PresetManager::Preset> GetNPCRacePreset(const char* actorRace, bool female);
+        std::optional<PresetManager::Preset> GetNPCClassPreset(const char* actorClass, bool female);
 
         rapidjson::Document presetDistributionConfig;
         bool bodyslidePresetsParsingValid{};

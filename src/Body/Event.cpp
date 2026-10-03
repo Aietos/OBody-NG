@@ -2,6 +2,7 @@
 
 #include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
+#include "UI/Translations.h"
 
 constinit Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
 
@@ -11,6 +12,10 @@ void Event::OBodyEventHandler::Register() {
         events->AddEventSink<RE::TESLoadGameEvent>(&singleton);
         events->AddEventSink<RE::TESEquipEvent>(&singleton);
     }
+
+    if (auto* const skseCrosshairEvents{SKSE::GetCrosshairRefEventSource()}) {
+        skseCrosshairEvents->AddEventSink<SKSE::CrosshairRefEvent>(&singleton);
+    }
 }
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESInitScriptEvent* a_event,
@@ -19,7 +24,13 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
 
     if (RE::Actor * actor{a_event->objectInitialized->As<RE::Actor>()};
         (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
-        Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);
+        const bool actorIsFemale = Body::OBody::IsFemale(actor);
+
+        const auto& parser{Parser::JSONParser::GetInstance()};
+
+        if ((actorIsFemale && !parser.distributionDisabledForFemale) || (!actorIsFemale && !parser.distributionDisabledForMale)) {
+            Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);   
+        }
     }
 
     return RE::BSEventNotifyControl::kContinue;
@@ -30,11 +41,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoa
     if (!a_event) return RE::BSEventNotifyControl::kContinue;
     const auto& parser{Parser::JSONParser::GetInstance()};
     if (!parser.bodyslidePresetsParsingValid) {
-        RE::DebugMessageBox(
-            "A critical error has occurred while parsing the Bodyslide presets files. This most likely means "
-            "you have a corrupt bodyslide preset, or a bodyslide preset where the name contains "
-            "special/incompatible characters. As a result, the presets list in the OBody menu will be empty. "
-            "Please exit the game now and refer to the OBody NG mod page for more information.");
+        RE::DebugMessageBox(UI::Translations::Get("obody_preset_list_failure").c_str());
     }
 
     if (parser.invalid_presets != 0) {
@@ -66,4 +73,23 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEqu
     }
 
     return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const SKSE::CrosshairRefEvent* a_event,
+                                        RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
+    std::unique_lock<std::shared_mutex> lock(_mutex);
+    RE::TESObjectREFR* ref = a_event->crosshairRef.get();
+
+    if (ref) {
+        _cachedActor = a_event->crosshairRef->As<RE::Actor>();
+    } else {
+        _cachedActor = nullptr;
+    }
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::NiPointer<RE::Actor> Event::OBodyEventHandler::GetCurrentCrosshairActor() {
+    std::shared_lock<std::shared_mutex> lock(_mutex);
+    
+    return RE::NiPointer<RE::Actor>(_cachedActor);
 }

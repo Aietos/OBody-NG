@@ -25,6 +25,12 @@
     "raceMale": {
       "$ref": "#/definitions/raceMale"
     },
+    "classFemale": {
+      "$ref": "#/definitions/classFemale"
+    },
+    "classMale": {
+      "$ref": "#/definitions/classMale"
+    },
     "blacklistedNpcs": {
       "$ref": "#/definitions/blacklistedNpcs"
     },
@@ -36,6 +42,12 @@
     },
     "blacklistedNpcsPluginMale": {
       "$ref": "#/definitions/blacklistedNpcsPluginMale"
+    },
+    "blacklistedClassesFemale": {
+      "$ref": "#/definitions/blacklistedClassesFemale"
+    },
+    "blacklistedClassesMale": {
+      "$ref": "#/definitions/blacklistedClassesMale"
     },
     "blacklistedRacesFemale": {
       "$ref": "#/definitions/blacklistedRacesFemale"
@@ -69,6 +81,9 @@
     },
     "refitOutfitPresetsMale": {
       "$ref": "#/definitions/refitOutfitPresets"
+    },
+    "disablePresetDistribution": {
+      "$ref": "#/definitions/disablePresetDistribution"
     }
   },
   "title": "OBodyConfigModel",
@@ -102,6 +117,9 @@
       "$ref": "#/definitions/NonEmptyString"
     },
     "RaceName": {
+      "$ref": "#/definitions/NonEmptyTrimmedString"
+    },
+    "ClassName": {
       "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "blacklistedNpcs": {
@@ -210,6 +228,22 @@
       "description": "Same as blacklistedRacesFemale, but for male NPCs.",
       "items": {
         "$ref": "#/definitions/RaceName"
+      },
+      "type": "array"
+    },
+    "blacklistedClassesFemale": {
+      "default": [],
+      "description": "Here you can blacklist females of entire classes instead of individual NPCs.",
+      "items": {
+        "$ref": "#/definitions/ClassName"
+      },
+      "type": "array"
+    },
+    "blacklistedClassesMale": {
+      "default": [],
+      "description": "Same as blacklistedClassesFemale, but for male NPCs.",
+      "items": {
+        "$ref": "#/definitions/ClassName"
       },
       "type": "array"
     },
@@ -353,6 +387,34 @@
       },
       "type": "object"
     },
+    "classFemale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Here you can define which presets should be applied to females of certain classes. Works with custom classes too! ONLY put female body presets here!",
+      "propertyNames": {
+        "$ref": "#/definitions/ClassName"
+      },
+      "type": "object"
+    },
+    "classMale": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "type": "array"
+      },
+      "default": {},
+      "description": "Same as above, but for males. ONLY put male body presets here (if you don't have any, leave it empty)!",
+      "propertyNames": {
+        "$ref": "#/definitions/ClassName"
+      },
+      "type": "object"
+    },
     "refitOutfitPresets": {
       "additionalProperties": {
         "type": "string"
@@ -363,6 +425,12 @@
         "$ref": "#/definitions/OutfitName"
       },
       "type": "object"
+    },
+    "disablePresetDistribution": {
+      "default": "none",
+      "description": "Globally disable preset distribution for a gender, or all genders. Valid values: \"none\", \"male\", \"female\", \"all\".",
+      "type": "string",
+      "enum": ["none", "male", "female", "all"]
     }
   }
 }

@@ -22,6 +22,8 @@ type NPCName = NonEmptyTrimmedString
 
 type OutfitName = NonEmptyTrimmedString
 
+type ClassName = NonEmptyTrimmedString
+
 type npcFormID = Annotated[Dict[BSTFile, Dict[FormID, List[PresetName]]], Field(default={},
                                                                                 description="Here you can set which presets should be applied to specific NPCs by their FormID. The FormID is their unique identifier. Works with modded NPCs!")]
 type npc = Annotated[Dict[NPCName, List[PresetName]], Field(default={},
@@ -70,6 +72,15 @@ type refitOutfitPresetsFemale = Annotated[Dict[OutfitName, PresetName], Field(de
 
 type refitOutfitPresetsMale = Annotated[Dict[OutfitName, PresetName], Field(default={}, description="Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.")]
 
+type classFemale = Annotated[Dict[ClassName, List[PresetName]], Field(default={},
+                                                                       description="Here you can define which presets should be applied to females of a certain NPC class (matched by EditorID). ONLY put female body presets here!")]
+type classMale = Annotated[
+    Dict[ClassName, List[PresetName]], Field(default={}, description="Same as classFemale, but for males. ONLY put male body presets here (if you don't have any, leave it empty)!")]
+type blacklistedClassesFemale = Annotated[List[ClassName], Field(default=[],
+                                                                  description="Here you can blacklist females of entire NPC classes (matched by EditorID) instead of individual NPCs.")]
+type blacklistedClassesMale = Annotated[
+    List[ClassName], Field(default=[], description="Same as blacklistedClassesFemale, but for male NPCs.")]
+
 
 class OBodyConfigModel(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True, regex_engine='python-re', populate_by_name=True)
@@ -82,12 +93,16 @@ class OBodyConfigModel(BaseModel):
     npcPluginMale: npcPluginMale
     raceFemale: raceFemale
     raceMale: raceMale
+    classFemale: classFemale
+    classMale: classMale
     blacklistedNpcs: blacklistedNpcs
     blacklistedNpcsFormID: blacklistedNpcsFormID
     blacklistedNpcsPluginFemale: blacklistedNpcsPluginFemale
     blacklistedNpcsPluginMale: blacklistedNpcsPluginMale
     blacklistedRacesFemale: blacklistedRacesFemale
     blacklistedRacesMale: blacklistedRacesMale
+    blacklistedClassesFemale: blacklistedClassesFemale
+    blacklistedClassesMale: blacklistedClassesMale
     blacklistedOutfitsFromORefitFormID: blacklistedOutfitsFromORefitFormID
     blacklistedOutfitsFromORefit: blacklistedOutfitsFromORefit
     blacklistedOutfitsFromORefitPlugin: blacklistedOutfitsFromORefitPlugin
