@@ -247,6 +247,64 @@ namespace Parser {
         }
     }
 
+    void JSONParser::ProcessRefitOutfitPresetsFormID() {
+        auto* const data_handler{RE::TESDataHandler::GetSingleton()};
+
+        const auto load = [&](const char* configKey, std::unordered_map<std::uint32_t, std::string>& out) {
+            out.clear();
+
+            const auto configItr{presetDistributionConfig.FindMember(configKey)};
+            if (configItr == presetDistributionConfig.MemberEnd() || !configItr->value.IsObject()) {
+                return;
+            }
+            logger::info(TitleFormatSpecifier, configKey);
+
+            auto& pluginsObject{configItr->value};
+            for (auto pluginItr{pluginsObject.MemberBegin()}; pluginItr != pluginsObject.MemberEnd();) {
+                const char* const plugin{pluginItr->name.GetString()};
+                const auto* const file{data_handler->LookupModByName(plugin)};
+                if (!file) {
+                    logger::info("removed '{}'", plugin);
+                    pluginItr = pluginsObject.EraseMember(pluginItr);
+                    continue;
+                }
+
+                if (!pluginItr->value.IsObject()) {
+                    logger::warn("{}: expected an object under '{}', ignoring it", configKey, plugin);
+                    ++pluginItr;
+                    continue;
+                }
+
+                auto& entries{pluginItr->value};
+                for (auto entryItr{entries.MemberBegin()}; entryItr != entries.MemberEnd(); ++entryItr) {
+                    const std::string_view formKey{entryItr->name.GetString(), entryItr->name.GetStringLength()};
+                    if (formKey.empty() || formKey.length() > 8 || !entryItr->value.IsString()) {
+                        logger::warn("{}: ignoring invalid entry '{}' under '{}'", configKey, formKey, plugin);
+                        continue;
+                    }
+
+                    const std::string formID{DiscardFormDigits(formKey, file)};
+                    std::uint32_t hexnumber{};
+                    sscanf_s(formID.data(), "%x", &hexnumber);
+
+                    const auto* const form{data_handler->LookupForm(hexnumber, plugin)};
+                    if (!form || form->GetFormType() != RE::FormType::Armor) {
+                        logger::info("{} is not a valid armor FormID in '{}'!", formKey, plugin);
+                        continue;
+                    }
+
+                    // Store the full-length runtime ID so the lookup at equip time is a plain integer compare.
+                    out[form->GetFormID()] = entryItr->value.GetString();
+                }
+                ++pluginItr;
+            }
+            logger::info("Loaded {} outfit preset(s) from {}", out.size(), configKey);
+        };
+
+        load("refitOutfitPresetsFemaleFormID", refitOutfitPresetFormIDMapFemale);
+        load("refitOutfitPresetsMaleFormID", refitOutfitPresetFormIDMapMale);
+    }
+
     inline bool ValidateActor(const RE::Actor* const actor) {
         if (actor == nullptr || (actor->formFlags & RE::TESForm::RecordFlags::kDeleted) ||
             (actor->inGameFormFlags & RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted) ||
@@ -595,6 +653,7 @@ namespace Parser {
         ProcessNPCsFormID();
         ProcessOutfitsFormIDBlacklist();
         ProcessOutfitsForceRefitFormIDBlacklist();
+        ProcessRefitOutfitPresetsFormID();
         ProcessDisablePresetDistribution();
         FilterOutNonLoaded();
         logger::info(TitleFormatSpecifier, "Finished: Removing Not-Loaded Items");
@@ -837,21 +896,20 @@ namespace Parser {
     }
 
     std::optional<PresetManager::Preset> JSONParser::GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female) {
-        const auto refitOutfitPresetsNode {
-            presetDistributionConfig.FindMember(female ? "refitOutfitPresetsFemale" : "refitOutfitPresetsMale")
-        };
+        const auto& formIDPresets{female ? refitOutfitPresetFormIDMapFemale : refitOutfitPresetFormIDMapMale};
 
-        if (refitOutfitPresetsNode == presetDistributionConfig.MemberEnd()) {
-            return std::nullopt;
-        }
+        const auto refitOutfitPresetsNode{
+            presetDistributionConfig.FindMember(female ? "refitOutfitPresetsFemale" : "refitOutfitPresetsMale")};
+        const bool hasNamePresets{refitOutfitPresetsNode != presetDistributionConfig.MemberEnd() &&
+                                  refitOutfitPresetsNode->value.IsObject() &&
+                                  refitOutfitPresetsNode->value.MemberCount() > 0};
 
-        const auto& refitOutfitPresetsObject = refitOutfitPresetsNode->value;
-
-        if (refitOutfitPresetsObject.MemberCount() == 0) {
+        if (formIDPresets.empty() && !hasNamePresets) {
             return std::nullopt;
         }
 
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
         const RE::BGSBipedObjectForm::BipedObjectSlot slots[3] = {
             RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
@@ -859,19 +917,45 @@ namespace Parser {
             RE::BGSBipedObjectForm::BipedObjectSlot::kModChestSecondary
         };
 
-        for (RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
-            auto outfit{a_actor->GetWornArmor(slot)};
-            if (outfit) {
-                const auto refitOneOutfitPresetNode = refitOutfitPresetsObject.FindMember(outfit->GetName());
-                if (refitOneOutfitPresetNode == refitOutfitPresetsObject.MemberEnd()) {
+        if (!formIDPresets.empty()) {
+            for (const RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
+                const auto* const outfit{a_actor->GetWornArmor(slot)};
+                if (!outfit) {
                     continue;
                 }
 
-                const auto presetName{refitOneOutfitPresetNode->value.GetString()};
+                const auto formIDItr{formIDPresets.find(outfit->GetFormID())};
+                if (formIDItr == formIDPresets.end()) {
+                    continue;
+                }
 
-                const auto preset{PresetManager::GetPresetByNameForRandom(female ? presetContainer.allFemalePresets : presetContainer.allMalePresets, presetName)};
+                if (auto preset{PresetManager::GetPresetByNameForRandom(allPresets, formIDItr->second)}) {
+                    return preset;
+                }
+                logger::warn("Refit preset '{}' (by FormID) was not found among the loaded presets", formIDItr->second);
+            }
+        }
 
-                if(preset) {
+        if (hasNamePresets) {
+            const auto& refitOutfitPresetsObject{refitOutfitPresetsNode->value};
+
+            for (const RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
+                const auto* const outfit{a_actor->GetWornArmor(slot)};
+                if (!outfit) {
+                    continue;
+                }
+
+                const char* const outfitName{outfit->GetName()};
+                if (!outfitName || !*outfitName) {
+                    continue;
+                }
+
+                const auto nameItr{refitOutfitPresetsObject.FindMember(outfitName)};
+                if (nameItr == refitOutfitPresetsObject.MemberEnd() || !nameItr->value.IsString()) {
+                    continue;
+                }
+
+                if (auto preset{PresetManager::GetPresetByNameForRandom(allPresets, nameItr->value.GetString())}) {
                     return preset;
                 }
             }

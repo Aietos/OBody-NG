@@ -12,6 +12,7 @@ This repository contains the native C++ code of the mod. For the Papyrus code, i
 
 ## Building
 
+- Install and setup [xmake](https://xmake.io/)
 - Install and setup [vcpkg](https://github.com/microsoft/vcpkg). Don't forget to set the Windows environment variable `VCPKG_ROOT` pointing to the folder where vcpkg is installed
 - Install [7-Zip](https://www.7-zip.org/). Add a Windows environment variable called `7z` pointing to the `7z.exe` file (for example, in my case the env var has the value of `C:\Program Files\7-Zip\7z.exe`)
 - Clone this repository

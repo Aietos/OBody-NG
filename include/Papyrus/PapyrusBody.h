@@ -19,6 +19,8 @@ namespace PapyrusBody {
 
     void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey);
 
+    void SetForcePresetApplicationImmediate(RE::StaticFunctionTag*, bool a_enabled);
+
     int GetFemaleDatabaseSize(RE::StaticFunctionTag*);
 
     int GetMaleDatabaseSize(RE::StaticFunctionTag*);

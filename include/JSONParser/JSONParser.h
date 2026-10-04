@@ -26,6 +26,7 @@ namespace Parser {
         void ProcessNPCsFormIDBlacklist();
         void ProcessOutfitsFormIDBlacklist();
         void ProcessOutfitsForceRefitFormIDBlacklist();
+        void ProcessRefitOutfitPresetsFormID();
         void FilterOutNonLoaded();
 
         void ProcessJSONCategories();
@@ -61,6 +62,9 @@ namespace Parser {
 
         std::vector<categorizedList> blacklistedOutfitCategorySet;
         std::vector<categorizedList> forceRefitOutfitCategorySet;
+
+        std::unordered_map<std::uint32_t, std::string> refitOutfitPresetFormIDMapFemale;
+        std::unordered_map<std::uint32_t, std::string> refitOutfitPresetFormIDMapMale;
 
         std::optional<PresetManager::Preset> GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female);
 

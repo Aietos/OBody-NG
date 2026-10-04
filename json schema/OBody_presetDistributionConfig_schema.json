@@ -82,6 +82,12 @@
     "refitOutfitPresetsMale": {
       "$ref": "#/definitions/refitOutfitPresets"
     },
+    "refitOutfitPresetsFemaleFormID": {
+      "$ref": "#/definitions/refitOutfitPresetsFormID"
+    },
+    "refitOutfitPresetsMaleFormID": {
+      "$ref": "#/definitions/refitOutfitPresetsFormID"
+    },
     "disablePresetDistribution": {
       "$ref": "#/definitions/disablePresetDistribution"
     }
@@ -415,7 +421,7 @@
       },
       "type": "object"
     },
-    "refitOutfitPresets": {
+    "refitOutfitPresetsFemale": {
       "additionalProperties": {
         "type": "string"
       },
@@ -423,6 +429,51 @@
       "description": "Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.",
       "propertyNames": {
         "$ref": "#/definitions/OutfitName"
+      },
+      "type": "object"
+    },
+    "refitOutfitPresetsMale": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.",
+      "propertyNames": {
+        "$ref": "#/definitions/OutfitName"
+      },
+      "type": "object"
+    },
+    "refitOutfitPresetsFemaleFormID": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "propertyNames": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "object"
+      },
+      "default": {},
+      "description": "Same as refitOutfitPresets, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresets.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
+      },
+      "type": "object"
+    },
+    "refitOutfitPresetsMaleFormID": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/definitions/PresetName"
+        },
+        "propertyNames": {
+          "$ref": "#/definitions/FormID"
+        },
+        "type": "object"
+      },
+      "default": {},
+      "description": "Same as above but for males.",
+      "propertyNames": {
+        "$ref": "#/definitions/BSTFile"
       },
       "type": "object"
     },
