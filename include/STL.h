@@ -81,7 +81,7 @@ namespace stl {
     }
 
     using PO3_tweaks_GetFormEditorID = const char* (*)(std::uint32_t);  // NOLINT(*-reserved-identifier)
-    static PO3_tweaks_GetFormEditorID func{};
+    inline PO3_tweaks_GetFormEditorID func{};
 
     inline std::string get_editorID(const RE::TESForm* a_form) {
         switch (a_form->GetFormType()) {

@@ -72,6 +72,10 @@ type refitOutfitPresetsFemale = Annotated[Dict[OutfitName, PresetName], Field(de
 
 type refitOutfitPresetsMale = Annotated[Dict[OutfitName, PresetName], Field(default={}, description="Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.")]
 
+type refitOutfitPresetsFemaleFormID = Annotated[Dict[BSTFile, Dict[FormID, PresetName]], Field(default={}, description="Same as refitOutfitPresetsFemale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsFemale.")]
+
+type refitOutfitPresetsMaleFormID = Annotated[Dict[BSTFile, Dict[FormID, PresetName]], Field(default={}, description="Same as refitOutfitPresetsMale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsMale.")]
+
 type classFemale = Annotated[Dict[ClassName, List[PresetName]], Field(default={},
                                                                        description="Here you can define which presets should be applied to females of a certain NPC class (matched by EditorID). ONLY put female body presets here!")]
 type classMale = Annotated[
@@ -112,6 +116,8 @@ class OBodyConfigModel(BaseModel):
     blacklistedPresetsShowInOBodyMenu: blacklistedPresetsShowInOBodyMenu
     refitOutfitPresetsFemale: refitOutfitPresetsFemale
     refitOutfitPresetsMale: refitOutfitPresetsMale
+    refitOutfitPresetsFemaleFormID: refitOutfitPresetsFemaleFormID
+    refitOutfitPresetsMaleFormID: refitOutfitPresetsMaleFormID
 
 
 def main(using_rapidjson: bool):

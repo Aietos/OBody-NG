@@ -42,6 +42,10 @@ namespace PapyrusBody {
         Body::OBody::GetInstance().distributionKey = a_distributionKey;
     }
 
+    void SetForcePresetApplicationImmediate(RE::StaticFunctionTag*, const bool a_enabled) {
+        Body::OBody::GetInstance().setForcePresetApplicationImmediate = a_enabled;
+    }
+
     int GetFemaleDatabaseSize(RE::StaticFunctionTag*) {
         return static_cast<int>(PresetManager::PresetContainer::GetInstance().femalePresets.size());
     }
@@ -263,6 +267,7 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(SetLegacyStorageUtilUsageEnabled);
         OBODY_PAPYRUS_BIND(SetDistributionKey);
         OBODY_PAPYRUS_BIND(UpdatePresetMenuKey);
+        OBODY_PAPYRUS_BIND(SetForcePresetApplicationImmediate);
 #undef OBODY_PAPYRUS_BIND
         return true;
     }
