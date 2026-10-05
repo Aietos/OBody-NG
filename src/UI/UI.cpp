@@ -59,6 +59,120 @@ namespace {
         return false;
     }
 
+    // PresetContainer keeps non-blacklisted presets first and blacklisted ones last, and
+    // PresetContainer::AssignPresetIndexes relies on that order, so we must order the presets alphabetically ourselves
+    struct PresetMenuEntry {
+        std::string name;         // exact preset name, the only thing used for lookups
+        std::string displayName;  // name without leading/trailing whitespace, shown in the list
+        std::wstring searchText;  // displayName as lowercase UTF-16, used for searching
+        std::wstring sortKey;     // displayName as UTF-16 without leading non-letters/digits, used for ordering
+        bool hasAlnum;            // false for names with no letters/digits at all, so they go last
+    };
+
+    struct PresetMenuCache {
+        std::vector<PresetMenuEntry> entries;
+        bool valid{false};
+    };
+
+    std::array<PresetMenuCache, 4> g_presetMenuCache;
+
+    std::string_view TrimWhitespace(std::string_view text) {
+        constexpr std::string_view whitespace{" \t\r\n\f\v"};
+        const auto first = text.find_first_not_of(whitespace);
+        if (first == std::string_view::npos) {
+            return {};
+        }
+        const auto last = text.find_last_not_of(whitespace);
+        return text.substr(first, last - first + 1);
+    }
+
+    std::wstring Utf8ToWide(std::string_view text) {
+        if (text.empty()) {
+            return {};
+        }
+        const int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+        if (length <= 0) {
+            return {};
+        }
+        std::wstring wide(static_cast<std::size_t>(length), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), length);
+        return wide;
+    }
+
+    // Unicode-aware lowercase, invariant locale is needed so non-Latin systems don't break on latin letters
+    std::wstring ToLowerWide(const std::wstring& text) {
+        if (text.empty()) {
+            return {};
+        }
+        std::wstring lower(text.size(), L'\0');
+        const int length = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE | LCMAP_LINGUISTIC_CASING, text.data(),
+                                         static_cast<int>(text.size()), lower.data(), static_cast<int>(lower.size()),
+                                         nullptr, nullptr, 0);
+        if (length <= 0) {
+            return text;
+        }
+        lower.resize(static_cast<std::size_t>(length));
+        return lower;
+    }
+
+    // Locale-aware, case-insensitive comparison so that accented letters sort next to their base letter
+    int CompareLinguistic(const std::wstring& a, const std::wstring& b) {
+        const int result = CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS, a.data(),
+                                           static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()), nullptr,
+                                           nullptr, 0);
+        if (result == 0) {
+            return a.compare(b);  // fallback in case the API fails, realistically it shouldn't happen
+        }
+        return result - CSTR_EQUAL;
+    }
+
+    std::vector<PresetMenuEntry> BuildSortedPresetEntries(const PresetManager::PresetSet& presets) {
+        std::vector<PresetMenuEntry> entries;
+        entries.reserve(presets.size());
+
+        for (const auto& preset : presets) {
+            const auto trimmed = TrimWhitespace(preset.name);
+            const std::wstring wide = Utf8ToWide(trimmed);
+
+            PresetMenuEntry entry;
+            entry.name = preset.name;
+            entry.displayName = trimmed.empty() ? preset.name : std::string{trimmed};
+            entry.searchText = ToLowerWide(wide);
+
+            // Skip leading characters that aren't letters or digits for ordering,
+            // so "(HIMBO) Foo" and "--((HIMBO) Foo" both sort under H.
+            std::size_t firstAlnum = wide.size();
+            if (!wide.empty()) {
+                std::vector<WORD> types(wide.size());
+                if (GetStringTypeW(CT_CTYPE1, wide.data(), static_cast<int>(wide.size()), types.data())) {
+                    for (std::size_t i = 0; i < types.size(); ++i) {
+                        if (types[i] & (C1_ALPHA | C1_DIGIT)) {
+                            firstAlnum = i;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            entry.hasAlnum = firstAlnum < wide.size();
+            entry.sortKey = entry.hasAlnum ? wide.substr(firstAlnum) : wide;
+
+            entries.push_back(std::move(entry));
+        }
+
+        std::ranges::stable_sort(entries, [](const PresetMenuEntry& a, const PresetMenuEntry& b) {
+            if (a.hasAlnum != b.hasAlnum) {
+                return a.hasAlnum;  // names with letters/digits first, symbol-only names last
+            }
+            if (const int cmp = CompareLinguistic(a.sortKey, b.sortKey); cmp != 0) {
+                return cmp < 0;
+            }
+            return a.name < b.name;
+        });
+
+        return entries;
+    }
+
     namespace JsonView {
         const ImGuiMCP::ImVec4 kKey    {0.60f, 0.80f, 1.00f, 1.0f};
         const ImGuiMCP::ImVec4 kString {0.90f, 0.68f, 0.45f, 1.0f};
@@ -206,7 +320,8 @@ namespace {
 }
 
 void UI::PresetList::SetHotkeyScanCode(std::uint32_t scanCode) {
-    g_hotkeyScanCode.store(scanCode);
+    // 0x01 is Esc, we treat that as unbinding/disabling the hotkey
+    g_hotkeyScanCode.store(scanCode == 0x01 ? 0 : scanCode);
 }
 
 void UI::Register() {
@@ -245,6 +360,15 @@ void __stdcall UI::PresetList::Render() {
     if (justOpened) {
         buf[0] = '\0';
         ImGuiMCP::SetScrollY(0.0f);
+        for (auto& cache : g_presetMenuCache) {
+            cache.valid = false;
+        }
+    }
+
+    // Esc closes the menu
+    if (ImGuiMCP::IsWindowFocused(ImGuiMCP::ImGuiFocusedFlags_RootAndChildWindows) &&
+        ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape, false)) {
+        isOpen = false;
     }
 
     RE::Actor* actor = nullptr;
@@ -277,6 +401,7 @@ void __stdcall UI::PresetList::Render() {
 
             if (CenteredButton(UI::Translations::Get("obody_reset_morphs_button").c_str())) {
                 obody.AssignPresetToActor(actor, "", true, false);
+                Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor, "");
                 isOpen = false;
             }
 
@@ -313,30 +438,33 @@ void __stdcall UI::PresetList::Render() {
                     "in OBody menu.");
             }
 
-            auto& base_presets = (Body::OBody::IsFemale(actor)
-                                    ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
-                                    : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets));
+            const bool isFemale = Body::OBody::IsFemale(actor);
+            auto& menuCache = g_presetMenuCache[(isFemale ? 2 : 0) + (showBlacklistedPresets ? 1 : 0)];
 
-            auto presets_to_show = base_presets
-                | std::views::filter([](const PresetManager::Preset& preset) {
-                    if (buf[0] == '\0') return true;
-                    std::string nameLower = preset.name;
-                    std::string queryLower = buf;
-                    std::ranges::transform(nameLower, nameLower.begin(), [](unsigned char c){ return std::tolower(c); });
-                    std::ranges::transform(queryLower, queryLower.begin(), [](unsigned char c){ return std::tolower(c); });
-                    return nameLower.find(queryLower) != std::string::npos;
-                })
-                | std::views::transform(&PresetManager::Preset::name);
+            if (!menuCache.valid) {
+                const auto& basePresets = isFemale
+                                              ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
+                                              : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets);
+                menuCache.entries = BuildSortedPresetEntries(basePresets);
+                menuCache.valid = true;
+            }
+
+            const std::wstring query = ToLowerWide(Utf8ToWide(buf));
 
             int idx = 0;
 
             // this is here to later test glyphs sets
             // ImGuiMCP::Text("你好, 안녕하세요, こんにちは, Привет");
 
-            for (const auto& i : presets_to_show) {
+            for (const auto& entry : menuCache.entries) {
+                if (!query.empty() && entry.searchText.find(query) == std::wstring::npos) {
+                    continue;
+                }
+
                 ImGuiMCP::PushID(idx);
-                if (ImGuiMCP::Selectable(i.c_str())) {
-                    obody.GenerateBodyByName(actor, i, &obody.specialPapyrusPluginInterface);
+                if (ImGuiMCP::Selectable(entry.displayName.c_str())) {
+                    obody.GenerateBodyByName(actor, entry.name, &obody.specialPapyrusPluginInterface);
+                    Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor, entry.name);
                     isOpen = false;
                     break;
                 }

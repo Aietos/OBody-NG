@@ -829,7 +829,6 @@ namespace Body {
 
     void OBody::AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
                              bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
-        const auto& obody{Body::OBody::GetInstance()};
         auto& registry{ActorTracker::Registry::GetInstance()};
         auto formID = a_actor->formID;
 
@@ -842,23 +841,23 @@ namespace Body {
             });
 
             if (!a_doNotApplyMorphs) {
-                obody.ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
-                                       &obody.specialPapyrusPluginInterface);
+                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
+                                       &specialPapyrusPluginInterface);
             }
 
             if (previousPresetIndex != 0) {
-                obody.SendActorChangeEvent(
+                SendActorChangeEvent(
                     a_actor,
                     [&] {
                         using Event = ::OBody::API::IActorChangeEventListener;
 
                         Event::OnActorPresetChangedWithoutGeneration::Payload payload{
-                            &obody.specialPapyrusPluginInterface,
+                            &specialPapyrusPluginInterface,
                             // Note that the plugin-API mandates that this be a null-terminated string.
                             // Minus one because an index of zero assigned to the actor signifies the absence of a
                             // preset.
                             PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(
-                                obody.IsFemale(a_actor))};
+                                IsFemale(a_actor))};
 
                         auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
 
@@ -883,13 +882,13 @@ namespace Body {
         }
 
         // Like OBody::GenerateBodyByName, we set this morph to prevent a crash with SynthEBD/Synthesis.
-        if (obody.synthesisInstalled) {
-            obody.SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
+        if (synthesisInstalled) {
+            SetMorph(a_actor, "obody_synthebd", "OBody", 1.0F);
         }
 
         if (!a_doNotApplyMorphs) {
-            obody.GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
-                                       &obody.specialPapyrusPluginInterface);
+            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
+                                       &specialPapyrusPluginInterface);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;
@@ -901,13 +900,13 @@ namespace Body {
             registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
                                                     [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
 
-            obody.SendActorChangeEvent(
+            SendActorChangeEvent(
                 a_actor,
                 [&] {
                     using Event = ::OBody::API::IActorChangeEventListener;
 
                     Event::OnActorPresetChangedWithoutGeneration::Payload payload{
-                        &obody.specialPapyrusPluginInterface,
+                        &specialPapyrusPluginInterface,
                         // Note that the plugin-API mandates that this be a null-terminated string.
                         assignedPresetIndex.GetPresetNameView(isFemale)};
 

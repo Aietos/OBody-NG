@@ -56,6 +56,7 @@ namespace PapyrusBody {
 
     void RegisterForOBodyEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
         Body::OnActorGenerated.Register(a_quest);
+        Body::OnActorPresetChangedWithoutGeneration.Register(a_quest);
     }
 
     void RegisterForOBodyNakedEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {

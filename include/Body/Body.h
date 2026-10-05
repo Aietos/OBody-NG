@@ -7,6 +7,7 @@
 
 namespace Body {
     inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorGenerated("OnActorGenerated"sv);
+    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration("OnActorPresetChangedWithoutGeneration"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorNaked("OnActorNaked"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorRemovingClothes("OnActorRemovingClothes"sv);
 
