@@ -88,6 +88,12 @@
     "refitOutfitPresetsMaleFormID": {
       "$ref": "#/definitions/refitOutfitPresetsFormID"
     },
+    "refitOutfitKeywordsFemale": {
+      "$ref": "#/definitions/refitOutfitKeywordsFemale"
+    },
+    "refitOutfitKeywordsMale": {
+      "$ref": "#/definitions/refitOutfitKeywordsMale"
+    },
     "disablePresetDistribution": {
       "$ref": "#/definitions/disablePresetDistribution"
     }
@@ -121,6 +127,20 @@
     },
     "PresetName": {
       "$ref": "#/definitions/NonEmptyString"
+    },
+    "RefitPresetNameOrList": {
+      "description": "A \"-Refit\" preset name, or an array of them. Format: \"<Base Preset Name>-Refit<anything>\". A refit whose base name (the text before \"-Refit\") matches the actor's current preset is a differential (refit - base). A refit whose base name is \"Female\" / \"Male\" is an additive default that works for any preset.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/PresetName"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/PresetName"
+          },
+          "type": "array"
+        }
+      ]
     },
     "RaceName": {
       "$ref": "#/definitions/NonEmptyTrimmedString"
@@ -423,10 +443,10 @@
     },
     "refitOutfitPresetsFemale": {
       "additionalProperties": {
-        "type": "string"
+        "$ref": "#/definitions/RefitPresetNameOrList"
       },
       "default": {},
-      "description": "Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.",
+      "description": "Outfit name -> array of \"-Refit\" presets (a single string is also accepted). Refit presets are differentials: they are a copy of a base preset with some sliders changed, and only the difference (refit - base) is applied while the outfit is worn. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].",
       "propertyNames": {
         "$ref": "#/definitions/OutfitName"
       },
@@ -434,19 +454,44 @@
     },
     "refitOutfitPresetsMale": {
       "additionalProperties": {
-        "type": "string"
+        "$ref": "#/definitions/RefitPresetNameOrList"
       },
       "default": {},
-      "description": "Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.",
+      "description": "Outfit name -> array of \"-Refit\" presets (a single string is also accepted). Refit presets are differentials: they are a copy of a base preset with some sliders changed, and only the difference (refit - base) is applied while the outfit is worn. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].",
       "propertyNames": {
         "$ref": "#/definitions/OutfitName"
+      },
+      "type": "object"
+    },
+    "KeywordName": {
+      "$ref": "#/definitions/NonEmptyTrimmedString"
+    },
+    "refitOutfitKeywordsFemale": {
+      "additionalProperties": {
+        "$ref": "#/definitions/RefitPresetNameOrList"
+      },
+      "default": {},
+      "description": "Keyword EditorID -> array of \"-Refit\" presets (a single string is also accepted), used for any worn outfit that has that keyword (e.g. ArmorHeavy, ArmorLight, ArmorClothing, or a custom keyword distributed with SPID). Entries named \"<Preset>-Refit<anything>\" are differentials for that preset; entries named \"Female-Refit<anything>\" are additive defaults for any preset. You do not need to list \"Female-Refit <Keyword>\" (e.g. \"Female-Refit ArmorHeavy\"): it is looked up automatically for every keyword the outfit has. Outfit-specific keys (refitOutfitPresets*) have priority over this one; if several keywords match, the first one written here wins.",
+      "propertyNames": {
+        "$ref": "#/definitions/KeywordName"
+      },
+      "type": "object"
+    },
+    "refitOutfitKeywordsMale": {
+      "additionalProperties": {
+        "$ref": "#/definitions/RefitPresetNameOrList"
+      },
+      "default": {},
+      "description": "Same as refitOutfitKeywordsFemale, but for males (\"Male-Refit<anything>\" are the additive defaults, and \"Male-Refit <Keyword>\" is looked up automatically).",
+      "propertyNames": {
+        "$ref": "#/definitions/KeywordName"
       },
       "type": "object"
     },
     "refitOutfitPresetsFemaleFormID": {
       "additionalProperties": {
         "additionalProperties": {
-          "$ref": "#/definitions/PresetName"
+          "$ref": "#/definitions/RefitPresetNameOrList"
         },
         "propertyNames": {
           "$ref": "#/definitions/FormID"
@@ -463,7 +508,7 @@
     "refitOutfitPresetsMaleFormID": {
       "additionalProperties": {
         "additionalProperties": {
-          "$ref": "#/definitions/PresetName"
+          "$ref": "#/definitions/RefitPresetNameOrList"
         },
         "propertyNames": {
           "$ref": "#/definitions/FormID"

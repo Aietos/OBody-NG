@@ -39,6 +39,8 @@
   "refitOutfitPresetsMale": {},
   "refitOutfitPresetsFemaleFormID": {},
   "refitOutfitPresetsMaleFormID": {},
+  "refitOutfitKeywordsFemale": {},
+  "refitOutfitKeywordsMale": {},
   "blacklistedPresetsShowInOBodyMenu": true,
   "disablePresetDistribution": "none"
 }

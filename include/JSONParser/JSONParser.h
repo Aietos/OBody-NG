@@ -63,10 +63,24 @@ namespace Parser {
         std::vector<categorizedList> blacklistedOutfitCategorySet;
         std::vector<categorizedList> forceRefitOutfitCategorySet;
 
-        std::unordered_map<std::uint32_t, std::string> refitOutfitPresetFormIDMapFemale;
-        std::unordered_map<std::uint32_t, std::string> refitOutfitPresetFormIDMapMale;
+        // List of candidate "-Refit" preset names
+        std::unordered_map<std::uint32_t, std::vector<std::string>> refitOutfitPresetFormIDMapFemale;
+        std::unordered_map<std::uint32_t, std::vector<std::string>> refitOutfitPresetFormIDMapMale;
 
-        std::optional<PresetManager::Preset> GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female);
+        // Looks through the refit lists configured for the actor's worn outfits
+        // refitOutfitPresets*FormID, refitOutfitPresets*, refitOutfitKeywords*, in that priority
+        // "<ActorPreset>-Refit<anything>" entry whose base name is a_actorPresetName
+        // The application of these presets is differential
+        std::optional<PresetManager::Preset> GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female,
+                                                                             std::string_view a_actorPresetName);
+
+        // "Female-Refit<anything>" / "Male-Refit<anything>" entries from the same lists,
+        // then the implicit "Female-Refit <Keyword>" / "Male-Refit <Keyword>" for every keyword of the worn outfits
+        // The application of these presets is additive
+        std::optional<PresetManager::Preset> GetRefitDefaultFromEquippedItems(RE::Actor* a_actor, bool female);
+
+        [[nodiscard]] std::vector<std::vector<std::string>> CollectRefitLists(
+            const std::vector<const RE::TESObjectARMO*>& a_armors, bool female) const;
 
     private:
         JSONParser() = default;

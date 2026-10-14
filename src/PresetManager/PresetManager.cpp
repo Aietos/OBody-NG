@@ -36,7 +36,8 @@ namespace PresetManager {
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
             if (path.extension().c_str() != L".xml"sv) continue;
-            if (IsClothedSet(path.wstring())) continue;
+            // Files with a "clothed" keyword in their name are still opened, but only their "-Refit" presets are kept.
+            const bool clothedFile{IsClothedSet(path.wstring())};
 
             pugi::xml_document doc;
             if (auto result = doc.load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
@@ -49,19 +50,21 @@ namespace PresetManager {
 
             auto presets = doc.child("SliderPresets");
             for (const auto& node : presets) {
+                if (clothedFile && !IsRefitPreset(node.attribute("name").value())) continue;
+
                 auto preset = GeneratePreset(node);
                 if (!preset) continue;
 
                 if (IsFemalePreset(*preset)) {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
+                        blacklistedPresetsEnd || IsRefitPreset(preset.value().name)) {
                         blacklistedFemalePresets.push_back(*preset);
                     } else {
                         femalePresets.push_back(*preset);
                     }
                 } else {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
+                        blacklistedPresetsEnd || IsRefitPreset(preset.value().name)) {
                         blacklistedMalePresets.push_back(*preset);
                     } else {
                         malePresets.push_back(*preset);
@@ -89,7 +92,7 @@ namespace PresetManager {
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node) {
         const std::string_view name{a_node.attribute("name").value()};
 
-        if (IsClothedSet(name)) return {};
+        if (IsClothedSet(name) && !IsRefitPreset(name)) return {};
 
         const std::string_view body{a_node.attribute("set").value()};
 
@@ -206,6 +209,58 @@ namespace PresetManager {
         }
 
         return {};
+    }
+
+    bool IsRefitPreset(const std::string_view a_name) {
+        std::string lower{a_name};
+        boost::algorithm::to_lower(lower);
+        return lower.find("-refit") != std::string::npos;
+    }
+
+    std::string_view GetRefitBaseName(const std::string_view a_refitName) {
+        std::string lower{a_refitName};
+        boost::algorithm::to_lower(lower);
+        const auto pos{lower.find("-refit")};
+        if (pos == std::string::npos) {
+            return {};
+        }
+        return a_refitName.substr(0, pos);
+    }
+
+    SliderSet MakeRefitDifferential(const SliderSet& a_base, const SliderSet& a_refit) {
+        constexpr float epsilon{0.00001F};
+
+        // Slider names are matched case-insensitively
+        boost::unordered_flat_map<std::string, const Slider*> baseByLowerName;
+        baseByLowerName.reserve(a_base.size());
+        for (const auto& slider : a_base | std::views::values) {
+            std::string lower{slider.name};
+            boost::algorithm::to_lower(lower);
+            baseByLowerName[std::move(lower)] = &slider;
+        }
+
+        SliderSet differential;
+        for (const auto& refitSlider : a_refit | std::views::values) {
+            std::string lower{refitSlider.name};
+            boost::algorithm::to_lower(lower);
+
+            // A slider the base preset doesn't have is treated as 0
+            const auto baseItr{baseByLowerName.find(lower)};
+            const float baseMin{baseItr != baseByLowerName.end() ? baseItr->second->min : 0.0F};
+            const float baseMax{baseItr != baseByLowerName.end() ? baseItr->second->max : 0.0F};
+
+            // Refit - base: base 30 -> refit 32 gives +2, base 30 -> refit 28 gives -2
+            const float deltaMin{refitSlider.min - baseMin};
+            const float deltaMax{refitSlider.max - baseMax};
+
+            if (std::abs(deltaMin) < epsilon && std::abs(deltaMax) < epsilon) {
+                continue;
+            }
+
+            differential[refitSlider.name] = Slider{refitSlider.name.c_str(), deltaMin, deltaMax};
+        }
+
+        return differential;
     }
 
     std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,

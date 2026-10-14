@@ -377,40 +377,56 @@ namespace Body {
     void OBody::ApplyClothePreset(RE::Actor* a_actor) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
-        bool isFemale = IsFemale(a_actor);
+        const bool isFemale = IsFemale(a_actor);
+        const auto& allPresets{isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
-        std::optional<Preset> a_preset = std::nullopt;
+        RemoveClothePreset(a_actor);
 
         auto& jsonParser{Parser::JSONParser::GetInstance()};
-        a_preset = jsonParser.GetRefitPresetFromEquippedItems(a_actor, isFemale);
 
-        if (a_preset) {
-            ApplySliderSet(a_actor, a_preset->sliders, "OClothe");
+        // "<Preset>-Refit<anything>" presets are full copies of a base preset
+        // with some sliders adjusted. What gets applied while clothed is the difference between those sliders
+        if (const auto basePreset{ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)}) {
+            // Outfit / keyword specific refit (refitOutfitPresets*, refitOutfitKeywords*)
+            // picked by matching the actor's current preset
+            std::optional<Preset> refitPreset{
+                jsonParser.GetRefitPresetFromEquippedItems(a_actor, isFemale, basePreset->name)};
+
+            // Otherwise the plain "<Preset>-Refit"
+            if (!refitPreset) {
+                const std::string perPresetName{basePreset->name + "-Refit"};
+                // "Female-Refit"/"Male-Refit" are additive defaults
+                if (!stl::cmp(perPresetName, isFemale ? "Female-Refit"sv : "Male-Refit"sv)) {
+                    refitPreset = GetPresetByNameForRandom(allPresets, perPresetName);
+                }
+            }
+
+            if (refitPreset) {
+                logger::info("Applying differential refit '{}' on top of '{}'", refitPreset->name, basePreset->name);
+                auto differential{MakeRefitDifferential(basePreset->sliders, refitPreset->sliders)};
+                ApplySliderSet(a_actor, differential, "OClothe");
+                return;
+            }
+        }
+
+        // "Female-Refit <Keyword>" / "Male-Refit <Keyword>"
+        // or whatever the user listed in the JSON. Applied additively, so it works for any preset
+        if (auto categoryDefault{jsonParser.GetRefitDefaultFromEquippedItems(a_actor, isFemale)}) {
+            logger::info("Applying additive refit default '{}'", categoryDefault->name);
+            ApplySliderSet(a_actor, categoryDefault->sliders, "OClothe");
             return;
         }
 
-        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, isFemale);
-        if (a_presetName) {
-            const std::string refitPresetName = *a_presetName + "-Refit";
-            a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, refitPresetName);
-        }
-        
-        if (!a_preset) {
-            if (isFemale) {
-                a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, "Female-Refit");
-            }
-            else {
-                a_preset = GetPresetByNameForRandom(presetContainer.allMalePresets, "Male-Refit");
-            }
+        // Universal additive default: Female-Refit / Male-Refit
+        // Applied additively, so it works for any preset
+        if (auto defaultPreset{GetPresetByNameForRandom(allPresets, isFemale ? "Female-Refit"sv : "Male-Refit"sv)}) {
+            ApplySliderSet(a_actor, defaultPreset->sliders, "OClothe");
+            return;
         }
 
-        if (a_preset) {
-            ApplySliderSet(a_actor, a_preset->sliders, "OClothe");
-        }
-        else {
-            auto set{GenerateClotheSliders(a_actor)};
-            ApplySliderSet(a_actor, set, "OClothe");
-        }
+        // If we get here, nothing was configured by the user, so we use the hardcoded ORefit values
+        auto set{GenerateClotheSliders(a_actor)};
+        ApplySliderSet(a_actor, set, "OClothe");
     }
 
     void OBody::ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
