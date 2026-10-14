@@ -26,7 +26,6 @@ jobs:
         with:
           compiler: msvc
           vcvarsall: true
-          sevenzip: true
           setup-cpp: false
           powershell: true
 
@@ -52,25 +51,74 @@ jobs:
       - name: Build releasedbg
         run: xmake -y OBody
 
-      - name: Create 7z archive
+      - name: Assemble mod package
         shell: powershell
         run: |
-          # Create Artifact directory if it doesn't exist
-          New-Item -ItemType Directory -Force -Path "contrib/Artifact"
-          
-          # Change to contrib/Distribution directory and create 7z archive from there
-          # This makes Distribution the root of the archive
-          cd contrib/Distribution
-          7z a -t7z -mx=9 "../Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z" "*"
-          
-          # Return to base directory for subsequent steps
-          cd ../..
+          $ErrorActionPreference = "Stop"
+          $stage = "contrib/Package"
+          $sksePlugins = Join-Path $stage "SKSE/Plugins"
+
+          if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          # 1. Everything tracked under Data/ (esp, psc, pex, SKSE json configs, translations...)
+          #    becomes the root of the package, which is what MO2 / Vortex / Nexus expect.
+          if (-not (Test-Path "Data")) { throw "Data/ folder not found in the repository" }
+          Copy-Item -Path "Data/*" -Destination $stage -Recurse -Force
+
+          # 2. Sanity check: compiled scripts are tracked, so make sure they are actually there
+          $pex = Get-ChildItem -Path (Join-Path $stage "Scripts") -Filter *.pex -ErrorAction SilentlyContinue
+          if (-not $pex) { throw "No .pex files found in Data/Scripts - compiled scripts must be committed" }
+
+          # Every Papyrus source must have a compiled counterpart (CI can't compile, so a forgotten
+          # recompile has to be caught here). Checks existence only, not whether the .pex is up to date.
+          $psc = Get-ChildItem -Path (Join-Path $stage "Source/Scripts") -Filter *.psc -ErrorAction SilentlyContinue
+          $missing = @($psc | Where-Object { -not (Test-Path (Join-Path $stage "Scripts/$($_.BaseName).pex")) } |
+                       ForEach-Object { $_.Name })
+          if ($missing.Count -gt 0) {
+            throw "Missing compiled .pex for: $($missing -join ', '). Run 'xmake papyrus' and commit Data/Scripts."
+          }
+
+          # 3. DLL + PDB from the xmake build go into SKSE/Plugins
+          New-Item -ItemType Directory -Force -Path $sksePlugins | Out-Null
+          foreach ($name in "OBody.dll", "OBody.pdb") {
+            $file = Get-ChildItem -Path "build" -Recurse -Filter $name -File |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $file) { throw "$name was not produced by the build" }
+            Copy-Item $file.FullName -Destination $sksePlugins -Force
+            Write-Host "Packaged $($file.FullName)"
+          }
+
+          # 4. Drop placeholder files that shouldn't ship
+          Get-ChildItem -Path $stage -Recurse -Force -Include ".gitkeep", ".gitignore" | Remove-Item -Force
+
+          Write-Host "Package contents:"
+          Get-ChildItem -Path $stage -Recurse -File | ForEach-Object { $_.FullName.Substring((Resolve-Path $stage).Path.Length + 1) }
+
+      - name: Create zip archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path "contrib/Artifact" | Out-Null
+          $zip = Join-Path "${{ github.workspace }}" "contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.zip"
+          if (Test-Path $zip) { Remove-Item -Force $zip }
+
+          # .NET zip (built into PowerShell 7 on the runner). The package contents become
+          # the zip root, and entries use forward slashes, which MO2/Vortex/Nexus all expect.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            (Resolve-Path "contrib/Package").Path,
+            $zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false)
+
+          Write-Host "Created $zip ($([math]::Round((Get-Item $zip).Length / 1KB)) KB)"
 
       - name: Deploy Artifact
         uses: actions/upload-artifact@v4.3.3
         with:
           name: ${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}
-          path: ${{ github.workspace }}/contrib/Distribution/
+          path: ${{ github.workspace }}/contrib/Package/
           compression-level: '9'
 
       - name: Upload files to a GitHub release
@@ -78,7 +126,7 @@ jobs:
         uses: ncipollo/release-action@v1.14.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.7z
+          artifacts: ${{ github.workspace }}/contrib/Artifact/${{ env.PROJECT_NAME }}_${{ env.PROJECT_VERSION }}.zip
           tag: ${{ env.PROJECT_VERSION }}
           commit: main
           generateReleaseNotes: true

@@ -1,0 +1,26 @@
+<?xml version='1.0'?><!-- Game is either sse, tesv, or fo4 -->
+<PapyrusProject xmlns="PapyrusProject.xsd" 
+    Flags="TESV_Papyrus_Flags.flg" 
+    Game="sse" 
+    Output="Data\Scripts" 
+    Optimize="true" 
+    Anonymize="true" 
+    Zip="false">
+    <Variables>
+        <Variable Name="ModName" Value="OBody NG"/>
+        <Variable Name="Version" Value="5.1.2"/>
+        <Variable Name="MyProject" Value=".\Data"/>
+    </Variables>
+    <Imports>
+        <Import>@MyProject\Source\Scripts</Import>
+        <Import>https://github.com/eeveelo/PapyrusUtil/tree/master/Scripts/Source</Import>
+        <Import>https://github.com/VersuchDrei/ConsoleUtilSSE/tree/master/papyrus</Import>
+        <Import>https://github.com/Osmosis-Wrench/racemenu-scripts/tree/main/scripts/source</Import>
+        <Import>https://github.com/doodlum/SkyUI-Community/tree/main/source/scripts</Import>
+        <Import>https://github.com/MrOctopus/nl_online/tree/main/skse64/source</Import>
+        <Import>https://github.com/MrOctopus/nl_online/tree/main/sse/source</Import>
+    </Imports>
+    <Folders>
+        <Folder>@MyProject\Source\Scripts</Folder>
+    </Folders>
+</PapyrusProject>
