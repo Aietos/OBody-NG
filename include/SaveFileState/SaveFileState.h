@@ -2,11 +2,16 @@
 
 #include "BackwardsCompatibility/BackwardsCompatibility.h"
 
+namespace Body {
+    class OBody;
+}
+
 namespace SaveFileState {
     constexpr uint32_t CosaveUID = 0xa0B0D9ee;
     constexpr uint32_t ActorRegistryTypeID = 0xa0B0D9ea;
     constexpr uint32_t PresetNameIndexMapTypeID = 0xa0B0D9e0;
     constexpr uint32_t BackwardsCompatibilityStateTypeID = 0xa0B0D9bc;
+    constexpr uint32_t DistributionKeyTypeID = 0xa0B0D9dc;
 
     // Making a call for each tiny piece of data and having SKSE copy it into its filestream
     // is the recipe for a mod that makes saves and loads take longer than they should.
@@ -32,6 +37,9 @@ namespace SaveFileState {
                                                          const BackwardsCompatibility::State& backwardsCompatibility);
     bool ReadRecordDataForBackwardsCompatibilityStateV0(SKSE::SerializationInterface* load, Buffer buffer,
                                                         BackwardsCompatibility::State& backwardsCompatibility);
+
+    bool WriteRecordDataForDistributionKeyV0(SKSE::SerializationInterface* save, const Body::OBody& obody);
+    bool ReadRecordDataForDistributionKeyV0(SKSE::SerializationInterface* load, uint32_t length, Body::OBody& obody);
 
     struct PresetNameIndexMapHeaderV0 {
         PresetManager::SparsePresetIndex nextPresetIndex;

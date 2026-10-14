@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/unordered/unordered_flat_map.hpp>
+#include <boost/unordered/unordered_flat_set.hpp>
 
 namespace PresetManager {
     enum class BodyType { CBBE, UNP };
@@ -80,6 +81,9 @@ namespace PresetManager {
         std::string body;
         SliderSet sliders;
         AssignedPresetIndex assignedIndex;
+        // Made for the UBE body, which only the UBE races have. These are in both the female and male lists,
+        // because the same UBE presets shape both sexes
+        bool ube{false};
     };
 
     using PresetSet = std::vector<Preset>;
@@ -104,6 +108,9 @@ namespace PresetManager {
         PresetSet allFemalePresets;
         PresetSet allMalePresets;
 
+        // Every slider that a "-Refit" preset has, to find the ones that a previous refit left on an actor
+        boost::unordered_flat_set<std::string> refitSliderNames;
+
         /* These map a sparse preset index to the dense storage of the presets proper.
            A value of -1 is used to signify the absence of a preset.
            If you're thinking that a hashtable may be more appropriate for this than an array,
@@ -120,6 +127,9 @@ namespace PresetManager {
 
         void AssignPresetIndexes();
 
+        // Whether there are presets that can be given out to actors of this sex and body
+        [[nodiscard]] bool HasPresetsFor(bool a_female, bool a_ube) const;
+
         static PresetContainer& GetInstance();
 
     private:
@@ -132,12 +142,36 @@ namespace PresetManager {
     bool IsClothedSet(std::string_view a_set);
     bool IsClothedSet(std::wstring_view a_set);
 
-    Preset GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female);
-    Preset GetRandomPreset(const PresetSet& a_presetSet);
-    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
-                                 bool female);
+    // Whether a BodySlide set (the "set" of a preset) is a UBE body, for example "UBE SE 2.0 Release Preview"
+    bool IsUBEBody(std::string_view a_body);
+
+    // Falls back to a random preset that fits a_ube when there's no preset with that name
+    std::optional<Preset> GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female,
+                                          bool a_ube);
+    // A random preset whose body is UBE or not, as a_ube says. Empty if there's none
+    std::optional<Preset> GetRandomPreset(const PresetSet& a_presetSet, bool a_ube);
+    // A random preset among a_presetNames, skipping the ones that don't exist or whose body doesn't fit a_ube
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet,
+                                                std::vector<std::string_view> a_presetNames, bool female, bool a_ube);
 
     std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
+
+    // "-Refit" naming convention: "<Base Preset Name>-Refit<anything>", e.g. "Warrior Preset-Refit Heavy Armors"
+    bool IsRefitPreset(std::string_view a_name);
+
+    std::string_view GetRefitBaseName(std::string_view a_refitName);
+
+    // The base name of the additive refit presets, the text before "-Refit": "Female" / "Male",
+    // or "UBE Female" / "UBE Male" for UBE bodies, whose sliders are different
+    std::string_view SexRefitBaseName(bool a_female, bool a_ube);
+
+    // The refit preset with this name, if its body is the actor's (UBE or not). A refit for another body would only
+    // set sliders the actor's body doesn't have
+    const Preset* FindRefitPreset(const PresetSet& a_presets, std::string_view a_name, bool a_ube);
+
+    // Builds the differential (refit - base) used while an actor is wearing clothes
+    // Sliders that are identical, or that the refit preset does not mention don't change
+    SliderSet MakeRefitDifferential(const SliderSet& a_base, const SliderSet& a_refit);
 
     void GeneratePresets();
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node);
