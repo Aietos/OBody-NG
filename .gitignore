@@ -15,3 +15,5 @@
 /.env
 /.xmake/
 /.serena/
+Data/SKSE/Plugins/OBody.dll
+Data/SKSE/Plugins/OBody.pdb

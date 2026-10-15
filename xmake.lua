@@ -1,12 +1,13 @@
 -- set minimum xmake version
-set_xmakever("2.8.2")
+set_xmakever("3.0.0")
 
 -- includes
 includes ("lib/commonlibsse-ng")
+includes("xmake/tasks.lua")
 
 -- set project
 set_project("OBody")
-set_version("5.1.1")
+set_version("5.1.2")
 set_license("GPL-3.0")
 
 -- set defaults
