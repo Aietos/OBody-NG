@@ -9,5 +9,5 @@ namespace UI {
         inline MENU_WINDOW Window;
 
         void SetHotkeyScanCode(std::uint32_t scanCode);
-    }
-};
+    }  // namespace PresetList
+};  // namespace UI

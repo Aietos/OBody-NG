@@ -77,16 +77,16 @@
       "$ref": "#/definitions/blacklistedPresetsShowInOBodyMenu"
     },
     "refitOutfitPresetsFemale": {
-      "$ref": "#/definitions/refitOutfitPresets"
+      "$ref": "#/definitions/refitOutfitPresetsFemale"
     },
     "refitOutfitPresetsMale": {
-      "$ref": "#/definitions/refitOutfitPresets"
+      "$ref": "#/definitions/refitOutfitPresetsMale"
     },
     "refitOutfitPresetsFemaleFormID": {
-      "$ref": "#/definitions/refitOutfitPresetsFormID"
+      "$ref": "#/definitions/refitOutfitPresetsFemaleFormID"
     },
     "refitOutfitPresetsMaleFormID": {
-      "$ref": "#/definitions/refitOutfitPresetsFormID"
+      "$ref": "#/definitions/refitOutfitPresetsMaleFormID"
     },
     "refitOutfitKeywordsFemale": {
       "$ref": "#/definitions/refitOutfitKeywordsFemale"
@@ -129,8 +129,7 @@
       "$ref": "#/definitions/NonEmptyString"
     },
     "RefitPresetNameOrList": {
-      "description": "A \"-Refit\" preset name, or an array of them. Format: \"<Base Preset Name>-Refit<anything>\". A refit whose base name (the text before \"-Refit\") matches the actor's current preset is a differential (refit - base). A refit whose base name is \"Female\" / \"Male\" is an additive default that works for any preset.",
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/definitions/PresetName"
         },
@@ -446,7 +445,7 @@
         "$ref": "#/definitions/RefitPresetNameOrList"
       },
       "default": {},
-      "description": "Outfit name -> array of \"-Refit\" presets (a single string is also accepted). Refit presets are differentials: they are a copy of a base preset with some sliders changed, and only the difference (refit - base) is applied while the outfit is worn. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].",
+      "description": "Outfit name -> array of \"-Refit\" presets. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].",
       "propertyNames": {
         "$ref": "#/definitions/OutfitName"
       },
@@ -457,7 +456,7 @@
         "$ref": "#/definitions/RefitPresetNameOrList"
       },
       "default": {},
-      "description": "Outfit name -> array of \"-Refit\" presets (a single string is also accepted). Refit presets are differentials: they are a copy of a base preset with some sliders changed, and only the difference (refit - base) is applied while the outfit is worn. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].",
+      "description": "Same as refitOutfitPresetsFemale, but for male NPCs.",
       "propertyNames": {
         "$ref": "#/definitions/OutfitName"
       },
@@ -467,26 +466,22 @@
       "$ref": "#/definitions/NonEmptyTrimmedString"
     },
     "refitOutfitKeywordsFemale": {
-      "additionalProperties": {
-        "$ref": "#/definitions/RefitPresetNameOrList"
-      },
-      "default": {},
-      "description": "Keyword EditorID -> array of \"-Refit\" presets (a single string is also accepted), used for any worn outfit that has that keyword (e.g. ArmorHeavy, ArmorLight, ArmorClothing, or a custom keyword distributed with SPID). Entries named \"<Preset>-Refit<anything>\" are differentials for that preset; entries named \"Female-Refit<anything>\" are additive defaults for any preset. You do not need to list \"Female-Refit <Keyword>\" (e.g. \"Female-Refit ArmorHeavy\"): it is looked up automatically for every keyword the outfit has. Outfit-specific keys (refitOutfitPresets*) have priority over this one; if several keywords match, the first one written here wins.",
-      "propertyNames": {
+      "default": [],
+      "description": "Keyword EditorIDs (e.g. Topless, or a custom keyword distributed with SPID) for which to look up refit presets automatically on any worn outfit that has the keyword. The order matters: when an outfit has several of these keywords, the first one written here wins. For each keyword K, the preset \"<Actor's Preset>-Refit K\" is a differential refit for that actor preset, and \"Female-Refit K\" is an additive refit that works for any preset. ArmorHeavy, ArmorLight and ArmorClothing are always checked after the keywords written here, so they do not need to be listed (write them here only to give them a higher priority than your own keywords). Outfit-specific keys (refitOutfitPresets*) have priority over this one.",
+      "items": {
         "$ref": "#/definitions/KeywordName"
       },
-      "type": "object"
+      "type": "array",
+      "uniqueItems": true
     },
     "refitOutfitKeywordsMale": {
-      "additionalProperties": {
-        "$ref": "#/definitions/RefitPresetNameOrList"
-      },
-      "default": {},
-      "description": "Same as refitOutfitKeywordsFemale, but for males (\"Male-Refit<anything>\" are the additive defaults, and \"Male-Refit <Keyword>\" is looked up automatically).",
-      "propertyNames": {
+      "default": [],
+      "description": "Same as refitOutfitKeywordsFemale, but for males (\"Male-Refit K\" is the additive refit).",
+      "items": {
         "$ref": "#/definitions/KeywordName"
       },
-      "type": "object"
+      "type": "array",
+      "uniqueItems": true
     },
     "refitOutfitPresetsFemaleFormID": {
       "additionalProperties": {
@@ -499,7 +494,7 @@
         "type": "object"
       },
       "default": {},
-      "description": "Same as refitOutfitPresets, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresets.",
+      "description": "Same as refitOutfitPresetsFemale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsFemale.",
       "propertyNames": {
         "$ref": "#/definitions/BSTFile"
       },
@@ -516,7 +511,7 @@
         "type": "object"
       },
       "default": {},
-      "description": "Same as above but for males.",
+      "description": "Same as refitOutfitPresetsMale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsMale.",
       "propertyNames": {
         "$ref": "#/definitions/BSTFile"
       },

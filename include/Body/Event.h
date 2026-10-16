@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mutex>
-#include <shared_mutex> 
+#include <shared_mutex>
 
 namespace Event {
     class OBodyEventHandler final : public RE::BSTEventSink<RE::TESInitScriptEvent>,
@@ -33,10 +33,10 @@ namespace Event {
                                               RE::BSTEventSource<RE::TESEquipEvent>*) override;
 
         RE::BSEventNotifyControl ProcessEvent(const SKSE::CrosshairRefEvent* a_event,
-                                        RE::BSTEventSource<SKSE::CrosshairRefEvent>*)  override;
+                                              RE::BSTEventSource<SKSE::CrosshairRefEvent>*) override;
 
         mutable std::shared_mutex _mutex;
-        RE::Actor* _cachedActor{ nullptr };
+        RE::Actor* _cachedActor{nullptr};
 
         OBodyEventHandler() = default;
     };

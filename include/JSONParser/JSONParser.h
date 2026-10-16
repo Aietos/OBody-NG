@@ -43,7 +43,8 @@ namespace Parser {
         bool IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit);
         bool IsAnyForceRefitItemEquipped(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
         bool IsNPCBlacklisted(std::string_view actorName, uint32_t actorID);
-        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass, bool female);
+        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
+                                      bool female);
 
         std::optional<PresetManager::Preset> GetNPCFactionPreset(const RE::TESNPC* a_actor, bool female);
 
@@ -67,19 +68,25 @@ namespace Parser {
         std::unordered_map<std::uint32_t, std::vector<std::string>> refitOutfitPresetFormIDMapFemale;
         std::unordered_map<std::uint32_t, std::vector<std::string>> refitOutfitPresetFormIDMapMale;
 
-        // Looks through the refit lists configured for the actor's worn outfits
-        // refitOutfitPresets*FormID, refitOutfitPresets*, refitOutfitKeywords*, in that priority
-        // "<ActorPreset>-Refit<anything>" entry whose base name is a_actorPresetName
-        // The application of these presets is differential
+        // Differential refit presets ("<ActorPreset>-Refit<anything>"). Priority is:
+        // 1. refitOutfitPresetsFormID
+        // 2. refitOutfitPresets
+        // 3. "<ActorPreset>-Refit <Keyword>" for each keyword of CollectRefitKeywords
         std::optional<PresetManager::Preset> GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female,
                                                                              std::string_view a_actorPresetName);
 
-        // "Female-Refit<anything>" / "Male-Refit<anything>" entries from the same lists,
-        // then the implicit "Female-Refit <Keyword>" / "Male-Refit <Keyword>" for every keyword of the worn outfits
-        // The application of these presets is additive
+        // Additive default refit presets ("Female-Refit<anything>" / "Male-Refit<anything>"). Priority is:
+        // 1. "Female-Refit<anything>" entries in the outfit lists
+        // 2. "Female-Refit <Keyword>" for each keyword of CollectRefitKeywords
         std::optional<PresetManager::Preset> GetRefitDefaultFromEquippedItems(RE::Actor* a_actor, bool female);
 
-        [[nodiscard]] std::vector<std::vector<std::string>> CollectRefitLists(
+        // Refit preset lists written for the worn outfits
+        [[nodiscard]] std::vector<std::vector<std::string>> CollectOutfitRefitLists(
+            const std::vector<const RE::TESObjectARMO*>& a_armors, bool female) const;
+
+        // The keywords to look refit presets up for, highest priority first, limited to the ones the worn outfits have:
+        // ArmorHeavy, ArmorLight and ArmorClothing are always checked by default
+        [[nodiscard]] std::vector<std::string> CollectRefitKeywords(
             const std::vector<const RE::TESObjectARMO*>& a_armors, bool female) const;
 
     private:

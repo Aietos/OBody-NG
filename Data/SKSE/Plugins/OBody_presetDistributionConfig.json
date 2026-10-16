@@ -35,12 +35,12 @@
     "Zeroed Sliders",
     "HIMBO Zero for OBody"
   ],
+  "blacklistedPresetsShowInOBodyMenu": true,
   "refitOutfitPresetsFemale": {},
   "refitOutfitPresetsMale": {},
   "refitOutfitPresetsFemaleFormID": {},
   "refitOutfitPresetsMaleFormID": {},
-  "refitOutfitKeywordsFemale": {},
-  "refitOutfitKeywordsMale": {},
-  "blacklistedPresetsShowInOBodyMenu": true,
+  "refitOutfitKeywordsFemale": [],
+  "refitOutfitKeywordsMale": [],
   "disablePresetDistribution": "none"
 }

@@ -5,8 +5,8 @@
 namespace SKEE {
     class IPluginInterface {
     public:
-        IPluginInterface(){};
-        virtual ~IPluginInterface(){};
+        IPluginInterface() {};
+        virtual ~IPluginInterface() {};
 
         virtual uint32_t GetVersion() = 0;
         virtual void Revert() = 0;

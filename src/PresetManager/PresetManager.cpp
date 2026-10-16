@@ -57,14 +57,16 @@ namespace PresetManager {
 
                 if (IsFemalePreset(*preset)) {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || IsRefitPreset(preset.value().name)) {
+                            blacklistedPresetsEnd ||
+                        IsRefitPreset(preset.value().name)) {
                         blacklistedFemalePresets.push_back(*preset);
                     } else {
                         femalePresets.push_back(*preset);
                     }
                 } else {
                     if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || IsRefitPreset(preset.value().name)) {
+                            blacklistedPresetsEnd ||
+                        IsRefitPreset(preset.value().name)) {
                         blacklistedMalePresets.push_back(*preset);
                     } else {
                         malePresets.push_back(*preset);
@@ -263,8 +265,8 @@ namespace PresetManager {
         return differential;
     }
 
-    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
-                                 const bool female) {
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet,
+                                                std::vector<std::string_view> a_presetNames, const bool female) {
         if (a_presetNames.empty()) {
             logger::info("Preset names size is empty, returning none");
             return std::nullopt;

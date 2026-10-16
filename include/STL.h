@@ -140,11 +140,10 @@ namespace stl {
         json_array.Swap(uniqueArray);
     }
 
-
     void MergeJsonDocument(rapidjson::Value& target, rapidjson::Value& source,
                            rapidjson::Document::AllocatorType& allocator);
     void MergeJsonArray(rapidjson::Value& target, rapidjson::Value& source,
-                     rapidjson::Document::AllocatorType& allocator);
+                        rapidjson::Document::AllocatorType& allocator);
 
     class FilePtrManager {
     public:

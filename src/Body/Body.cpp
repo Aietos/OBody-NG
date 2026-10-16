@@ -229,7 +229,8 @@ namespace Body {
 
         if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
-            auto actorClass{actorBase->npcClass ? stl::get_editorID(actorBase->npcClass->As<RE::TESForm>()) : std::string{}};
+            auto actorClass{actorBase->npcClass ? stl::get_editorID(actorBase->npcClass->As<RE::TESForm>())
+                                                : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
             if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), actorClass.c_str(), female)) {
@@ -297,7 +298,6 @@ namespace Body {
 
         registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
                                                 [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
-
 
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
@@ -450,7 +450,8 @@ namespace Body {
     }
 
     void OBody::ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
-        std::optional<PresetManager::Preset> preset = ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
+        std::optional<PresetManager::Preset> preset =
+            ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
 
         if (preset) {
             GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
@@ -844,7 +845,7 @@ namespace Body {
     }
 
     void OBody::AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
+                                    bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
         auto& registry{ActorTracker::Registry::GetInstance()};
         auto formID = a_actor->formID;
 
@@ -857,8 +858,7 @@ namespace Body {
             });
 
             if (!a_doNotApplyMorphs) {
-                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
-                                       &specialPapyrusPluginInterface);
+                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
             }
 
             if (previousPresetIndex != 0) {
@@ -903,8 +903,7 @@ namespace Body {
         }
 
         if (!a_doNotApplyMorphs) {
-            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
-                                       &specialPapyrusPluginInterface);
+            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;

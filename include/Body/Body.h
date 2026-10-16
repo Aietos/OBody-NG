@@ -7,7 +7,8 @@
 
 namespace Body {
     inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorGenerated("OnActorGenerated"sv);
-    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration("OnActorPresetChangedWithoutGeneration"sv);
+    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration(
+        "OnActorPresetChangedWithoutGeneration"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorNaked("OnActorNaked"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorRemovingClothes("OnActorRemovingClothes"sv);
 
@@ -76,7 +77,7 @@ namespace Body {
         bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
 
         void AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
+                                 bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
 
         template <typename PrepareArguments, typename EventMethod>
         __forceinline void SendActorChangeEvent(RE::Actor* a_actor, PrepareArguments&& prepareArguments,
