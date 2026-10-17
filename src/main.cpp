@@ -138,6 +138,7 @@ namespace {
                 try {
                     PresetManager::GeneratePresets();
                     parser.bodyslidePresetsParsingValid = true;
+                    parser.ValidateRefitPresetNames();
                 } catch (const std::runtime_error& re) {
                     logger::info("{} ", re.what());
                     parser.bodyslidePresetsParsingValid = false;

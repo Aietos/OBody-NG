@@ -40,7 +40,8 @@ namespace Body {
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
-        void ApplyClothePreset(RE::Actor* a_actor) const;
+        bool ApplyClothePreset(RE::Actor* a_actor, bool a_onlyIfChanged = false, bool a_removingArmor = false,
+                               const RE::TESForm* a_changedArmor = nullptr) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
         void ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
                               ::OBody::API::IPluginInterface* responsibleInterface) const;
