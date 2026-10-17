@@ -247,10 +247,137 @@ namespace Parser {
         }
     }
 
+    namespace {
+        std::vector<std::string> ReadPresetNameList(const rapidjson::Value& a_value) {
+            std::vector<std::string> names;
+            if (a_value.IsArray()) {
+                for (const auto& item : a_value.GetArray()) {
+                    if (item.IsString() && item.GetStringLength() > 0) {
+                        names.emplace_back(item.GetString(), item.GetStringLength());
+                    }
+                }
+            }
+            return names;
+        }
+
+        using RefitLists = std::vector<std::vector<std::string>>;
+
+        std::string_view SexRefitBaseName(const bool female) { return female ? "Female"sv : "Male"sv; }
+
+        const PresetManager::Preset* FindPresetQuiet(const PresetManager::PresetSet& a_presets,
+                                                     const std::string_view a_name) {
+            for (const auto& preset : a_presets) {
+                if (stl::cmp(preset.name, a_name)) {
+                    return &preset;
+                }
+            }
+            return nullptr;
+        }
+
+        // We check the armor's keyword EditorIDs and the default ones added by Skyrim (ArmorHeavy/Light/Clothing)
+        std::vector<std::string> GetArmorKeywordNames(const RE::TESObjectARMO& a_armor) {
+            std::vector<std::string> names;
+            const auto add = [&](const std::string_view a_name) {
+                if (a_name.empty() ||
+                    std::ranges::any_of(names, [&](const std::string& n) { return stl::cmp(n, a_name); })) {
+                    return;
+                }
+                names.emplace_back(a_name);
+            };
+
+            for (const auto* const keyword : a_armor.GetKeywords()) {
+                if (!keyword) continue;
+                if (const char* const editorID{keyword->GetFormEditorID()}) {
+                    add(editorID);
+                }
+            }
+
+            if (a_armor.IsHeavyArmor()) {
+                add("ArmorHeavy"sv);
+            } else if (a_armor.IsLightArmor()) {
+                add("ArmorLight"sv);
+            } else if (a_armor.IsClothing()) {
+                add("ArmorClothing"sv);
+            }
+            return names;
+        }
+
+        // The armors the actor wears in the body slots, always in slot order (body, chest primary, chest secondary),
+        // so the result doesn't depend on which event is being processed. While an equip event is being processed the
+        // inventory isn't updated yet, so: an armor being equipped takes the slots it covers, and an armor being
+        // removed is not counted
+        std::vector<const RE::TESObjectARMO*> GetWornBodyArmors(RE::Actor* a_actor,
+                                                                const RE::TESForm* a_changedArmor = nullptr,
+                                                                const bool a_removing = false) {
+            using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+            constexpr Slot slots[3] = {Slot::kBody, Slot::kModChestPrimary, Slot::kModChestSecondary};
+
+            const auto* const changed{a_changedArmor ? a_changedArmor->As<RE::TESObjectARMO>() : nullptr};
+
+            std::vector<const RE::TESObjectARMO*> armors;
+            for (const auto slot : slots) {
+                const RE::TESObjectARMO* armor{
+                    changed && !a_removing && changed->HasPartOf(slot) ? changed : a_actor->GetWornArmor(slot)};
+                if (a_removing && changed && armor == changed) continue;
+                if (armor && std::ranges::find(armors, armor) == armors.end()) {
+                    armors.push_back(armor);
+                }
+            }
+            return armors;
+        }
+
+        // First listed entry "<ActorPreset>-Refit<anything>" that matches
+        // These refit presets are applied differentialy
+        std::optional<PresetManager::Preset> FindDifferentialRefit(const PresetManager::PresetSet& a_allPresets,
+                                                                   const RefitLists& a_lists,
+                                                                   const std::string_view a_actorPresetName,
+                                                                   const bool a_female) {
+            for (const auto& list : a_lists) {
+                for (const auto& refitName : list) {
+                    if (!PresetManager::IsRefitPreset(refitName)) {
+                        logger::warn("Refit preset '{}' does not contain '-Refit' in its name, ignoring it", refitName);
+                        continue;
+                    }
+
+                    const auto baseName{PresetManager::GetRefitBaseName(refitName)};
+                    if (stl::cmp(baseName, SexRefitBaseName(a_female)) || !stl::cmp(baseName, a_actorPresetName)) {
+                        continue;
+                    }
+
+                    if (const auto* const preset{FindPresetQuiet(a_allPresets, refitName)}) {
+                        return *preset;
+                    }
+                    logger::warn("Refit preset '{}' was not found among the loaded presets", refitName);
+                }
+            }
+            return std::nullopt;
+        }
+
+        // First listed entry "Female-Refit<anything>" / "Male-Refit<anything>" that matches
+        // Remember that these are applied additively
+        std::optional<PresetManager::Preset> FindAdditiveRefitDefault(const PresetManager::PresetSet& a_allPresets,
+                                                                      const RefitLists& a_lists, const bool a_female) {
+            for (const auto& list : a_lists) {
+                for (const auto& refitName : list) {
+                    if (!PresetManager::IsRefitPreset(refitName) ||
+                        !stl::cmp(PresetManager::GetRefitBaseName(refitName), SexRefitBaseName(a_female))) {
+                        continue;
+                    }
+
+                    if (const auto* const preset{FindPresetQuiet(a_allPresets, refitName)}) {
+                        return *preset;
+                    }
+                    logger::warn("Refit preset '{}' was not found among the loaded presets", refitName);
+                }
+            }
+            return std::nullopt;
+        }
+    }  // namespace
+
     void JSONParser::ProcessRefitOutfitPresetsFormID() {
         auto* const data_handler{RE::TESDataHandler::GetSingleton()};
 
-        const auto load = [&](const char* configKey, std::unordered_map<std::uint32_t, std::string>& out) {
+        const auto load = [&](const char* configKey, RefitOutfitFormIDList& out) {
             out.clear();
 
             const auto configItr{presetDistributionConfig.FindMember(configKey)};
@@ -278,7 +405,8 @@ namespace Parser {
                 auto& entries{pluginItr->value};
                 for (auto entryItr{entries.MemberBegin()}; entryItr != entries.MemberEnd(); ++entryItr) {
                     const std::string_view formKey{entryItr->name.GetString(), entryItr->name.GetStringLength()};
-                    if (formKey.empty() || formKey.length() > 8 || !entryItr->value.IsString()) {
+                    std::vector<std::string> presetNames{ReadPresetNameList(entryItr->value)};
+                    if (formKey.empty() || formKey.length() > 8 || presetNames.empty()) {
                         logger::warn("{}: ignoring invalid entry '{}' under '{}'", configKey, formKey, plugin);
                         continue;
                     }
@@ -294,15 +422,22 @@ namespace Parser {
                     }
 
                     // Store the full-length runtime ID so the lookup at equip time is a plain integer compare.
-                    out[form->GetFormID()] = entryItr->value.GetString();
+                    // The order is the one of the JSON, and the first entry of an outfit is the one that is used
+                    const auto runtimeID{form->GetFormID()};
+                    if (std::ranges::any_of(out, [&](const auto& a_entry) { return a_entry.first == runtimeID; })) {
+                        logger::info("{} is written more than once in {}, only the first one is used", formKey,
+                                     configKey);
+                        continue;
+                    }
+                    out.emplace_back(runtimeID, std::move(presetNames));
                 }
                 ++pluginItr;
             }
             logger::info("Loaded {} outfit preset(s) from {}", out.size(), configKey);
         };
 
-        load("refitOutfitPresetsFemaleFormID", refitOutfitPresetFormIDMapFemale);
-        load("refitOutfitPresetsMaleFormID", refitOutfitPresetFormIDMapMale);
+        load("refitOutfitPresetsFemaleFormID", refitOutfitPresetFormIDListFemale);
+        load("refitOutfitPresetsMaleFormID", refitOutfitPresetFormIDListMale);
     }
 
     inline bool ValidateActor(const RE::Actor* const actor) {
@@ -534,9 +669,10 @@ namespace Parser {
 
         logger::info(TitleFormatSpecifier, "classFemale|classMale|blacklistedClassesFemale|blacklistedClassesMale");
         if (AnyNotEnd(end, classFemale, classMale, blacklistedClassesFemale, blacklistedClassesMale)) {
-            auto d = data_handler->GetFormArray<RE::TESClass>() | std::views::transform([&](const RE::TESClass* npcClass) {
-                        return stl::get_editorID(npcClass->As<RE::TESForm>());
-                    });
+            auto d =
+                data_handler->GetFormArray<RE::TESClass>() | std::views::transform([&](const RE::TESClass* npcClass) {
+                    return stl::get_editorID(npcClass->As<RE::TESForm>());
+                });
             const std::set d_set(d.begin(), d.end());
 
             logger::info(TitleFormatSpecifier, classFemale->name.GetString());
@@ -688,7 +824,8 @@ namespace Parser {
             return;
         }
 
-        const std::string_view value{distributionIterator->value.GetString(), distributionIterator->value.GetStringLength()};
+        const std::string_view value{distributionIterator->value.GetString(),
+                                     distributionIterator->value.GetStringLength()};
         if (value == "male") {
             distributionDisabledForMale = true;
         } else if (value == "female") {
@@ -754,7 +891,7 @@ namespace Parser {
     }
 
     bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
-                                                const bool female) {
+                                              const bool female) {
         const auto actorOwningMod{GetNthFormLocationName(a_actor, 0)};
 
         if (female) {
@@ -895,73 +1032,231 @@ namespace Parser {
         return std::nullopt;
     }
 
-    std::optional<PresetManager::Preset> JSONParser::GetRefitPresetFromEquippedItems(RE::Actor* a_actor, bool female) {
-        const auto& formIDPresets{female ? refitOutfitPresetFormIDMapFemale : refitOutfitPresetFormIDMapMale};
+    std::vector<const RE::TESObjectARMO*> JSONParser::GetRefitArmors(RE::Actor* a_actor,
+                                                                     const RE::TESForm* a_changedArmor,
+                                                                     const bool a_removingArmor) {
+        auto armors{GetWornBodyArmors(a_actor, a_changedArmor, a_removingArmor)};
 
-        const auto refitOutfitPresetsNode{
+        // Worn armors with ORefit forced on, in any slot
+        std::vector<const RE::TESObjectARMO*> forced;
+        const auto inventory{a_actor->GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); })};
+
+        for (const auto& [boundObject, countAndEntry] : inventory) {
+            const auto& entry{countAndEntry.second};
+            if (!entry || !entry->IsWorn()) continue;
+
+            const auto* const armor{boundObject->As<RE::TESObjectARMO>()};
+            if (!armor || std::ranges::find(armors, armor) != armors.end()) continue;
+
+            // The inventory isn't updated yet when an armor is being removed
+            if (a_removingArmor && a_changedArmor && armor->GetFormID() == a_changedArmor->GetFormID()) continue;
+
+            if (IsStringInJsonConfigKey(entry->GetDisplayName(), "outfitsForceRefit") ||
+                IsOutfitInForceRefitCategorySet(armor->GetFormID())) {
+                forced.push_back(armor);
+            }
+        }
+
+        // The inventory has no meaningful order, so sort them to always get the same result
+        std::ranges::sort(forced, {}, [](const RE::TESObjectARMO* a_armor) { return a_armor->GetFormID(); });
+        armors.insert(armors.end(), forced.begin(), forced.end());
+
+        return armors;
+    }
+
+    std::vector<std::vector<std::string>> JSONParser::CollectOutfitRefitLists(
+        const std::vector<const RE::TESObjectARMO*>& a_armors, const bool female) const {
+        std::vector<std::vector<std::string>> lists;
+
+        // Outfits are taken in the order they are written in the JSON, not in the order of their slots,
+        // because the slot doesn't tell which outfit is on top of the other
+        const auto& formIDPresets{female ? refitOutfitPresetFormIDListFemale : refitOutfitPresetFormIDListMale};
+        for (const auto& [formID, names] : formIDPresets) {
+            if (std::ranges::any_of(a_armors,
+                                    [&](const RE::TESObjectARMO* a_armor) { return a_armor->GetFormID() == formID; })) {
+                lists.push_back(names);
+            }
+        }
+
+        const auto nameNode{
             presetDistributionConfig.FindMember(female ? "refitOutfitPresetsFemale" : "refitOutfitPresetsMale")};
-        const bool hasNamePresets{refitOutfitPresetsNode != presetDistributionConfig.MemberEnd() &&
-                                  refitOutfitPresetsNode->value.IsObject() &&
-                                  refitOutfitPresetsNode->value.MemberCount() > 0};
+        if (nameNode != presetDistributionConfig.MemberEnd() && nameNode->value.IsObject()) {
+            for (auto itr{nameNode->value.MemberBegin()}; itr != nameNode->value.MemberEnd(); ++itr) {
+                const std::string_view outfitName{itr->name.GetString(), itr->name.GetStringLength()};
+                if (outfitName.empty() || !std::ranges::any_of(a_armors, [&](const RE::TESObjectARMO* a_armor) {
+                        const char* const name{a_armor->GetName()};
+                        return name && outfitName == name;
+                    })) {
+                    continue;
+                }
 
-        if (formIDPresets.empty() && !hasNamePresets) {
+                if (auto names{ReadPresetNameList(itr->value)}; !names.empty()) {
+                    lists.push_back(std::move(names));
+                }
+            }
+        }
+
+        return lists;
+    }
+
+    std::vector<std::string> JSONParser::CollectRefitKeywords(const std::vector<const RE::TESObjectARMO*>& a_armors,
+                                                              const bool female) const {
+        std::vector<std::string> wornKeywords;
+        for (const auto* const armor : a_armors) {
+            for (auto& name : GetArmorKeywordNames(*armor)) {
+                wornKeywords.push_back(std::move(name));
+            }
+        }
+
+        std::vector<std::string> keywords;
+        const auto add = [&](const std::string_view a_keyword) {
+            const auto matches = [&](const std::string& k) { return stl::cmp(k, a_keyword); };
+            if (a_keyword.empty() || !std::ranges::any_of(wornKeywords, matches) ||
+                std::ranges::any_of(keywords, matches)) {
+                return;
+            }
+            keywords.emplace_back(a_keyword);
+        };
+
+        // The user's keywords come first, in the order they are written in the JSON
+        // Keywords that come first have priority
+        const auto keywordNode{
+            presetDistributionConfig.FindMember(female ? "refitOutfitKeywordsFemale" : "refitOutfitKeywordsMale")};
+        if (keywordNode != presetDistributionConfig.MemberEnd() && keywordNode->value.IsArray()) {
+            for (const auto& item : keywordNode->value.GetArray()) {
+                if (item.IsString()) {
+                    add(std::string_view{item.GetString(), item.GetStringLength()});
+                }
+            }
+        }
+
+        // The vanilla armor types always come last, so they work without any JSON
+        // An armor only has one of them, so they can't conflict with each other
+        add("ArmorHeavy"sv);
+        add("ArmorLight"sv);
+        add("ArmorClothing"sv);
+
+        return keywords;
+    }
+
+    std::optional<PresetManager::Preset> JSONParser::GetRefitPresetFromEquippedItems(
+        RE::Actor* a_actor, const bool female, const std::string_view a_actorPresetName,
+        const RE::TESForm* a_changedArmor, const bool a_removingArmor) {
+        if (a_actorPresetName.empty()) {
+            return std::nullopt;
+        }
+
+        const auto armors{GetRefitArmors(a_actor, a_changedArmor, a_removingArmor)};
+        if (armors.empty()) {
             return std::nullopt;
         }
 
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
         const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
-        const RE::BGSBipedObjectForm::BipedObjectSlot slots[3] = {
-            RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModChestPrimary,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModChestSecondary
-        };
-
-        if (!formIDPresets.empty()) {
-            for (const RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
-                const auto* const outfit{a_actor->GetWornArmor(slot)};
-                if (!outfit) {
-                    continue;
-                }
-
-                const auto formIDItr{formIDPresets.find(outfit->GetFormID())};
-                if (formIDItr == formIDPresets.end()) {
-                    continue;
-                }
-
-                if (auto preset{PresetManager::GetPresetByNameForRandom(allPresets, formIDItr->second)}) {
-                    return preset;
-                }
-                logger::warn("Refit preset '{}' (by FormID) was not found among the loaded presets", formIDItr->second);
+        // Lists written for this specific outfit
+        if (const auto lists{CollectOutfitRefitLists(armors, female)}; !lists.empty()) {
+            if (auto preset{FindDifferentialRefit(allPresets, lists, a_actorPresetName, female)}) {
+                return preset;
             }
+
+            std::string candidates;
+            for (const auto& list : lists) {
+                for (const auto& name : list) {
+                    candidates += (candidates.empty() ? "'" : ", '") + name + "'";
+                }
+            }
+            logger::info(
+                "ORefit: the worn outfit has refit entries ({}), but none of them is a '-Refit' of the preset '{}'",
+                candidates, a_actorPresetName);
         }
 
-        if (hasNamePresets) {
-            const auto& refitOutfitPresetsObject{refitOutfitPresetsNode->value};
-
-            for (const RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
-                const auto* const outfit{a_actor->GetWornArmor(slot)};
-                if (!outfit) {
-                    continue;
-                }
-
-                const char* const outfitName{outfit->GetName()};
-                if (!outfitName || !*outfitName) {
-                    continue;
-                }
-
-                const auto nameItr{refitOutfitPresetsObject.FindMember(outfitName)};
-                if (nameItr == refitOutfitPresetsObject.MemberEnd() || !nameItr->value.IsString()) {
-                    continue;
-                }
-
-                if (auto preset{PresetManager::GetPresetByNameForRandom(allPresets, nameItr->value.GetString())}) {
-                    return preset;
+        // "<ActorPreset>-Refit <Keyword>"
+        if (!stl::cmp(a_actorPresetName, SexRefitBaseName(female))) {
+            for (const auto& keyword : CollectRefitKeywords(armors, female)) {
+                const std::string name{std::string{a_actorPresetName} + "-Refit " + keyword};
+                if (const auto* const preset{FindPresetQuiet(allPresets, name)}) {
+                    return *preset;
                 }
             }
         }
 
         return std::nullopt;
+    }
+
+    std::optional<PresetManager::Preset> JSONParser::GetRefitDefaultFromEquippedItems(RE::Actor* a_actor,
+                                                                                      const bool female,
+                                                                                      const RE::TESForm* a_changedArmor,
+                                                                                      const bool a_removingArmor) {
+        const auto armors{GetRefitArmors(a_actor, a_changedArmor, a_removingArmor)};
+
+        if (armors.empty()) {
+            return std::nullopt;
+        }
+
+        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+
+        // Defaults written in the lists of this specific outfit
+        if (auto preset{FindAdditiveRefitDefault(allPresets, CollectOutfitRefitLists(armors, female), female)}) {
+            return preset;
+        }
+
+        // "Female-Refit <Keyword>" / "Male-Refit <Keyword>"
+        const std::string prefix{std::string{SexRefitBaseName(female)} + "-Refit "};
+        for (const auto& keyword : CollectRefitKeywords(armors, female)) {
+            if (const auto* const preset{FindPresetQuiet(allPresets, prefix + keyword)}) {
+                return *preset;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    void JSONParser::ValidateRefitPresetNames() const {
+        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+
+        const auto check = [&](const std::string& a_where, const std::string& a_name, const bool female) {
+            const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+
+            if (!PresetManager::IsRefitPreset(a_name)) {
+                logger::warn("{}: '{}' has no '-Refit' in its name, so it is ignored", a_where, a_name);
+                return;
+            }
+
+            if (!FindPresetQuiet(allPresets, a_name)) {
+                logger::warn("{}: the refit preset '{}' was not found among the loaded presets", a_where, a_name);
+            }
+
+            // The text before "-Refit" has to be a loaded preset, or "Female"/"Male" for the additive defaults
+            const auto base{PresetManager::GetRefitBaseName(a_name)};
+            if (!base.empty() && !stl::cmp(base, SexRefitBaseName(female)) && !FindPresetQuiet(allPresets, base)) {
+                logger::warn(
+                    "{}: the base preset '{}' of '{}' was not found among the loaded presets, so this entry will "
+                    "never match an NPC",
+                    a_where, base, a_name);
+            }
+        };
+
+        for (const bool female : {true, false}) {
+            const char* const key{female ? "refitOutfitPresetsFemale" : "refitOutfitPresetsMale"};
+
+            const auto node{presetDistributionConfig.FindMember(key)};
+            if (node != presetDistributionConfig.MemberEnd() && node->value.IsObject()) {
+                for (auto itr{node->value.MemberBegin()}; itr != node->value.MemberEnd(); ++itr) {
+                    for (const auto& name : ReadPresetNameList(itr->value)) {
+                        check(std::format("{}['{}']", key, itr->name.GetString()), name, female);
+                    }
+                }
+            }
+
+            const auto& formIDPresets{female ? refitOutfitPresetFormIDListFemale : refitOutfitPresetFormIDListMale};
+            for (const auto& [formID, names] : formIDPresets) {
+                for (const auto& name : names) {
+                    check(std::format("{}FormID [{:08X}]", key, formID), name, female);
+                }
+            }
+        }
     }
 
 }  // namespace Parser

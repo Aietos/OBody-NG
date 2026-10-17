@@ -132,8 +132,9 @@ namespace PapyrusBody {
     }
 
     std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, Body::OBody::IsFemale(a_actor));
-        if(a_presetName) {
+        const auto a_presetName =
+            ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, Body::OBody::IsFemale(a_actor));
+        if (a_presetName) {
             return *a_presetName;
         }
 
@@ -236,9 +237,7 @@ namespace PapyrusBody {
         return true;
     }
 
-    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key) {
-        UI::PresetList::SetHotkeyScanCode(a_key);
-    }
+    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key) { UI::PresetList::SetHotkeyScanCode(a_key); }
 
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;

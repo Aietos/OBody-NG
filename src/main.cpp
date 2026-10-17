@@ -116,8 +116,8 @@ namespace {
                     return;
                 }
 
-                const auto morphInterface =
-                    static_cast<SKEE::IBodyMorphInterface*>(msg.interfaceMap->QueryInterface("BodyMorph")); // NOLINT(*-pro-type-static-cast-downcast)
+                const auto morphInterface = static_cast<SKEE::IBodyMorphInterface*>(
+                    msg.interfaceMap->QueryInterface("BodyMorph"));  // NOLINT(*-pro-type-static-cast-downcast)
                 if (!morphInterface) {
                     logger::critical("Couldn't get serialization MorphInterface!");
                     return;
@@ -138,6 +138,7 @@ namespace {
                 try {
                     PresetManager::GeneratePresets();
                     parser.bodyslidePresetsParsingValid = true;
+                    parser.ValidateRefitPresetNames();
                 } catch (const std::runtime_error& re) {
                     logger::info("{} ", re.what());
                     parser.bodyslidePresetsParsingValid = false;
@@ -312,7 +313,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
             logger::error("Schema Definition of Error: {}", sb.GetString());
         }
         SKSE::stl::report_and_fail(
-            "Please Check the Obody.log. Seems like there is an error when validating the config using the json schema");
+            "Please Check the Obody.log. Seems like there is an error when validating the config using the json "
+            "schema");
     }
     logger::info("Validated Data/SKSE/Plugins/OBody_presetDistributionConfig.json successfully");
 
@@ -325,9 +327,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
                 includeFiles.push_back(entry);
             }
         }
-        std::ranges::sort(includeFiles, {}, [](const fs::directory_entry& e) {
-            return e.path().filename().string();
-        });
+        std::ranges::sort(includeFiles, {}, [](const fs::directory_entry& e) { return e.path().filename().string(); });
 
         const auto total = includeFiles.size();
         for (size_t i = 0; i < total; ++i) {
@@ -336,8 +336,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
 
             stl::FilePtrManager includeFile(pathStr.c_str());
             if (includeFile.error() != 0) {
-                SKSE::stl::report_and_fail(
-                    std::format("Failed to open include file: {}", pathStr));
+                SKSE::stl::report_and_fail(std::format("Failed to open include file: {}", pathStr));
             }
 
             char includeBuf[65535];
@@ -348,13 +347,11 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
             if (includeDoc.ParseStream<0, rapidjson::AutoUTF<unsigned>>(includeEis).HasParseError()) {
                 logger::error("Include file parse error (offset {}): {}", includeDoc.GetErrorOffset(),
                               rapidjson::GetParseError_En(includeDoc.GetParseError()));
-                SKSE::stl::report_and_fail(
-                    std::format("Parse error in include file: {}", pathStr));
+                SKSE::stl::report_and_fail(std::format("Parse error in include file: {}", pathStr));
             }
 
             if (!includeDoc.IsObject()) {
-                SKSE::stl::report_and_fail(
-                    std::format("Include file is not a JSON object: {}", pathStr));
+                SKSE::stl::report_and_fail(std::format("Include file is not a JSON object: {}", pathStr));
             }
 
             auto& allocator = parser.presetDistributionConfig.GetAllocator();
@@ -362,8 +359,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
                 const std::string_view key{srcIt->name.GetString(), srcIt->name.GetStringLength()};
 
                 if (!srcIt->value.IsArray() && !srcIt->value.IsObject()) {
-                    logger::warn("Include file {}: ignoring unsupported key '{}' (only array/object keys can be set via includes)",
-                                pathStr, key);
+                    logger::warn(
+                        "Include file {}: ignoring unsupported key '{}' (only array/object keys can be set via "
+                        "includes)",
+                        pathStr, key);
                     continue;
                 }
 

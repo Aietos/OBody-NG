@@ -7,7 +7,8 @@
 
 namespace Body {
     inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorGenerated("OnActorGenerated"sv);
-    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration("OnActorPresetChangedWithoutGeneration"sv);
+    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration(
+        "OnActorPresetChangedWithoutGeneration"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorNaked("OnActorNaked"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorRemovingClothes("OnActorRemovingClothes"sv);
 
@@ -39,7 +40,8 @@ namespace Body {
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
-        void ApplyClothePreset(RE::Actor* a_actor) const;
+        bool ApplyClothePreset(RE::Actor* a_actor, bool a_onlyIfChanged = false, bool a_removingArmor = false,
+                               const RE::TESForm* a_changedArmor = nullptr) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
         void ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
                               ::OBody::API::IPluginInterface* responsibleInterface) const;
@@ -76,7 +78,7 @@ namespace Body {
         bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
 
         void AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
+                                 bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
 
         template <typename PrepareArguments, typename EventMethod>
         __forceinline void SendActorChangeEvent(RE::Actor* a_actor, PrepareArguments&& prepareArguments,

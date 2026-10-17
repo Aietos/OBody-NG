@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from typing import Dict, List, Annotated
+from typing import Dict, List, Annotated, Literal, Union
 
 type NonEmptyTrimmedString = Annotated[str, Field(pattern=r"^(?=\S)(?=.*\S$).*")]
 type NonEmptyString = Annotated[str, Field(pattern=r"^(?!\s*$).+")]
@@ -23,6 +23,8 @@ type NPCName = NonEmptyTrimmedString
 type OutfitName = NonEmptyTrimmedString
 
 type ClassName = NonEmptyTrimmedString
+
+type KeywordName = NonEmptyTrimmedString
 
 type npcFormID = Annotated[Dict[BSTFile, Dict[FormID, List[PresetName]]], Field(default={},
                                                                                 description="Here you can set which presets should be applied to specific NPCs by their FormID. The FormID is their unique identifier. Works with modded NPCs!")]
@@ -68,22 +70,31 @@ type outfitsForceRefit = Annotated[List[OutfitName], Field(default=[],
 type blacklistedPresetsShowInOBodyMenu = Annotated[
     bool, Field(default=True, description="Whether you want the blacklisted presets to show in the O menu or not.")]
 
-type refitOutfitPresetsFemale = Annotated[Dict[OutfitName, PresetName], Field(default={}, description="Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.")]
+type RefitPresetNameOrList = Union[PresetName, List[PresetName]]  # a single string is tolerated by the schema, but ignored by the parser
 
-type refitOutfitPresetsMale = Annotated[Dict[OutfitName, PresetName], Field(default={}, description="Here you can write outfit name and preset name pairs to enforce a specific ORefit preset for a specific outfits.")]
+type refitOutfitPresetsFemale = Annotated[Dict[OutfitName, RefitPresetNameOrList], Field(default={}, description="Outfit name -> array of \"-Refit\" presets. For each outfit, the refit whose base preset (the text before \"-Refit\") matches the actor's current preset is used. Example: \"Blades Armor\": [\"Warrior Preset-Refit Heavy Armors\", \"Citizen Preset-Refit Heavy Armors\"].")]
 
-type refitOutfitPresetsFemaleFormID = Annotated[Dict[BSTFile, Dict[FormID, PresetName]], Field(default={}, description="Same as refitOutfitPresetsFemale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsFemale.")]
+type refitOutfitPresetsMale = Annotated[Dict[OutfitName, RefitPresetNameOrList], Field(default={}, description="Same as refitOutfitPresetsFemale, but for male NPCs.")]
 
-type refitOutfitPresetsMaleFormID = Annotated[Dict[BSTFile, Dict[FormID, PresetName]], Field(default={}, description="Same as refitOutfitPresetsMale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsMale.")]
+type refitOutfitPresetsFemaleFormID = Annotated[Dict[BSTFile, Dict[FormID, RefitPresetNameOrList]], Field(default={}, description="Same as refitOutfitPresetsFemale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsFemale.")]
+
+type refitOutfitPresetsMaleFormID = Annotated[Dict[BSTFile, Dict[FormID, RefitPresetNameOrList]], Field(default={}, description="Same as refitOutfitPresetsMale, but you use the outfit's FormID instead of its name. This is unambiguous when several outfits share the same display name. Takes priority over refitOutfitPresetsMale.")]
+
+type refitOutfitKeywordsFemale = Annotated[List[KeywordName], Field(default=[], json_schema_extra={"uniqueItems": True}, description="Keyword EditorIDs (e.g. Topless, or a custom keyword distributed with SPID) for which to look up refit presets automatically on any worn outfit that has the keyword. The order matters: when an outfit has several of these keywords, the first one written here wins. For each keyword K, the preset \"<Actor's Preset>-Refit K\" is a differential refit for that actor preset, and \"Female-Refit K\" is an additive refit that works for any preset. ArmorHeavy, ArmorLight and ArmorClothing are always checked after the keywords written here, so they do not need to be listed (write them here only to give them a higher priority than your own keywords). Outfit-specific keys (refitOutfitPresets*) have priority over this one.")]
+
+type refitOutfitKeywordsMale = Annotated[List[KeywordName], Field(default=[], json_schema_extra={"uniqueItems": True}, description="Same as refitOutfitKeywordsFemale, but for males (\"Male-Refit K\" is the additive refit).")]
 
 type classFemale = Annotated[Dict[ClassName, List[PresetName]], Field(default={},
-                                                                       description="Here you can define which presets should be applied to females of a certain NPC class (matched by EditorID). ONLY put female body presets here!")]
+                                                                       description="Here you can define which presets should be applied to females of certain classes. Works with custom classes too! ONLY put female body presets here!")]
 type classMale = Annotated[
-    Dict[ClassName, List[PresetName]], Field(default={}, description="Same as classFemale, but for males. ONLY put male body presets here (if you don't have any, leave it empty)!")]
+    Dict[ClassName, List[PresetName]], Field(default={}, description="Same as above, but for males. ONLY put male body presets here (if you don't have any, leave it empty)!")]
 type blacklistedClassesFemale = Annotated[List[ClassName], Field(default=[],
-                                                                  description="Here you can blacklist females of entire NPC classes (matched by EditorID) instead of individual NPCs.")]
+                                                                  description="Here you can blacklist females of entire classes instead of individual NPCs.")]
 type blacklistedClassesMale = Annotated[
     List[ClassName], Field(default=[], description="Same as blacklistedClassesFemale, but for male NPCs.")]
+
+type disablePresetDistribution = Annotated[Literal["none", "male", "female", "all"], Field(default="none",
+                                                                                          description="Globally disable preset distribution for a gender, or all genders. Valid values: \"none\", \"male\", \"female\", \"all\".")]
 
 
 class OBodyConfigModel(BaseModel):
@@ -103,10 +114,10 @@ class OBodyConfigModel(BaseModel):
     blacklistedNpcsFormID: blacklistedNpcsFormID
     blacklistedNpcsPluginFemale: blacklistedNpcsPluginFemale
     blacklistedNpcsPluginMale: blacklistedNpcsPluginMale
-    blacklistedRacesFemale: blacklistedRacesFemale
-    blacklistedRacesMale: blacklistedRacesMale
     blacklistedClassesFemale: blacklistedClassesFemale
     blacklistedClassesMale: blacklistedClassesMale
+    blacklistedRacesFemale: blacklistedRacesFemale
+    blacklistedRacesMale: blacklistedRacesMale
     blacklistedOutfitsFromORefitFormID: blacklistedOutfitsFromORefitFormID
     blacklistedOutfitsFromORefit: blacklistedOutfitsFromORefit
     blacklistedOutfitsFromORefitPlugin: blacklistedOutfitsFromORefitPlugin
@@ -118,13 +129,16 @@ class OBodyConfigModel(BaseModel):
     refitOutfitPresetsMale: refitOutfitPresetsMale
     refitOutfitPresetsFemaleFormID: refitOutfitPresetsFemaleFormID
     refitOutfitPresetsMaleFormID: refitOutfitPresetsMaleFormID
+    refitOutfitKeywordsFemale: refitOutfitKeywordsFemale
+    refitOutfitKeywordsMale: refitOutfitKeywordsMale
+    disablePresetDistribution: disablePresetDistribution
 
 
 def main(using_rapidjson: bool):
     # src: https://www.nexusmods.com/skyrimspecialedition/articles/4756
     test_examples: list[str] = [
         """{"npcFormID":{"Skyrim.esm":{"00013BA3":["Bardmaid"],"00013BA2":["Wench Preset","IA - Demonic","Tasty Temptress - BHUNP Preset (Nude)"]},"Immersive Wenches.esp":{"0403197F":["Petite Mommy"],"0400C3C0":["s4rMs' - Gaia"]}},"npc":{"Mjoll the Lioness":["Hardass Warrior"],"Haelga":["Petite Mommy","IA - Demonic","s4rMs' - Gaia"],"Temba Wide-Arm":["Tasty Temptress - BHUNP Preset (Nude)"]},"factionFemale":{"SolitudeBardsCollegeFaction":["Hardass Warrior","Fantasy Figure - Nude","Royal Battle Maiden - BHUNP"],"TownSolitudeFaction":["QC-The Everywoman"],"CollegeofWinterholdFaction":["Tasty Temptress - BHUNP Preset (Nude)"]},"factionMale":{"CompanionsCircle":["HIMBO Muscled"],"TownWhiterunFaction":["HIMBO Simple"]},"npcPluginFemale":{"Bijin_AIO_Merged.esp":["Hardass warrior","SilverR1baka"],"Skyrim.esm":["Nordic Oppai - BHUNP - Nude"]},"npcPluginMale":{"Dawnguard.esm":["HIMBO Simple"]},"raceFemale":{"NordRace":["QC-The Everywoman","D*sney Mommy NG","Fantasy Figure - Nude"],"OrcRace":["Hardass warrior"],"WoodElfRace":["-Zeroed Sliders-"]},"raceMale":{"NordRace":["HIMBO Simple"],"BretonRace":["HIMBO Simple"]},"blacklistedNpcs":["Saffir","Vilja","Lydia"],"blacklistedNpcsFormID":{"Skyrim.esm":["00013BB8","00013BBD"],"CS_Vayne.esp":["0400083D","0402CC59"]},"blacklistedNpcsPluginFemale":["CS_Coralyn.esp","3DNPC.esp","Hearthfires.esm"],"blacklistedNpcsPluginMale":["Immersive Wenches.esp","018Auri.esp"],"blacklistedRacesFemale":["ElderRace","ArgonianRace"],"blacklistedRacesMale":["ElderRace","DarkElfRace"],"blacklistedOutfitsFromORefitFormID":{"[full_inu] Queen Marika's Dress.esp":["FE000817"]},"blacklistedOutfitsFromORefit":["Demon Hunter's Clothes Light","White Sexy Top Ouvert","Wrap Around Dress (Slutty) - 14"],"blacklistedOutfitsFromORefitPlugin":["[COCO] Mysterious Mage.esp"],"outfitsForceRefitFormID":{"[full_inu] Queen Marika's Dress.esp":["FE000803"]},"outfitsForceRefit":["Demon Hunter's Lingerie Light","Demon Hunter's Lingerie Heavy"],"blacklistedPresetsFromRandomDistribution":["- Zeroed Sliders -","-Zeroed Sliders-","Zeroed Sliders","s4mRs'' - Juno","Royal Battlemaiden - BHUNP"],"blacklistedPresetsShowInOBodyMenu":true}""",
-        """{"npcFormID":{},"npc":{},"factionFemale":{},"factionMale":{},"npcPluginFemale":{},"npcPluginMale":{},"raceFemale":{},"raceMale":{},"blacklistedNpcs":[],"blacklistedNpcsFormID":{},"blacklistedNpcsPluginFemale":[],"blacklistedNpcsPluginMale":[],"blacklistedRacesFemale":["ElderRace"],"blacklistedRacesMale":["ElderRace"],"blacklistedOutfitsFromORefitFormID":{},"blacklistedOutfitsFromORefit":["LS Force Naked","OBody Nude 32"],"blacklistedOutfitsFromORefitPlugin":[],"outfitsForceRefitFormID":{},"outfitsForceRefit":[],"blacklistedPresetsFromRandomDistribution":["- Zeroed Sliders -","-Zeroed Sliders-","Zeroed Sliders","HIMBO Zero for OBody"],"blacklistedPresetsShowInOBodyMenu":true,"refitOutfitPresetsFemale":{},"refitOutfitPresetsFemale":{}}""",
+        """{"npcFormID":{},"npc":{},"factionFemale":{},"factionMale":{},"npcPluginFemale":{},"npcPluginMale":{},"raceFemale":{},"raceMale":{},"blacklistedNpcs":[],"blacklistedNpcsFormID":{},"blacklistedNpcsPluginFemale":[],"blacklistedNpcsPluginMale":[],"blacklistedRacesFemale":["ElderRace"],"blacklistedRacesMale":["ElderRace"],"blacklistedOutfitsFromORefitFormID":{},"blacklistedOutfitsFromORefit":["LS Force Naked","OBody Nude 32"],"blacklistedOutfitsFromORefitPlugin":[],"outfitsForceRefitFormID":{},"outfitsForceRefit":[],"blacklistedPresetsFromRandomDistribution":["- Zeroed Sliders -","-Zeroed Sliders-","Zeroed Sliders","HIMBO Zero for OBody"],"blacklistedPresetsShowInOBodyMenu":true,"refitOutfitPresetsFemale":{},"refitOutfitPresetsMale":{},"refitOutfitPresetsFemaleFormID":{},"refitOutfitPresetsMaleFormID":{},"refitOutfitKeywordsFemale":["Topless","ArmorLight"],"refitOutfitKeywordsMale":[],"disablePresetDistribution":"none"}""",
     ]
     base_dir = Path(__file__).parent.parent.resolve()
     try:

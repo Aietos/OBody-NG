@@ -28,6 +28,30 @@ namespace {
         return ImGuiMCP::Button(label);
     }
 
+    constexpr auto kNumKeyboardKeys{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumKeyboardKeys)};
+    constexpr auto kNumMouseButtons{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumMouseButtons)};
+    constexpr auto kMouseButtonOffset{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_MouseButtonOffset)};
+    constexpr auto kInvalidKeyCode{static_cast<std::uint32_t>(SKSE::InputMap::kMaxMacros)};
+
+    std::uint32_t ToMacroKeyCode(const RE::ButtonEvent& a_button) {
+        const auto id = a_button.GetIDCode();
+        switch (a_button.GetDevice()) {
+            case RE::INPUT_DEVICE::kKeyboard:
+                return id < kNumKeyboardKeys ? id : kInvalidKeyCode;
+            case RE::INPUT_DEVICE::kMouse:
+                return id < kNumMouseButtons ? kMouseButtonOffset + id : kInvalidKeyCode;
+            case RE::INPUT_DEVICE::kGamepad:
+                return SKSE::InputMap::GamepadMaskToKeycode(id);
+            default:
+                return kInvalidKeyCode;
+        }
+    }
+
+    bool IsGameTextEntryActive() {
+        const auto* controlMap = RE::ControlMap::GetSingleton();
+        return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
+    }
+
     bool __stdcall OnHotkeyInput(RE::InputEvent* a_event) {
         const auto scanCode = g_hotkeyScanCode.load();
 
@@ -36,11 +60,12 @@ namespace {
         }
 
         if (auto* button = a_event->AsButtonEvent()) {
-            if (button->GetDevice() == RE::INPUT_DEVICE::kKeyboard &&
-                button->IsDown() &&
-                button->GetIDCode() == scanCode) {
-
+            if (button->IsDown() && ToMacroKeyCode(*button) == scanCode) {
                 if (!UI::PresetList::Window) {
+                    return false;
+                }
+
+                if (IsGameTextEntryActive()) {
                     return false;
                 }
 
@@ -117,9 +142,9 @@ namespace {
 
     // Locale-aware, case-insensitive comparison so that accented letters sort next to their base letter
     int CompareLinguistic(const std::wstring& a, const std::wstring& b) {
-        const int result = CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS, a.data(),
-                                           static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()), nullptr,
-                                           nullptr, 0);
+        const int result =
+            CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS, a.data(),
+                            static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()), nullptr, nullptr, 0);
         if (result == 0) {
             return a.compare(b);  // fallback in case the API fails, realistically it shouldn't happen
         }
@@ -174,12 +199,12 @@ namespace {
     }
 
     namespace JsonView {
-        const ImGuiMCP::ImVec4 kKey    {0.60f, 0.80f, 1.00f, 1.0f};
-        const ImGuiMCP::ImVec4 kString {0.90f, 0.68f, 0.45f, 1.0f};
-        const ImGuiMCP::ImVec4 kNumber {0.70f, 0.90f, 0.60f, 1.0f};
+        const ImGuiMCP::ImVec4 kKey{0.60f, 0.80f, 1.00f, 1.0f};
+        const ImGuiMCP::ImVec4 kString{0.90f, 0.68f, 0.45f, 1.0f};
+        const ImGuiMCP::ImVec4 kNumber{0.70f, 0.90f, 0.60f, 1.0f};
         const ImGuiMCP::ImVec4 kKeyword{0.78f, 0.60f, 0.95f, 1.0f};  // true / false / null
-        const ImGuiMCP::ImVec4 kPunct  {0.62f, 0.62f, 0.66f, 1.0f};
-        const ImGuiMCP::ImVec4 kDim    {0.45f, 0.45f, 0.48f, 1.0f};
+        const ImGuiMCP::ImVec4 kPunct{0.62f, 0.62f, 0.66f, 1.0f};
+        const ImGuiMCP::ImVec4 kDim{0.45f, 0.45f, 0.48f, 1.0f};
 
         // 0 = nothing, 1 = expand all, -1 = collapse all
         int g_forceOpen = 0;
@@ -206,12 +231,18 @@ namespace {
         }
 
         void Scalar(const rapidjson::Value& v) {
-            if (v.IsString())      Seg(std::format("\"{}\"", v.GetString()), kString);
-            else if (v.IsBool())   Seg(v.GetBool() ? "true" : "false", kKeyword);
-            else if (v.IsNull())   Seg("null", kKeyword);
-            else if (v.IsInt64())  Seg(std::to_string(v.GetInt64()), kNumber);
-            else if (v.IsUint64()) Seg(std::to_string(v.GetUint64()), kNumber);
-            else                   Seg(std::format("{}", v.GetDouble()), kNumber);
+            if (v.IsString())
+                Seg(std::format("\"{}\"", v.GetString()), kString);
+            else if (v.IsBool())
+                Seg(v.GetBool() ? "true" : "false", kKeyword);
+            else if (v.IsNull())
+                Seg("null", kKeyword);
+            else if (v.IsInt64())
+                Seg(std::to_string(v.GetInt64()), kNumber);
+            else if (v.IsUint64())
+                Seg(std::to_string(v.GetUint64()), kNumber);
+            else
+                Seg(std::format("{}", v.GetDouble()), kNumber);
         }
 
         void Node(const char* key, const rapidjson::Value& v, bool comma);
@@ -239,14 +270,17 @@ namespace {
             if ((!isObj && !isArr) || (isObj && v.MemberCount() == 0) || (isArr && v.Empty())) {
                 BeginLeafLine("##leaf");
                 KeyPrefix(key);
-                if (isObj)      Seg("{}", kPunct);
-                else if (isArr) Seg("[]", kPunct);
-                else            Scalar(v);
+                if (isObj)
+                    Seg("{}", kPunct);
+                else if (isArr)
+                    Seg("[]", kPunct);
+                else
+                    Scalar(v);
                 Comma(comma);
                 return;
             }
 
-            const char* open  = isObj ? "{" : "[";
+            const char* open = isObj ? "{" : "[";
             const char* close = isObj ? "}" : "]";
 
             if (g_forceOpen != 0)
@@ -276,7 +310,7 @@ namespace {
         }
 
         void Render(const rapidjson::Value& root) {
-            if (ImGuiMCP::Button(UI::Translations::Get("obody_expand_all").c_str()))   g_forceOpen = 1;
+            if (ImGuiMCP::Button(UI::Translations::Get("obody_expand_all").c_str())) g_forceOpen = 1;
             ImGuiMCP::SameLine();
             if (ImGuiMCP::Button(UI::Translations::Get("obody_collapse_all").c_str())) g_forceOpen = -1;
             ImGuiMCP::SameLine();
@@ -316,8 +350,8 @@ namespace {
 
             g_forceOpen = 0;
         }
-    }
-}
+    }  // namespace JsonView
+}  // namespace
 
 void UI::PresetList::SetHotkeyScanCode(std::uint32_t scanCode) {
     // 0x01 is Esc, we treat that as unbinding/disabling the hotkey
@@ -346,8 +380,8 @@ void __stdcall UI::PresetList::Render() {
     auto* viewport = ImGuiMCP::GetMainViewport();
     const auto center = ImGuiMCP::ImGuiViewportManager::GetCenter(viewport);
     ImGuiMCP::SetNextWindowPos(center, ImGuiMCP::ImGuiCond_FirstUseEver, ImGuiMCP::ImVec2{0.5f, 0.5f});
-    ImGuiMCP::SetNextWindowSize(
-        ImGuiMCP::ImVec2{viewport->Size.x * 0.35f, viewport->Size.y * 0.5f}, ImGuiMCP::ImGuiCond_FirstUseEver);
+    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.35f, viewport->Size.y * 0.5f},
+                                ImGuiMCP::ImGuiCond_FirstUseEver);
 
     if (!ImGuiMCP::Begin("OBody##OBodyPresetWindow", &isOpen)) {
         ImGuiMCP::End();
@@ -375,9 +409,9 @@ void __stdcall UI::PresetList::Render() {
 
     if (ImGuiMCP::BeginTabBar("##OBodyTabs")) {
         // Always open Presets tab by default
-        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_presets_tab").c_str(), nullptr,
-                                   justOpened ? ImGuiMCP::ImGuiTabItemFlags_SetSelected
-                                              : ImGuiMCP::ImGuiTabItemFlags_None)) {
+        if (ImGuiMCP::BeginTabItem(
+                UI::Translations::Get("obody_presets_tab").c_str(), nullptr,
+                justOpened ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
             actor = Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get();
 
             if (actor == nullptr || !actor->HasKeywordString("ActorTypeNPC") || actor->IsChild()) {
@@ -386,10 +420,11 @@ void __stdcall UI::PresetList::Render() {
 
             const auto& obody{Body::OBody::GetInstance()};
 
-            auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(actor, Body::OBody::IsFemale(actor));
+            auto a_presetName =
+                ActorTracker::Registry::GetInstance().GetPresetNameForActor(actor, Body::OBody::IsFemale(actor));
 
             const std::string presetLine = UI::Translations::Get("obody_current_preset") + ": " +
-                                        a_presetName.value_or(UI::Translations::Get("obody_none"));
+                                           a_presetName.value_or(UI::Translations::Get("obody_none"));
 
             CenteredText(actor->GetDisplayFullName(), 1.4f);
             ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ImGuiMCP::ImVec4{0.7f, 0.7f, 0.75f, 1.0f});
@@ -426,7 +461,8 @@ void __stdcall UI::PresetList::Render() {
             const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
             const auto& presetDistributionConfig{Parser::JSONParser::GetInstance().presetDistributionConfig};
-            const auto showBlacklistedPresetsItr{presetDistributionConfig.FindMember("blacklistedPresetsShowInOBodyMenu")};
+            const auto showBlacklistedPresetsItr{
+                presetDistributionConfig.FindMember("blacklistedPresetsShowInOBodyMenu")};
             const auto end{presetDistributionConfig.MemberEnd()};
 
             bool showBlacklistedPresets{false};
@@ -434,7 +470,8 @@ void __stdcall UI::PresetList::Render() {
                 showBlacklistedPresets = showBlacklistedPresetsItr->value.GetBool();
             } else {
                 logger::info(
-                    "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted presets "
+                    "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted "
+                    "presets "
                     "in OBody menu.");
             }
 
@@ -442,9 +479,10 @@ void __stdcall UI::PresetList::Render() {
             auto& menuCache = g_presetMenuCache[(isFemale ? 2 : 0) + (showBlacklistedPresets ? 1 : 0)];
 
             if (!menuCache.valid) {
-                const auto& basePresets = isFemale
-                                              ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
-                                              : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets);
+                const auto& basePresets =
+                    isFemale
+                        ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
+                        : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets);
                 menuCache.entries = BuildSortedPresetEntries(basePresets);
                 menuCache.valid = true;
             }

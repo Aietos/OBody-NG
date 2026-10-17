@@ -34,16 +34,16 @@ stl::FilePtrManager::FilePtrManager(FilePtrManager&& other) noexcept : fp(other.
 }
 
 stl::FilePtrManager& stl::FilePtrManager::operator=(FilePtrManager&& other) noexcept {
-    if(this != &other) {
-        if(fp) {
-            if(fclose(fp) == EOF) {
+    if (this != &other) {
+        if (fp) {
+            if (fclose(fp) == EOF) {
                 SPDLOG_ERROR("Failed to close file pointer in move constructor: {}", strerror(errno));
                 // ReSharper restore CppDeprecatedEntity
             }
         }
-        fp        = other.fp;
-        err       = other.err;
-        other.fp  = nullptr;
+        fp = other.fp;
+        err = other.err;
+        other.fp = nullptr;
         other.err = 0;
     }
     return *this;
@@ -78,12 +78,12 @@ void stl::MergeJsonDocument(rapidjson::Value& target, rapidjson::Value& source,
 }
 
 void stl::MergeJsonArray(rapidjson::Value& target, rapidjson::Value& source,
-                          rapidjson::Document::AllocatorType& allocator) {
+                         rapidjson::Document::AllocatorType& allocator) {
     if (!source.IsArray() || !target.IsArray()) return;
 
     for (auto& item : source.GetArray()) {
-        const bool alreadyPresent = std::any_of(
-            target.Begin(), target.End(), [&item](const rapidjson::Value& existing) { return existing == item; });
+        const bool alreadyPresent = std::any_of(target.Begin(), target.End(),
+                                                [&item](const rapidjson::Value& existing) { return existing == item; });
         if (!alreadyPresent) {
             rapidjson::Value val;
             val.CopyFrom(item, allocator);

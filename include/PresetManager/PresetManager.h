@@ -134,10 +134,19 @@ namespace PresetManager {
 
     Preset GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female);
     Preset GetRandomPreset(const PresetSet& a_presetSet);
-    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
-                                 bool female);
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet,
+                                                std::vector<std::string_view> a_presetNames, bool female);
 
     std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, std::string_view a_name);
+
+    // "-Refit" naming convention: "<Base Preset Name>-Refit<anything>", e.g. "Warrior Preset-Refit Heavy Armors"
+    bool IsRefitPreset(std::string_view a_name);
+
+    std::string_view GetRefitBaseName(std::string_view a_refitName);
+
+    // Builds the differential (refit - base) used while an actor is wearing clothes
+    // Sliders that are identical, or that the refit preset does not mention don't change
+    SliderSet MakeRefitDifferential(const SliderSet& a_base, const SliderSet& a_refit);
 
     void GeneratePresets();
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node);

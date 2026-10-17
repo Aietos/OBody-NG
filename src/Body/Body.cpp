@@ -3,11 +3,18 @@
 #include "JSONParser/JSONParser.h"
 #include "STL.h"
 
+#include <boost/unordered/concurrent_flat_map.hpp>
+
 using namespace PresetManager;
 
 Body::OBody Body::OBody::instance_;
 
 namespace Body {
+    namespace {
+        // Which refit is currently applied to each actor, so that equipping something doesn't redo the same refit
+        boost::concurrent_flat_map<RE::FormID, std::string> g_appliedRefit;
+    }  // namespace
+
     OBody& OBody::GetInstance() { return instance_; }
 
     bool OBody::SetMorphInterface(SKEE::IBodyMorphInterface* a_morphInterface) {
@@ -119,10 +126,12 @@ namespace Body {
             RemoveClothePreset(a_actor);
             ApplyMorphs(a_actor, true);
             orefitIsApplied = false;
-        } else if (!clotheActive && !naked && setRefit) {
-            logger::info("Applying clothed preset to actor {}", a_actor->GetName());
-            ApplyClothePreset(a_actor);
-            ApplyMorphs(a_actor, true);
+        } else if (!naked && setRefit) {
+            // The refit is picked again for what they wear right now, because swapping outfits can change it
+            if (ApplyClothePreset(a_actor, true, a_removingArmor, a_equippedArmor)) {
+                logger::info("Applied clothed preset to actor {}", a_actor->GetName());
+                ApplyMorphs(a_actor, true);
+            }
             orefitIsApplied = true;
         }
     notifyNativeEventListeners:
@@ -229,7 +238,8 @@ namespace Body {
 
         if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
-            auto actorClass{actorBase->npcClass ? stl::get_editorID(actorBase->npcClass->As<RE::TESForm>()) : std::string{}};
+            auto actorClass{actorBase->npcClass ? stl::get_editorID(actorBase->npcClass->As<RE::TESForm>())
+                                                : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
             if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), actorClass.c_str(), female)) {
@@ -297,7 +307,6 @@ namespace Body {
 
         registry.stateForActor.emplace_or_visit(formID, fallbackActorState,
                                                 [&](auto& entry) { entry.second.presetIndex = actorPresetIndex; });
-
 
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
@@ -374,43 +383,88 @@ namespace Body {
         for (const auto& slider : a_sliders | std::views::values) ApplySlider(a_actor, slider, a_key, weight);
     }
 
-    void OBody::ApplyClothePreset(RE::Actor* a_actor) const {
+    bool OBody::ApplyClothePreset(RE::Actor* a_actor, const bool a_onlyIfChanged, const bool a_removingArmor,
+                                  const RE::TESForm* a_changedArmor) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
-        bool isFemale = IsFemale(a_actor);
-
-        std::optional<Preset> a_preset = std::nullopt;
+        const bool isFemale = IsFemale(a_actor);
+        const auto& allPresets{isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
         auto& jsonParser{Parser::JSONParser::GetInstance()};
-        a_preset = jsonParser.GetRefitPresetFromEquippedItems(a_actor, isFemale);
 
-        if (a_preset) {
-            ApplySliderSet(a_actor, a_preset->sliders, "OClothe");
-            return;
-        }
+        // Pick the refit first, without touching the actor
+        std::optional<Preset> refitPreset;
+        const auto actorPreset{ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)};
+        bool differential{false};
 
-        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, isFemale);
-        if (a_presetName) {
-            const std::string refitPresetName = *a_presetName + "-Refit";
-            a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, refitPresetName);
-        }
-        
-        if (!a_preset) {
-            if (isFemale) {
-                a_preset = GetPresetByNameForRandom(presetContainer.allFemalePresets, "Female-Refit");
+        // "<Preset>-Refit<anything>" presets are full copies of a base preset
+        // with some sliders adjusted. What gets applied while clothed is the difference between those sliders
+        if (actorPreset) {
+            // Outfit / keyword specific refit (refitOutfitPresets*, refitOutfitKeywords*)
+            // picked by matching the actor's current preset
+            refitPreset = jsonParser.GetRefitPresetFromEquippedItems(a_actor, isFemale, actorPreset->name,
+                                                                     a_changedArmor, a_removingArmor);
+
+            // Otherwise the plain "<Preset>-Refit"
+            if (!refitPreset) {
+                const std::string perPresetName{actorPreset->name + "-Refit"};
+                // "Female-Refit"/"Male-Refit" are additive defaults
+                if (!stl::cmp(perPresetName, isFemale ? "Female-Refit"sv : "Male-Refit"sv)) {
+                    refitPreset = GetPresetByNameForRandom(allPresets, perPresetName);
+                }
             }
-            else {
-                a_preset = GetPresetByNameForRandom(presetContainer.allMalePresets, "Male-Refit");
+
+            differential = refitPreset.has_value();
+        }
+
+        // "Female-Refit <Keyword>" / "Male-Refit <Keyword>"
+        // or whatever the user listed in the JSON. Applied additively, so it works for any preset
+        if (!refitPreset) {
+            refitPreset =
+                jsonParser.GetRefitDefaultFromEquippedItems(a_actor, isFemale, a_changedArmor, a_removingArmor);
+        }
+
+        // Universal additive default: Female-Refit / Male-Refit
+        // Applied additively, so it works for any preset
+        if (!refitPreset) {
+            refitPreset = GetPresetByNameForRandom(allPresets, isFemale ? "Female-Refit"sv : "Male-Refit"sv);
+        }
+
+        // What was picked. If nothing was configured by the user, it's the hardcoded ORefit values
+        std::string identity{"hardcoded"};
+        if (refitPreset) {
+            identity = differential ? "differential|" + refitPreset->name + "|" + actorPreset->name
+                                    : "additive|" + refitPreset->name;
+        }
+
+        if (a_onlyIfChanged && IsClotheActive(a_actor)) {
+            bool unchanged{false};
+            g_appliedRefit.cvisit(a_actor->GetFormID(),
+                                  [&](const auto& a_entry) { unchanged = a_entry.second == identity; });
+            if (unchanged) {
+                return false;
             }
         }
 
-        if (a_preset) {
-            ApplySliderSet(a_actor, a_preset->sliders, "OClothe");
-        }
-        else {
+        // Clear the previous refit before applying the new one
+        RemoveClothePreset(a_actor);
+
+        if (!refitPreset) {
+            logger::info("No -Refit preset found for actor {} (preset '{}'), using the default ORefit values",
+                         a_actor->GetName(), actorPreset ? actorPreset->name : "none");
             auto set{GenerateClotheSliders(a_actor)};
             ApplySliderSet(a_actor, set, "OClothe");
+        } else if (differential) {
+            logger::info("Applying differential refit '{}' on top of '{}'", refitPreset->name, actorPreset->name);
+            auto differentialSet{MakeRefitDifferential(actorPreset->sliders, refitPreset->sliders)};
+            ApplySliderSet(a_actor, differentialSet, "OClothe");
+        } else {
+            logger::info("Applying additive refit '{}'", refitPreset->name);
+            ApplySliderSet(a_actor, refitPreset->sliders, "OClothe");
         }
+
+        g_appliedRefit.insert_or_assign(a_actor->GetFormID(), identity);
+        return true;
     }
 
     void OBody::ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
@@ -434,7 +488,8 @@ namespace Body {
     }
 
     void OBody::ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
-        std::optional<PresetManager::Preset> preset = ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
+        std::optional<PresetManager::Preset> preset =
+            ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
 
         if (preset) {
             GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
@@ -447,7 +502,11 @@ namespace Body {
 
     void OBody::ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
                                        ::OBody::API::IPluginInterface* responsibleInterface) const {
-        applied ? ApplyClothePreset(a_actor) : RemoveClothePreset(a_actor);
+        if (applied) {
+            ApplyClothePreset(a_actor);
+        } else {
+            RemoveClothePreset(a_actor);
+        }
         ApplyMorphs(a_actor, true);
 
         SendActorChangeEvent(
@@ -469,7 +528,10 @@ namespace Body {
             });
     }
 
-    void OBody::RemoveClothePreset(RE::Actor* a_actor) const { morphInterface->ClearBodyMorphKeys(a_actor, "OClothe"); }
+    void OBody::RemoveClothePreset(RE::Actor* a_actor) const {
+        morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
+        g_appliedRefit.erase(a_actor->GetFormID());
+    }
 
     float OBody::GetWeight(RE::Actor* a_actor) { return a_actor->GetActorBase()->GetWeight() / 100.0F; }
 
@@ -495,9 +557,18 @@ namespace Body {
         }
 
         // if outfit is blacklisted from ORefit, we assume as not having the outfit so ORefit is not applied
-        const bool hasBodyOutfit = !outfitBody ? false : !jsonParser.IsOutfitBlacklisted(*outfitBody);
-        const bool hasOutergarment = !outergarmentChest ? false : !jsonParser.IsOutfitBlacklisted(*outergarmentChest);
-        const bool hasUndergarment = !undergarmentChest ? false : !jsonParser.IsOutfitBlacklisted(*undergarmentChest);
+        const auto countsAsClothing = [&](const RE::TESObjectARMO* a_armor) {
+            if (!a_armor) return false;
+            if (jsonParser.IsOutfitBlacklisted(*a_armor)) {
+                logger::info("ORefit: '{}' ({:08X}) is blacklisted from ORefit, so it doesn't count as clothing",
+                             a_armor->GetName(), a_armor->GetFormID());
+                return false;
+            }
+            return true;
+        };
+        const bool hasBodyOutfit = countsAsClothing(outfitBody);
+        const bool hasOutergarment = countsAsClothing(outergarmentChest);
+        const bool hasUndergarment = countsAsClothing(undergarmentChest);
 
         // Actor counts as naked if:
         // he has no clothing in the slots defined above / they are blacklisted from ORefit
@@ -828,7 +899,7 @@ namespace Body {
     }
 
     void OBody::AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
+                                    bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
         auto& registry{ActorTracker::Registry::GetInstance()};
         auto formID = a_actor->formID;
 
@@ -841,8 +912,7 @@ namespace Body {
             });
 
             if (!a_doNotApplyMorphs) {
-                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
-                                       &specialPapyrusPluginInterface);
+                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
             }
 
             if (previousPresetIndex != 0) {
@@ -887,8 +957,7 @@ namespace Body {
         }
 
         if (!a_doNotApplyMorphs) {
-            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
-                                       &specialPapyrusPluginInterface);
+            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;

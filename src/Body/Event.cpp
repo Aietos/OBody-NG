@@ -22,14 +22,15 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
                                                                 RE::BSTEventSource<RE::TESInitScriptEvent>*) {
     if (!a_event || !a_event->objectInitialized->Is3DLoaded()) return RE::BSEventNotifyControl::kContinue;
 
-    if (RE::Actor * actor{a_event->objectInitialized->As<RE::Actor>()};
+    if (RE::Actor* actor{a_event->objectInitialized->As<RE::Actor>()};
         (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
         const bool actorIsFemale = Body::OBody::IsFemale(actor);
 
         const auto& parser{Parser::JSONParser::GetInstance()};
 
-        if ((actorIsFemale && !parser.distributionDisabledForFemale) || (!actorIsFemale && !parser.distributionDisabledForMale)) {
-            Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);   
+        if ((actorIsFemale && !parser.distributionDisabledForFemale) ||
+            (!actorIsFemale && !parser.distributionDisabledForMale)) {
+            Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);
         }
     }
 
@@ -76,7 +77,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEqu
 }
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const SKSE::CrosshairRefEvent* a_event,
-                                        RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
+                                                                RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
     std::unique_lock<std::shared_mutex> lock(_mutex);
     RE::TESObjectREFR* ref = a_event->crosshairRef.get();
 
@@ -90,6 +91,6 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const SKSE::Cros
 
 RE::NiPointer<RE::Actor> Event::OBodyEventHandler::GetCurrentCrosshairActor() {
     std::shared_lock<std::shared_mutex> lock(_mutex);
-    
+
     return RE::NiPointer<RE::Actor>(_cachedActor);
 }
