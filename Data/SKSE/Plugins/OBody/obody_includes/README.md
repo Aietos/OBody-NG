@@ -64,11 +64,30 @@ Place `.json` files in `Data/SKSE/Plugins/OBody/obody_includes/` to assign BodyS
 }
 ```
 
+### `refitOutfitPresetsFemale` - Use specific -Refit presets for an outfit
+```json
+{
+  "refitOutfitPresetsFemale": {
+    "Blades Armor": ["Warrior Woman-Refit Compress Chest", "Female-Refit Compress Chest"]
+  }
+}
+```
+
 ## Merge Behavior
 
 - **Additive**: Assignments in include files are added to the main config
 - **Last-loaded-wins**: If two include files target the same NPC or plugin, the last file alphabetically wins
 - **Non-destructive**: Include files cannot remove any other main config settings
+
+## ORefit priority in include files
+
+For `refitOutfitPresetsFemale`, `refitOutfitPresetsMale`, their `FormID` versions, `refitOutfitKeywordsFemale` and `refitOutfitKeywordsMale`, the order of the entries decides which -Refit preset wins. Include files change that order like this:
+
+- **New outfits go last**: An outfit that isn't in the main config yet is added after all the outfits already there, so it has lower priority than the main config and the include files loaded before it
+- **Existing outfits keep their place**: If an include file has an outfit that is already defined, its list of presets replaces the old one completely (it is not combined with it), but the outfit keeps its old position in the order
+- **FormID outfits are grouped by plugin**: A new FormID under a plugin that is already defined goes after the other FormIDs of that plugin. A new plugin goes after all the plugins already there
+- **Write FormIDs the same way**: `"0004B28B"` and `"4B28B"` are the same outfit but count as different entries, so the include file adds a second entry instead of replacing the first one, and only the first one is used
+- **New keywords go last**: Keywords from include files are added to the end of the keyword array, so they have lower priority than the ones already there. A keyword that is already in the array keeps its position, so an include file cannot move it up
 
 ## Use Cases
 

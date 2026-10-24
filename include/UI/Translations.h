@@ -4,4 +4,4 @@
 namespace UI::Translations {
     void Init();
     std::string Get(const std::string& key);
-}
+}  // namespace UI::Translations

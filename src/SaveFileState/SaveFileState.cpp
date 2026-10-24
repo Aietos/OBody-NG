@@ -1,5 +1,7 @@
 #include "SaveFileState/SaveFileState.h"
 
+#include "Body/Body.h"
+
 #pragma push_macro("max")
 #pragma push_macro("min")
 #undef max
@@ -34,6 +36,17 @@ namespace SaveFileState {
         } else {
             logger::critical("Failed to open a record for the backwards-compatibility-state!");
         }
+
+        // To make sure it's known while the save loads, before Papyrus sets it again
+        if (const auto& obody{Body::OBody::GetInstance()}; obody.distributionKeyIsSet) {
+            if (save->OpenRecord(DistributionKeyTypeID, 0)) {
+                if (!WriteRecordDataForDistributionKeyV0(save, obody)) {
+                    logger::critical("Failed to save the distribution key!");
+                }
+            } else {
+                logger::critical("Failed to open a record for the distribution key!");
+            }
+        }
     }
 
     void LoadState(SKSE::SerializationInterface* load) {
@@ -42,6 +55,7 @@ namespace SaveFileState {
         size_t actorRegistryCount = 0;
         size_t presetNameMapCount = 0;
         size_t backwardsCompatibilityStateCount = 0;
+        size_t distributionKeyCount = 0;
 
         uint32_t type;
         uint32_t version;
@@ -110,6 +124,25 @@ namespace SaveFileState {
                     }
                     break;
                 }
+                case DistributionKeyTypeID: {
+                    switch (version) {
+                        case 0: {
+                            if (++distributionKeyCount == 1) {
+                                if (!ReadRecordDataForDistributionKeyV0(load, length, Body::OBody::GetInstance())) {
+                                    logger::critical("Failed to load the distribution key!");
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            logger::error(
+                                "A distribution-key record of an unknown version '{}' was found in the cosave.",
+                                version);
+                            break;
+                        }
+                    }
+                    break;
+                }
                 default: {
                     logger::error("A record of unknown type {:#010x} was found in the cosave.", type);
                     break;
@@ -129,6 +162,9 @@ namespace SaveFileState {
                 "Multiple backwards-compatibility-state records were found in the cosave. Only the first one was "
                 "read.");
         }
+        if (distributionKeyCount > 1) {
+            logger::error("Multiple distribution-key records were found in the cosave. Only the first one was read.");
+        }
     }
 
     // In this context, revert means to undo the effects of a call to LoadState.
@@ -144,6 +180,9 @@ namespace SaveFileState {
 
         auto& backwardsCompatibility = BackwardsCompatibility::State::GetInstance();
         backwardsCompatibility.flags = 0;
+
+        // Saves from before the cosave kept the distribution key only get it once Papyrus sets it
+        Body::OBody::GetInstance().distributionKeyIsSet = false;
     }
 
     bool WriteRecordDataForActorRegistryV0(SKSE::SerializationInterface* save, Buffer buffer,
@@ -466,6 +505,27 @@ namespace SaveFileState {
         }
 
         std::memcpy(&backwardsCompatibility, &buffer[0], sizeof(decltype(backwardsCompatibility)));
+
+        return true;
+    }
+
+    bool WriteRecordDataForDistributionKeyV0(SKSE::SerializationInterface* save, const Body::OBody& obody) {
+        // The format is just the key's characters, the record's length is the key's
+        const auto& distributionKey{obody.distributionKey};
+        return save->WriteRecordData(distributionKey.data(), static_cast<uint32_t>(distributionKey.size()));
+    }
+
+    bool ReadRecordDataForDistributionKeyV0(SKSE::SerializationInterface* load, const uint32_t length,
+                                            Body::OBody& obody) {
+        std::string distributionKey(length, '\0');
+        if (length == 0 || load->ReadRecordData(distributionKey.data(), length) != length) {
+            logger::critical("This save file's distribution key is invalid! {{length: {}}}", length);
+            return false;
+        }
+
+        obody.distributionKey = std::move(distributionKey);
+        obody.distributionKeyIsSet = true;
+        logger::info("Distribution key from the cosave: {}", obody.distributionKey);
 
         return true;
     }

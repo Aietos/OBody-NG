@@ -122,6 +122,30 @@ namespace stl {
         }
     }
 
+    // Actor::GetInventory and Actor::GetWornArmor copy the actor's whole inventory every time they're called
+    // That adds up in equip events, which come in bursts while NPCs load, so these go through the worn items instead
+    inline std::vector<RE::InventoryEntryData*> GetWornEntries(RE::Actor* a_actor) {
+        std::vector<RE::InventoryEntryData*> worn;
+        // The game may not have set the inventory when this is called before the actor's 3D loads
+        if (const auto* const changes{a_actor->GetInventoryChanges(true)}; changes && changes->entryList) {
+            for (auto* const entry : *changes->entryList) {
+                if (entry && entry->object && entry->IsWorn()) {
+                    worn.push_back(entry);
+                }
+            }
+        }
+        return worn;
+    }
+
+    inline RE::TESObjectARMO* GetWornArmor(RE::Actor* a_actor, const RE::BGSBipedObjectForm::BipedObjectSlot a_slot) {
+        for (const auto* const entry : GetWornEntries(a_actor)) {
+            if (auto* const armor{entry->object->As<RE::TESObjectARMO>()}; armor && armor->HasPartOf(a_slot)) {
+                return armor;
+            }
+        }
+        return nullptr;
+    }
+
     inline void RemoveDuplicatesInJsonArray(rapidjson::Value& json_array, rapidjson::Value::AllocatorType& allocator) {
         if (!json_array.IsArray()) return;
 
@@ -140,11 +164,10 @@ namespace stl {
         json_array.Swap(uniqueArray);
     }
 
-
     void MergeJsonDocument(rapidjson::Value& target, rapidjson::Value& source,
                            rapidjson::Document::AllocatorType& allocator);
     void MergeJsonArray(rapidjson::Value& target, rapidjson::Value& source,
-                     rapidjson::Document::AllocatorType& allocator);
+                        rapidjson::Document::AllocatorType& allocator);
 
     class FilePtrManager {
     public:

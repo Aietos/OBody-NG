@@ -4,13 +4,99 @@
 #include "JSONParser/JSONParser.h"
 #include "UI/Translations.h"
 
+#include <boost/unordered/concurrent_flat_set.hpp>
+
 constinit Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
+
+namespace {
+    // NPCs that loaded before OBody could distribute to them, see GenerateWaitingBodies
+    boost::concurrent_flat_set<RE::FormID> g_waitingForDistribution;
+
+    // Whether OBody distributes presets to this actor by itself
+    bool IsDistributionTarget(RE::Actor* a_actor) {
+        if (!a_actor->HasKeywordString("ActorTypeNPC") || a_actor->IsChild()) {
+            return false;
+        }
+
+        const auto& parser{Parser::JSONParser::GetInstance()};
+        return Body::OBody::IsFemale(a_actor) ? !parser.distributionDisabledForFemale
+                                              : !parser.distributionDisabledForMale;
+    }
+
+    // Until the save has finished loading, the presets have the indexes of the previous one. And until the save's
+    // distribution key is known, distributionKey may be another save's, so NPCs that already have their body would
+    // look like they don't and get another one
+    bool CanDistribute(const Body::OBody& a_obody) {
+        return a_obody.readyForPluginAPIUsage && a_obody.distributionKeyIsSet;
+    }
+
+    // Character::Load3D builds the actor's 3D, from the threads that load NPCs
+    // An actor whose body is generated before that gets each armor addon morphed by Racemenu as it's attached
+    struct Load3D {
+        static RE::NiAVObject* thunk(RE::Character* a_this, const bool a_backgroundLoading) {
+            if (const auto& obody{Body::OBody::GetInstance()};
+                CanDistribute(obody) && obody.morphInterface && IsDistributionTarget(a_this)) {
+                // A 3D that is already there doesn't get attached again, so it needs ApplyBodyMorphs
+                obody.GenerateActorBody(a_this, nullptr, !a_this->Is3DLoaded());
+            }
+
+            return func(a_this, a_backgroundLoading);
+        }
+
+        static inline REL::Relocation<decltype(thunk)> func;
+    };
+}  // namespace
+
+void Event::InstallHooks() {
+    REL::Relocation<std::uintptr_t> characterVtable{RE::VTABLE_Character[0]};
+    Load3D::func = characterVtable.write_vfunc(0x6A, Load3D::thunk);
+    logger::info("Hooked Character::Load3D");
+}
+
+void Event::GenerateWaitingBodies() {
+    if (g_waitingForDistribution.empty() || !CanDistribute(Body::OBody::GetInstance())) {
+        return;
+    }
+
+    SKSE::GetTaskInterface()->AddTask([] {
+        // Another save may have started loading since
+        const auto& obody{Body::OBody::GetInstance()};
+        if (!CanDistribute(obody)) {
+            return;
+        }
+
+        std::vector<RE::FormID> formIDs;
+        g_waitingForDistribution.erase_if([&](const RE::FormID a_formID) {
+            formIDs.push_back(a_formID);
+            return true;
+        });
+
+        std::size_t alreadyProcessed{0};
+        for (const auto formID : formIDs) {
+            // The ones whose 3D isn't loaded anymore get their body when it's loaded again
+            // The form ID may be of another actor by now if another save was loaded
+            auto* const actor{RE::TESForm::LookupByID<RE::Actor>(formID)};
+            if (!actor || !actor->Is3DLoaded() || !IsDistributionTarget(actor)) continue;
+
+            if (obody.IsProcessed(actor)) {
+                ++alreadyProcessed;
+                continue;
+            }
+
+            obody.GenerateActorBody(actor, nullptr);
+        }
+
+        logger::info("{} NPCs loaded before OBody could distribute to them, {} of them already had their body",
+                     formIDs.size(), alreadyProcessed);
+    });
+}
 
 void Event::OBodyEventHandler::Register() {
     if (auto* const events{RE::ScriptEventSourceHolder::GetSingleton()}) {
         events->AddEventSink<RE::TESInitScriptEvent>(&singleton);
         events->AddEventSink<RE::TESLoadGameEvent>(&singleton);
         events->AddEventSink<RE::TESEquipEvent>(&singleton);
+        events->AddEventSink<RE::TESObjectLoadedEvent>(&singleton);
     }
 
     if (auto* const skseCrosshairEvents{SKSE::GetCrosshairRefEventSource()}) {
@@ -22,15 +108,22 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
                                                                 RE::BSTEventSource<RE::TESInitScriptEvent>*) {
     if (!a_event || !a_event->objectInitialized->Is3DLoaded()) return RE::BSEventNotifyControl::kContinue;
 
-    if (RE::Actor * actor{a_event->objectInitialized->As<RE::Actor>()};
-        (actor != nullptr) && actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
-        const bool actorIsFemale = Body::OBody::IsFemale(actor);
-
-        const auto& parser{Parser::JSONParser::GetInstance()};
-
-        if ((actorIsFemale && !parser.distributionDisabledForFemale) || (!actorIsFemale && !parser.distributionDisabledForMale)) {
-            Body::OBody::GetInstance().GenerateActorBody(actor, nullptr);   
+    // Most NPCs already got their body before their 3D was built (see Load3D), this is for those that didn't
+    if (RE::Actor* actor{a_event->objectInitialized->As<RE::Actor>()}; actor && IsDistributionTarget(actor)) {
+        if (const auto& obody{Body::OBody::GetInstance()}; CanDistribute(obody)) {
+            obody.GenerateActorBody(actor, nullptr);
+        } else {
+            g_waitingForDistribution.insert(actor->GetFormID());
         }
+    }
+
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESObjectLoadedEvent* a_event,
+                                                                RE::BSTEventSource<RE::TESObjectLoadedEvent>*) {
+    if (a_event && a_event->loaded) {
+        Body::OBody::GetInstance().ProcessActorLoaded3D(a_event->formID);
     }
 
     return RE::BSEventNotifyControl::kContinue;
@@ -76,7 +169,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEqu
 }
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const SKSE::CrosshairRefEvent* a_event,
-                                        RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
+                                                                RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
     std::unique_lock<std::shared_mutex> lock(_mutex);
     RE::TESObjectREFR* ref = a_event->crosshairRef.get();
 
@@ -90,6 +183,6 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const SKSE::Cros
 
 RE::NiPointer<RE::Actor> Event::OBodyEventHandler::GetCurrentCrosshairActor() {
     std::shared_lock<std::shared_mutex> lock(_mutex);
-    
+
     return RE::NiPointer<RE::Actor>(_cachedActor);
 }

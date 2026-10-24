@@ -36,7 +36,8 @@ namespace PresetManager {
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
             if (path.extension().c_str() != L".xml"sv) continue;
-            if (IsClothedSet(path.wstring())) continue;
+            // Files with a "clothed" keyword in their name are still opened, but only their "-Refit" presets are kept.
+            const bool clothedFile{IsClothedSet(path.wstring())};
 
             pugi::xml_document doc;
             if (auto result = doc.load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
@@ -49,23 +50,21 @@ namespace PresetManager {
 
             auto presets = doc.child("SliderPresets");
             for (const auto& node : presets) {
+                if (clothedFile && !IsRefitPreset(node.attribute("name").value())) continue;
+
                 auto preset = GeneratePreset(node);
                 if (!preset) continue;
 
-                if (IsFemalePreset(*preset)) {
-                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
-                        blacklistedFemalePresets.push_back(*preset);
-                    } else {
-                        femalePresets.push_back(*preset);
-                    }
-                } else {
-                    if (std::find(blacklistedPresetsBegin, blacklistedPresetsEnd, preset.value().name.c_str()) !=
-                        blacklistedPresetsEnd || preset.value().name.ends_with("-Refit")) {
-                        blacklistedMalePresets.push_back(*preset);
-                    } else {
-                        malePresets.push_back(*preset);
-                    }
+                const bool blacklisted{std::find(blacklistedPresetsBegin, blacklistedPresetsEnd,
+                                                 preset.value().name.c_str()) != blacklistedPresetsEnd ||
+                                       IsRefitPreset(preset.value().name)};
+
+                // The same UBE presets shape both sexes, so they go in both lists
+                if (preset->ube || IsFemalePreset(*preset)) {
+                    (blacklisted ? blacklistedFemalePresets : femalePresets).push_back(*preset);
+                }
+                if (preset->ube || !IsFemalePreset(*preset)) {
+                    (blacklisted ? blacklistedMalePresets : malePresets).push_back(*preset);
                 }
             }
         }
@@ -81,19 +80,39 @@ namespace PresetManager {
         allMalePresets = malePresets;
         allMalePresets.insert_range(allMalePresets.end(), blacklistedMalePresets);
 
+        for (const PresetSet* const presets : {&allFemalePresets, &allMalePresets}) {
+            for (const auto& preset : *presets) {
+                if (!IsRefitPreset(preset.name)) continue;
+
+                for (const auto& sliderName : preset.sliders | std::views::keys) {
+                    container.refitSliderNames.insert(sliderName);
+                }
+            }
+        }
+
         logger::info("Female presets: {}, Male presets: {}", femalePresets.size(), malePresets.size());
         logger::info("Blacklisted: Female presets: {}, Male Presets: {}", blacklistedFemalePresets.size(),
                      blacklistedMalePresets.size());
+        logger::info("UBE presets, in both lists: {}, blacklisted: {}",
+                     std::ranges::count_if(femalePresets, &Preset::ube),
+                     std::ranges::count_if(blacklistedFemalePresets, &Preset::ube));
+    }
+
+    bool PresetContainer::HasPresetsFor(const bool a_female, const bool a_ube) const {
+        return std::ranges::any_of(a_female ? femalePresets : malePresets,
+                                   [=](const Preset& a_preset) { return a_preset.ube == a_ube; });
     }
 
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node) {
         const std::string_view name{a_node.attribute("name").value()};
 
-        if (IsClothedSet(name)) return {};
+        if (IsClothedSet(name) && !IsRefitPreset(name)) return {};
 
         const std::string_view body{a_node.attribute("set").value()};
 
-        return Preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
+        Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
+        preset.ube = IsUBEBody(body);
+        return preset;
     }
 
     void PresetContainer::AssignPresetIndexes() {
@@ -178,7 +197,8 @@ namespace PresetManager {
         return {};
     }
 
-    Preset GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name, const bool female) {
+    std::optional<Preset> GetPresetByName(const PresetSet& a_presetSet, const std::string_view a_name,
+                                          const bool female, const bool a_ube) {
         logger::info("Looking for preset: {}", a_name);
 
         for (auto& preset : a_presetSet) {
@@ -187,13 +207,26 @@ namespace PresetManager {
 
         logger::info("Preset not found, choosing a random one.");
         const auto& container{PresetManager::PresetContainer::GetInstance()};
-        return GetRandomPreset(female ? container.femalePresets : container.malePresets);
+        return GetRandomPreset(female ? container.femalePresets : container.malePresets, a_ube);
     }
 
-    Preset GetRandomPreset(const PresetSet& a_presetSet) {
-        static_assert(std::is_same_v<decltype(0llu), decltype(a_presetSet.size())>,
+    std::optional<Preset> GetRandomPreset(const PresetSet& a_presetSet, const bool a_ube) {
+        const auto fits = [=](const Preset& a_preset) { return a_preset.ube == a_ube; };
+
+        std::size_t count{static_cast<std::size_t>(std::ranges::count_if(a_presetSet, fits))};
+        if (count == 0) {
+            return std::nullopt;
+        }
+
+        static_assert(std::is_same_v<decltype(0llu), decltype(count)>,
                       "Ensure that below literal is of type std::size_t");
-        return a_presetSet[stl::random(0llu, a_presetSet.size())];
+        auto chosen{stl::random(0llu, count)};
+        for (const auto& preset : a_presetSet) {
+            if (fits(preset) && chosen-- == 0) {
+                return preset;
+            }
+        }
+        return std::nullopt;
     }
 
     std::optional<Preset> GetPresetByNameForRandom(const PresetSet& a_presetSet, const std::string_view a_name) {
@@ -208,8 +241,82 @@ namespace PresetManager {
         return {};
     }
 
-    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet, std::vector<std::string_view> a_presetNames,
-                                 const bool female) {
+    bool IsRefitPreset(const std::string_view a_name) {
+        std::string lower{a_name};
+        boost::algorithm::to_lower(lower);
+        return lower.find("-refit") != std::string::npos;
+    }
+
+    std::string_view GetRefitBaseName(const std::string_view a_refitName) {
+        std::string lower{a_refitName};
+        boost::algorithm::to_lower(lower);
+        const auto pos{lower.find("-refit")};
+        if (pos == std::string::npos) {
+            return {};
+        }
+        return a_refitName.substr(0, pos);
+    }
+
+    std::string_view SexRefitBaseName(const bool a_female, const bool a_ube) {
+        if (a_ube) {
+            return a_female ? "UBE Female"sv : "UBE Male"sv;
+        }
+        return a_female ? "Female"sv : "Male"sv;
+    }
+
+    const Preset* FindRefitPreset(const PresetSet& a_presets, const std::string_view a_name, const bool a_ube) {
+        for (const auto& preset : a_presets) {
+            if (!stl::cmp(preset.name, a_name)) continue;
+
+            if (preset.ube != a_ube) {
+                logger::info("Refit preset '{}' is {}made for UBE, and the actor's body {}, so it isn't used",
+                             preset.name, preset.ube ? "" : "not ", a_ube ? "is UBE" : "isn't");
+                return nullptr;
+            }
+            return &preset;
+        }
+        return nullptr;
+    }
+
+    SliderSet MakeRefitDifferential(const SliderSet& a_base, const SliderSet& a_refit) {
+        constexpr float epsilon{0.00001F};
+
+        // Slider names are matched case-insensitively
+        boost::unordered_flat_map<std::string, const Slider*> baseByLowerName;
+        baseByLowerName.reserve(a_base.size());
+        for (const auto& slider : a_base | std::views::values) {
+            std::string lower{slider.name};
+            boost::algorithm::to_lower(lower);
+            baseByLowerName[std::move(lower)] = &slider;
+        }
+
+        SliderSet differential;
+        for (const auto& refitSlider : a_refit | std::views::values) {
+            std::string lower{refitSlider.name};
+            boost::algorithm::to_lower(lower);
+
+            // A slider the base preset doesn't have is treated as 0
+            const auto baseItr{baseByLowerName.find(lower)};
+            const float baseMin{baseItr != baseByLowerName.end() ? baseItr->second->min : 0.0F};
+            const float baseMax{baseItr != baseByLowerName.end() ? baseItr->second->max : 0.0F};
+
+            // Refit - base: base 30 -> refit 32 gives +2, base 30 -> refit 28 gives -2
+            const float deltaMin{refitSlider.min - baseMin};
+            const float deltaMax{refitSlider.max - baseMax};
+
+            if (std::abs(deltaMin) < epsilon && std::abs(deltaMax) < epsilon) {
+                continue;
+            }
+
+            differential[refitSlider.name] = Slider{refitSlider.name.c_str(), deltaMin, deltaMax};
+        }
+
+        return differential;
+    }
+
+    std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet,
+                                                std::vector<std::string_view> a_presetNames, const bool female,
+                                                const bool a_ube) {
         if (a_presetNames.empty()) {
             logger::info("Preset names size is empty, returning none");
             return std::nullopt;
@@ -219,14 +326,21 @@ namespace PresetManager {
                       "Ensure that below literal is of type std::size_t");
         const std::string_view chosenPreset{a_presetNames[stl::random(0llu, a_presetNames.size())]};
 
-        const std::optional<Preset> preset{GetPresetByNameForRandom(a_presetSet, chosenPreset)};
+        std::optional<Preset> preset{GetPresetByNameForRandom(a_presetSet, chosenPreset)};
+
+        // A UBE preset on a body that isn't UBE, or the other way around, has sliders that body doesn't have
+        if (preset && preset->ube != a_ube) {
+            logger::info("Preset {} is {}a UBE preset, and the actor {} a UBE body, skipping it", preset->name,
+                         preset->ube ? "" : "not ", a_ube ? "has" : "doesn't have");
+            preset.reset();
+        }
 
         if (!preset.has_value()) {
             if (const auto iterator{std::ranges::find(a_presetNames, chosenPreset)}; iterator != a_presetNames.end()) {
                 a_presetNames.erase(iterator);
             }
 
-            return GetRandomPresetByName(a_presetSet, a_presetNames, female);
+            return GetRandomPresetByName(a_presetSet, a_presetNames, female, a_ube);
         }
 
         return *preset;
@@ -235,6 +349,21 @@ namespace PresetManager {
     bool IsFemalePreset(const Preset& a_preset) {
         constexpr std::array body{"himbo"sv, "talos"sv, "sam"sv, "sos"sv, "savren"sv};
         return !stl::contains(a_preset.body, body);
+    }
+
+    bool IsUBEBody(const std::string_view a_body) {
+        // "UBE" as a word of its own, so that set names like "Tube Top" aren't taken for it
+        constexpr std::string_view ube{"ube"};
+        const auto isLetter = [](const char a_char) { return std::isalpha(static_cast<unsigned char>(a_char)) != 0; };
+
+        for (std::size_t pos{0}; pos + ube.size() <= a_body.size(); ++pos) {
+            if (!stl::cmp(a_body.substr(pos, ube.size()), ube)) continue;
+
+            const bool startsWord{pos == 0 || !isLetter(a_body[pos - 1])};
+            const bool endsWord{pos + ube.size() == a_body.size() || !isLetter(a_body[pos + ube.size()])};
+            if (startsWord && endsWord) return true;
+        }
+        return false;
     }
 
     bool IsClothedSet(const std::string_view a_set) {

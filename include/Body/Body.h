@@ -7,7 +7,8 @@
 
 namespace Body {
     inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorGenerated("OnActorGenerated"sv);
-    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration("OnActorPresetChangedWithoutGeneration"sv);
+    inline SKSE::RegistrationSet<RE::Actor*, std::string> OnActorPresetChangedWithoutGeneration(
+        "OnActorPresetChangedWithoutGeneration"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorNaked("OnActorNaked"sv);
     inline SKSE::RegistrationSet<RE::Actor*> OnActorRemovingClothes("OnActorRemovingClothes"sv);
 
@@ -22,6 +23,7 @@ namespace Body {
         static OBody& GetInstance();
 
         bool SetMorphInterface(SKEE::IBodyMorphInterface* a_morphInterface);
+        void CacheSkinMorphFiles() const;
 
         void SetMorph(RE::Actor* a_actor, const char* a_morphName, const char* a_key, float a_value) const;
         float GetMorph(RE::Actor* a_actor, const char* a_morphName) const;
@@ -29,18 +31,29 @@ namespace Body {
         void ApplyMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer, bool applyProcessedMorph = true) const;
 
         void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) const;
+        void ProcessActorLoaded3D(RE::FormID a_formID) const;
 
-        void GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
+        // a_beforeLoad3D: the actor's 3D is about to be built, so Racemenu morphs it as it's built
+        void GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface,
+                               bool a_beforeLoad3D = false) const;
         void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
                                 ::OBody::API::IPluginInterface* responsibleInterface) const;
         void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer,
-                                  ::OBody::API::IPluginInterface* responsibleInterface) const;
+                                  ::OBody::API::IPluginInterface* responsibleInterface,
+                                  bool a_beforeLoad3D = false) const;
 
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
-        void ApplyClothePreset(RE::Actor* a_actor) const;
+        bool ApplyClothePreset(RE::Actor* a_actor, bool a_onlyIfChanged = false, bool a_removingArmor = false,
+                               const RE::TESForm* a_changedArmor = nullptr) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
+
+        // Brings the actor's ORefit in line with what they wear, see UpdateClothePreset in Body.cpp
+        void UpdateClothePreset(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_changedArmor) const;
+
+        // Sets the ORefit morphs for what the actor wears, returns whether they changed
+        bool RefreshClothePreset(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_changedArmor) const;
         void ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
                               ::OBody::API::IPluginInterface* responsibleInterface) const;
         void ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
@@ -51,9 +64,11 @@ namespace Body {
         static float GetWeight(RE::Actor* a_actor);
 
         bool IsClotheActive(RE::Actor* a_actor) const;
+        bool IsClotheSetApplied(RE::Actor* a_actor, const PresetManager::SliderSet& a_sliders) const;
         static bool IsNaked(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
         static bool IsRemovingClothes(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
         static bool IsFemale(RE::Actor* a_actor);
+        static bool IsUBE(RE::Actor* a_actor);
         bool IsProcessed(RE::Actor* a_actor) const;
         bool IsBlacklisted(RE::Actor* a_actor) const;
 
@@ -76,7 +91,7 @@ namespace Body {
         bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
 
         void AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
+                                 bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
 
         template <typename PrepareArguments, typename EventMethod>
         __forceinline void SendActorChangeEvent(RE::Actor* a_actor, PrepareArguments&& prepareArguments,
@@ -127,6 +142,9 @@ namespace Body {
         bool setForcePresetApplicationImmediate = true;
 
         std::string distributionKey;
+        // Whether distributionKey is the one of the save being played. It's set when the cosave is read, or, for saves
+        // from before the cosave kept it, when Papyrus sets it after the save loaded
+        bool distributionKeyIsSet = false;
 
         SKEE::IBodyMorphInterface* morphInterface{};
 

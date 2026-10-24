@@ -3,6 +3,7 @@
 //
 
 #include "Body/Body.h"
+#include "Body/Event.h"
 #include "PresetManager/PresetManager.h"
 #include "JSONParser/JSONParser.h"
 #include "Papyrus/PapyrusBody.h"
@@ -39,7 +40,11 @@ namespace PapyrusBody {
     // ReSharper disable once CppPassValueParameterByConstReference
     void SetDistributionKey(RE::StaticFunctionTag*,
                             const std::string a_distributionKey) {  // NOLINT(*-unnecessary-value-param)
-        Body::OBody::GetInstance().distributionKey = a_distributionKey;
+        auto& obody{Body::OBody::GetInstance()};
+        obody.distributionKey = a_distributionKey;
+        obody.distributionKeyIsSet = true;
+
+        Event::GenerateWaitingBodies();
     }
 
     void SetForcePresetApplicationImmediate(RE::StaticFunctionTag*, const bool a_enabled) {
@@ -119,11 +124,17 @@ namespace PapyrusBody {
                 "in OBody menu.");
         }
 
+        const bool ube{Body::OBody::IsUBE(a_actor)};
+
         auto presets_to_show =
             (Body::OBody::IsFemale(a_actor)
                  ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
                  : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets)) |
-            std::views::transform(&PresetManager::Preset::name);
+            // Only the presets made for the actor's body, UBE or not
+            std::views::filter([ube](const PresetManager::Preset& preset) { return preset.ube == ube; }) |
+            std::views::transform(&PresetManager::Preset::name) |
+            // Make sure "-Refit" presets are not in the result
+            std::views::filter([](const std::string& name) { return !PresetManager::IsRefitPreset(name); });
 
         std::vector ret(presets_to_show.begin(), presets_to_show.end());
         std::ranges::sort(ret, presetNameComparison);
@@ -132,8 +143,9 @@ namespace PapyrusBody {
     }
 
     std::string GetPresetAssignedToActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        const auto a_presetName = ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, Body::OBody::IsFemale(a_actor));
-        if(a_presetName) {
+        const auto a_presetName =
+            ActorTracker::Registry::GetInstance().GetPresetNameForActor(a_actor, Body::OBody::IsFemale(a_actor));
+        if (a_presetName) {
             return *a_presetName;
         }
 
@@ -236,9 +248,7 @@ namespace PapyrusBody {
         return true;
     }
 
-    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key) {
-        UI::PresetList::SetHotkeyScanCode(a_key);
-    }
+    void UpdatePresetMenuKey(RE::StaticFunctionTag*, int a_key) { UI::PresetList::SetHotkeyScanCode(a_key); }
 
     bool Bind(VM* a_vm) {
         constexpr auto obj = "OBodyNative"sv;
