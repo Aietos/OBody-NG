@@ -415,7 +415,8 @@ namespace Body {
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
-                                   ::OBody::API::IPluginInterface* responsibleInterface) const {
+                                   ::OBody::API::IPluginInterface* responsibleInterface,
+                                   const bool a_beforeLoad3D) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
@@ -431,7 +432,7 @@ namespace Body {
             return;
         }
 
-        GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
+        GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface, a_beforeLoad3D);
     }
 
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
@@ -538,8 +539,37 @@ namespace Body {
         for (const auto& slider : a_sliders | std::views::values) ApplySlider(a_actor, slider, a_key, weight);
     }
 
+    void OBody::PreviewPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
+                              PresetManager::SliderSet& a_extraSliders, const bool a_clothed) const {
+        // The markers live in the "OBody" key too. They're kept, so the actor stays processed while previewed
+        std::vector<std::string> markers;
+        for (const auto& marker : {distributionKey, std::string{"obody_blacklisted"}, std::string{"obody_synthebd"}}) {
+            if (!marker.empty() && morphInterface->HasBodyMorph(a_actor, marker.c_str(), "OBody")) {
+                markers.push_back(marker);
+            }
+        }
+
+        morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
+        morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
+
+        for (const auto& marker : markers) {
+            SetMorph(a_actor, marker.c_str(), "OBody", 1.0F);
+        }
+
+        ApplySliderSet(a_actor, a_preset.sliders, "OBody");
+        ApplySliderSet(a_actor, a_extraSliders, "OBody");
+
+        if (a_clothed && setRefit) {
+            ApplyClothePreset(a_actor, false, false, nullptr, &a_preset);
+        }
+
+        if (a_actor->Is3DLoaded()) {
+            morphInterface->ApplyBodyMorphs(a_actor, true);
+        }
+    }
+
     bool OBody::ApplyClothePreset(RE::Actor* a_actor, const bool a_onlyIfChanged, const bool a_removingArmor,
-                                  const RE::TESForm* a_changedArmor) const {
+                                  const RE::TESForm* a_changedArmor, const PresetManager::Preset* a_actorPreset) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         const bool isFemale = IsFemale(a_actor);
@@ -562,7 +592,9 @@ namespace Body {
 
         // Pick the refit first, without touching the actor
         std::optional<Preset> refitPreset;
-        const auto actorPreset{ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)};
+        const auto actorPreset{a_actorPreset
+                                   ? std::optional<Preset>{*a_actorPreset}
+                                   : ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)};
         bool differential{false};
 
         // "<Preset>-Refit<anything>" presets are full copies of a base preset
