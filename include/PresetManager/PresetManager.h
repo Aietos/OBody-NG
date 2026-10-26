@@ -142,8 +142,8 @@ namespace PresetManager {
     bool IsClothedSet(std::string_view a_set);
     bool IsClothedSet(std::wstring_view a_set);
 
-    // Whether a BodySlide set (the "set" of a preset) is a UBE body, for example "UBE SE 2.0 Release Preview"
-    bool IsUBEBody(std::string_view a_body);
+    // Whether a preset is made for UBE, from its sliders, or its groups when it has no sliders
+    bool IsUBEPreset(const pugi::xml_node& a_node);
 
     // Falls back to a random preset that fits a_ube when there's no preset with that name
     std::optional<Preset> GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female,

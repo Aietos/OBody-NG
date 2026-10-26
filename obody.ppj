@@ -8,7 +8,7 @@
     Zip="false">
     <Variables>
         <Variable Name="ModName" Value="OBody NG"/>
-        <Variable Name="Version" Value="5.2.0"/>
+        <Variable Name="Version" Value="5.2.1"/>
         <Variable Name="MyProject" Value=".\Data"/>
     </Variables>
     <Imports>

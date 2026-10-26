@@ -111,7 +111,7 @@ namespace PresetManager {
         const std::string_view body{a_node.attribute("set").value()};
 
         Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
-        preset.ube = IsUBEBody(body);
+        preset.ube = IsUBEPreset(a_node);
         return preset;
     }
 
@@ -351,18 +351,29 @@ namespace PresetManager {
         return !stl::contains(a_preset.body, body);
     }
 
-    bool IsUBEBody(const std::string_view a_body) {
-        // "UBE" as a word of its own, so that set names like "Tube Top" aren't taken for it
-        constexpr std::string_view ube{"ube"};
-        const auto isLetter = [](const char a_char) { return std::isalpha(static_cast<unsigned char>(a_char)) != 0; };
+    bool IsUBEPreset(const pugi::xml_node& a_node) {
+        // Check whether it's a UBE preset by their sliders, since they have the naming convention "<Name> n|p"
+        constexpr std::array ubeSliders{"n|p"sv, "p|n"sv};
+        bool hasSliders{false};
 
-        for (std::size_t pos{0}; pos + ube.size() <= a_body.size(); ++pos) {
-            if (!stl::cmp(a_body.substr(pos, ube.size()), ube)) continue;
+        for (auto& node : a_node) {
+            if (!stl::cmp(node.name(), "SetSlider")) continue;
 
-            const bool startsWord{pos == 0 || !isLetter(a_body[pos - 1])};
-            const bool endsWord{pos + ube.size() == a_body.size() || !isLetter(a_body[pos + ube.size()])};
-            if (startsWord && endsWord) return true;
+            hasSliders = true;
+            if (stl::contains(std::string_view{node.attribute("name").value()}, ubeSliders)) return true;
         }
+
+        if (hasSliders) return false;
+
+        // Presets without sliders, like UBE's "-Zeroed Sliders-", only have their groups
+        // to determine whether they belong to UBE
+        for (auto& node : a_node) {
+            if (!stl::cmp(node.name(), "Group")) continue;
+
+            const std::string_view group{node.attribute("name").value()};
+            if (stl::cmp(group, "UBE"sv) || (group.size() > 4 && stl::cmp(group.substr(0, 4), "UBE "sv))) return true;
+        }
+
         return false;
     }
 
