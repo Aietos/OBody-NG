@@ -4,6 +4,8 @@
 #include "Papyrus/Papyrus.h"
 #include "JSONParser/JSONParser.h"
 #include "PresetManager/PresetManager.h"
+#include "Preview/Preview.h"
+#include "Preview/SmoothCam.h"
 #include "SaveFileState/SaveFileState.h"
 #include "SKEE.h"
 #include "STL.h"
@@ -107,6 +109,8 @@ namespace {
         switch (a_msg->type) {
             // On kPostPostLoad, we can try to fetch the Racemenu interface
             case SKSE::MessagingInterface::kPostPostLoad: {
+                SmoothCam::RequestInterface();
+
                 SKEE::InterfaceExchangeMessage msg;
                 const auto* const intfc{SKSE::GetMessagingInterface()};
                 intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, &msg,
@@ -189,8 +193,16 @@ namespace {
                 return;
             }
 
+            // The preset menu's preview must not end up in the save
+            case SKSE::MessagingInterface::kSaveGame: {
+                Preview::Session::GetInstance().OnSave();
+                return;
+            }
+
             case SKSE::MessagingInterface::kPreLoadGame: {
                 logger::info("Game beginning to load");
+
+                Preview::Session::GetInstance().Abandon();
 
                 logger::info("Becoming unready for plugin-API usage.");
                 if (obody.BecomingUnreadyForPluginAPIUsage()) {
@@ -224,6 +236,8 @@ namespace {
                 return;
             }
             case SKSE::MessagingInterface::kPostLoad: {
+                SmoothCam::Listen();
+
                 const REX::W32::HMODULE tweaks{REX::W32::GetModuleHandleA("po3_Tweaks")};
                 stl::func = reinterpret_cast<stl::PO3_tweaks_GetFormEditorID>(
                     REX::W32::GetProcAddress(tweaks, "GetFormEditorID"));
