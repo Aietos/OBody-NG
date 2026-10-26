@@ -37,7 +37,8 @@ namespace Body {
         void GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface,
                                bool a_beforeLoad3D = false) const;
         void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
-                                ::OBody::API::IPluginInterface* responsibleInterface) const;
+                                ::OBody::API::IPluginInterface* responsibleInterface,
+                                bool a_beforeLoad3D = false) const;
         void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer,
                                   ::OBody::API::IPluginInterface* responsibleInterface,
                                   bool a_beforeLoad3D = false) const;
@@ -45,8 +46,17 @@ namespace Body {
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
+        // a_actorPreset: the preset the refit is picked for, the one assigned to the actor when it's null
         bool ApplyClothePreset(RE::Actor* a_actor, bool a_onlyIfChanged = false, bool a_removingArmor = false,
-                               const RE::TESForm* a_changedArmor = nullptr) const;
+                               const RE::TESForm* a_changedArmor = nullptr,
+                               const PresetManager::Preset* a_actorPreset = nullptr) const;
+
+        // Shows a_preset on the actor without assigning it
+        // Nothing is tracked, saved or sent to listeners, so the preview in the preset menu can show presets
+        // and put the actor's own morphs back afterwards.
+        // a_extraSliders are applied on top, a_clothed adds the refit the actor would get for a_preset
+        void PreviewPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
+                           PresetManager::SliderSet& a_extraSliders, bool a_clothed) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
 
         // Brings the actor's ORefit in line with what they wear, see UpdateClothePreset in Body.cpp

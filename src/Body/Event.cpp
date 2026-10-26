@@ -2,6 +2,7 @@
 
 #include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
+#include "Preview/Preview.h"
 #include "UI/Translations.h"
 
 #include <boost/unordered/concurrent_flat_set.hpp>
@@ -34,6 +35,15 @@ namespace {
     // An actor whose body is generated before that gets each armor addon morphed by Racemenu as it's attached
     struct Load3D {
         static RE::NiAVObject* thunk(RE::Character* a_this, const bool a_backgroundLoading) {
+            // The preview's copy gets the body of the actor it copies. It's hidden until it's dressed like them
+            if (Preview::Session::GetInstance().IsCopy(a_this)) {
+                auto* const result{func(a_this, a_backgroundLoading)};
+                if (result) {
+                    result->SetAppCulled(true);
+                }
+                return result;
+            }
+
             if (const auto& obody{Body::OBody::GetInstance()};
                 CanDistribute(obody) && obody.morphInterface && IsDistributionTarget(a_this)) {
                 // A 3D that is already there doesn't get attached again, so it needs ApplyBodyMorphs
@@ -106,7 +116,10 @@ void Event::OBodyEventHandler::Register() {
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESInitScriptEvent* a_event,
                                                                 RE::BSTEventSource<RE::TESInitScriptEvent>*) {
-    if (!a_event || !a_event->objectInitialized->Is3DLoaded()) return RE::BSEventNotifyControl::kContinue;
+    if (!a_event || !a_event->objectInitialized->Is3DLoaded() ||
+        Preview::Session::GetInstance().IsCopy(a_event->objectInitialized.get())) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
 
     // Most NPCs already got their body before their 3D was built (see Load3D), this is for those that didn't
     if (RE::Actor* actor{a_event->objectInitialized->As<RE::Actor>()}; actor && IsDistributionTarget(actor)) {
@@ -122,7 +135,7 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESIni
 
 RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESObjectLoadedEvent* a_event,
                                                                 RE::BSTEventSource<RE::TESObjectLoadedEvent>*) {
-    if (a_event && a_event->loaded) {
+    if (a_event && a_event->loaded && !Preview::Session::GetInstance().IsCopy(a_event->formID)) {
         Body::OBody::GetInstance().ProcessActorLoaded3D(a_event->formID);
     }
 
@@ -160,6 +173,12 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESEqu
     if (!actor || !form) return RE::BSEventNotifyControl::kContinue;
 
     if (form->Is(RE::FormType::Armor) || form->Is(RE::FormType::Armature)) {
+        // The preset menu's preview undresses and redresses the actor and their copy itself, and sets their body for it
+        if (const auto& preview{Preview::Session::GetInstance()};
+            preview.IsPreviewing(actor) || preview.IsCopy(actor)) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
         if (actor->HasKeywordString("ActorTypeNPC") && !actor->IsChild()) {
             Body::OBody::GetInstance().ProcessActorEquipEvent(actor, !a_event->equipped, form);
         }
