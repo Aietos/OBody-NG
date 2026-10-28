@@ -122,7 +122,8 @@ namespace Parser {
 
                     // We have to use this full-length ID in order to identify them.
                     auto ID = actorform->GetFormID();
-                    std::vector<std::string> bodyslidePresets(formValue.GetArray().Size());
+                    std::vector<std::string> bodyslidePresets;
+                    bodyslidePresets.reserve(formValue.GetArray().Size());
                     for (const auto& item : formValue.GetArray()) {
                         bodyslidePresets.emplace_back(item.GetString());
                     }
@@ -891,15 +892,17 @@ namespace Parser {
     }
 
     // ReSharper disable once CppPassValueParameterByConstReference
-    bool JSONParser::IsNPCBlacklisted(const std::string_view actorName, const uint32_t actorID) {
+    bool JSONParser::IsNPCBlacklisted(const std::string_view actorName, const std::vector<RE::FormID>& actorIDs) {
         if (IsStringInJsonConfigKey(actorName.data(), "blacklistedNpcs")) {
             logger::info("{} is Blacklisted by blacklistedNpcs", actorName);
             return true;
         }
 
-        if (IsActorInBlacklistedCharacterCategorySet(actorID)) {
-            logger::info("{} is Blacklisted by character category set", actorName);
-            return true;
+        for (const auto actorID : actorIDs) {
+            if (IsActorInBlacklistedCharacterCategorySet(actorID)) {
+                logger::info("{} is Blacklisted by character category set ({:08X})", actorName, actorID);
+                return true;
+            }
         }
 
         return false;
@@ -951,18 +954,25 @@ namespace Parser {
         return std::nullopt;
     }
 
-    std::optional<PresetManager::Preset> JSONParser::GetNPCPreset(const char* actorName, const uint32_t formID,
+    std::optional<PresetManager::Preset> JSONParser::GetNPCPreset(const char* actorName,
+                                                                  const std::vector<RE::FormID>& formIDs,
                                                                   const bool female, const bool a_ube) {
         const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
 
         const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
-        const auto character{GetNPCFromCategorySet(formID)};
-
         std::vector<std::string_view> characterBodyslidePresets;
 
-        if (character.has_value()) {
-            if (!character->bodyslidePresets.empty()) {
+        // The first form ID with an npcFormID entry decides, the actor's own base before the records it was
+        // generated from
+        for (const auto formID : formIDs) {
+            const auto character{GetNPCFromCategorySet(formID)};
+
+            if (character.has_value() && !character->bodyslidePresets.empty()) {
+                if (formID != formIDs.front()) {
+                    logger::info("{} uses the npcFormID entry of {:08X}, the record it was generated from", actorName,
+                                 formID);
+                }
                 characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character->bodyslidePresets);
                 return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female, a_ube);
             }
