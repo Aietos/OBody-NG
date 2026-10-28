@@ -42,14 +42,14 @@ namespace Parser {
         void ProcessDisablePresetDistribution();
         bool IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit);
         bool IsAnyForceRefitItemEquipped(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
-        bool IsNPCBlacklisted(std::string_view actorName, uint32_t actorID);
+        bool IsNPCBlacklisted(std::string_view actorName, const std::vector<RE::FormID>& actorIDs);
         bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
                                       bool female);
 
         std::optional<PresetManager::Preset> GetNPCFactionPreset(const RE::TESNPC* a_actor, bool female, bool a_ube);
 
-        std::optional<PresetManager::Preset> GetNPCPreset(const char* actorName, uint32_t formID, bool female,
-                                                          bool a_ube);
+        std::optional<PresetManager::Preset> GetNPCPreset(const char* actorName, const std::vector<RE::FormID>& formIDs,
+                                                          bool female, bool a_ube);
         std::optional<PresetManager::Preset> GetNPCPluginPreset(const RE::TESNPC* a_actor, const char* actorName,
                                                                 bool female, bool a_ube);
         std::optional<PresetManager::Preset> GetNPCRacePreset(const char* actorRace, bool female, bool a_ube);
