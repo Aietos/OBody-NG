@@ -459,8 +459,9 @@ namespace Body {
         logger::info("Applying preset: {}; index: {}", a_preset.name, a_preset.assignedIndex.value);
 
         if (IsFemale(a_actor)) {
-            // Generate random nipple sliders if needed
-            if (setNippleRand) {
+            // Generate random nipple sliders if needed, only for CBBE since they're CBBE sliders
+            if (setNippleRand && !a_preset.ube &&
+                PresetManager::GetBodyType(a_preset.body) == PresetManager::BodyType::CBBE) {
                 PresetManager::SliderSet set{GenerateRandomNippleSliders()};
                 ApplySliderSet(a_actor, set, "OBody");
             }
