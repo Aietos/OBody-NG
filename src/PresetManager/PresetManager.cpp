@@ -6,9 +6,37 @@
 PresetManager::PresetContainer PresetManager::PresetContainer::instance;
 
 namespace PresetManager {
-    constexpr auto DefaultSliders =
-        stl::to_set<std::string_view, 10>({"Breasts", "BreastsSmall", "NippleDistance", "NippleSize", "ButtCrack",
-                                           "Butt", "ButtSmall", "Legs", "Arms", "ShoulderWidth"});
+    // UNP's inverted sliders, all of them defaulting to 100, so their morph is 1 - the preset's value
+    constexpr auto InvertedUNPSliders =
+        stl::to_set<std::string_view, 11>({"Breasts", "BreastsSmall", "NippleDistance", "NippleSize", "ButtCrack",
+                                           "Butt", "ButtSmall", "Legs", "Arms", "ShoulderWidth", "Ankles"});
+
+    // Sliders whose default in the body's slider sets isn't 0. BodySlide builds the meshes, zeroed ones included,
+    // with these defaults for every size a preset doesn't set, and morphs are added on top of the built mesh,
+    // so a morph has to be the preset's value minus the default
+    struct DefaultSlider {
+        std::string_view name;
+        float smallValue;
+        float bigValue;
+    };
+
+    constexpr std::array CBBEDefaultSliders{DefaultSlider{"AnkleSize"sv, 1.0f, 0.0f},
+                                            DefaultSlider{"WristSize"sv, 1.0f, 0.0f},
+                                            DefaultSlider{"NeckSeam"sv, 1.0f, 0.0f}};
+    constexpr std::array UNPDefaultSliders{DefaultSlider{"Neck"sv, 1.0f, 0.0f}};
+    constexpr std::array UBEDefaultSliders{DefaultSlider{"NipplesShowUp"sv, 1.0f, 1.0f},
+                                           DefaultSlider{"SkinnyMorph"sv, 1.0f, 0.0f}};
+
+    std::span<const DefaultSlider> GetDefaultSliders(const BodyType a_body) {
+        switch (a_body) {
+            case BodyType::UNP:
+                return UNPDefaultSliders;
+            case BodyType::UBE:
+                return UBEDefaultSliders;
+            default:
+                return CBBEDefaultSliders;
+        }
+    }
 
     PresetContainer& PresetContainer::GetInstance() { return instance; }
 
@@ -110,8 +138,9 @@ namespace PresetManager {
 
         const std::string_view body{a_node.attribute("set").value()};
 
-        Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, GetBodyType(body))};
-        preset.ube = IsUBEPreset(a_node);
+        const bool ube{IsUBEPreset(a_node)};
+        Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, ube ? BodyType::UBE : GetBodyType(body))};
+        preset.ube = ube;
         return preset;
     }
 
@@ -399,14 +428,24 @@ namespace PresetManager {
 
             bool inverted{false};
             if (a_body == BodyType::UNP) {
-                if (std::ranges::contains(DefaultSliders, name)) inverted = true;
+                if (std::ranges::contains(InvertedUNPSliders, name)) inverted = true;
             }
 
             float min{0}, max{0};
-            const float val{node.attribute("value").as_float() / 100.0f};
+            float val{node.attribute("value").as_float() / 100.0f};
             const auto size{node.attribute("size").value()};
+            const bool big{stl::cmp(size, "big")};
 
-            (stl::cmp(size, "big") ? max : min) = inverted ? 1.0f - val : val;
+            // A size the preset doesn't set keeps the default, so its morph stays 0
+            const auto defaults{GetDefaultSliders(a_body)};
+            if (const auto it{std::ranges::find(defaults, name, &DefaultSlider::name)}; it != defaults.end()) {
+                const float def{big ? it->bigValue : it->smallValue};
+                logger::info("Preset {}: {} {} is {}, the body's default is {}, so its morph is {}",
+                             a_node.attribute("name").value(), name, size, val, def, val - def);
+                val -= def;
+            }
+
+            (big ? max : min) = inverted ? 1.0f - val : val;
 
             AddSliderToSet(ret, Slider(name.data(), min, max), inverted);
         }
