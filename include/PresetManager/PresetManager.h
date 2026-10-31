@@ -4,7 +4,7 @@
 #include <boost/unordered/unordered_flat_set.hpp>
 
 namespace PresetManager {
-    enum class BodyType { CBBE, UNP };
+    enum class BodyType { CBBE, UNP, UBE };
 #pragma push_macro("max")
 #pragma push_macro("min")
 #undef max
