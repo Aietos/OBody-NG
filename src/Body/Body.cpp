@@ -27,6 +27,33 @@ namespace Body {
         bool IsUBEMesh(const char* a_model) {
             return a_model && (stl::contains(a_model, "!UBE\\"sv) || stl::contains(a_model, "!UBE/"sv));
         }
+
+        // The NPC records an actor's preset can be configured on, most specific first. An actor spawned from a
+        // leveled list has a temporary base (0xFF______) that no config can name, so after the actor's own base this
+        // adds the NPC the leveled list picked (ExtraLeveledCreature::templateBase) and the placed record
+        // (originalBase), each followed by the NPCs it inherits from through its template (TPLT) chain
+        std::vector<const RE::TESNPC*> GetLookupNPCs(RE::Actor* a_actor) {
+            std::vector<const RE::TESNPC*> npcs;
+
+            const auto addWithTemplates = [&](const RE::TESForm* a_form) {
+                // Template chains are short; the cap only guards against a malformed cycle
+                for (int depth{0}; a_form && depth < 16; ++depth) {
+                    const auto* const npc{a_form->As<RE::TESNPC>()};
+                    if (!npc) break;  // a leveled list (LVLN) ends the chain
+                    if (std::ranges::find(npcs, npc) == npcs.end()) npcs.push_back(npc);
+                    a_form = npc->baseTemplateForm;
+                }
+            };
+
+            addWithTemplates(a_actor->GetActorBase());
+
+            if (const auto* const leveled{a_actor->extraList.GetByType<RE::ExtraLeveledCreature>()}) {
+                addWithTemplates(leveled->templateBase);
+                addWithTemplates(leveled->originalBase);
+            }
+
+            return npcs;
+        }
     }  // namespace
 
     OBody& OBody::GetInstance() { return instance_; }
@@ -319,7 +346,15 @@ namespace Body {
 
         auto actorBase{a_actor->GetActorBase()};
         auto actorName{actorBase->GetName()};
-        auto actorID{actorBase->GetFormID()};
+
+        // FormID-keyed config (npcFormID, blacklistedNpcsFormID) and npcPlugin* are also checked against the
+        // records a leveled actor was generated from, see GetLookupNPCs
+        const auto lookupNPCs{GetLookupNPCs(a_actor)};
+        std::vector<RE::FormID> lookupIDs;
+        lookupIDs.reserve(lookupNPCs.size());
+        for (const auto* const npc : lookupNPCs) {
+            lookupIDs.push_back(npc->GetFormID());
+        }
 
         logger::info("Trying to find and apply preset to {}{}", actorName, ube ? " (UBE body)" : "");
 
@@ -359,13 +394,13 @@ namespace Body {
         };
 
         // If NPC is blacklisted, set him as processed
-        if (jsonParser.IsNPCBlacklisted(actorName, actorID)) {
+        if (jsonParser.IsNPCBlacklisted(actorName, lookupIDs)) {
             blacklistNPC();
             return;
         }
 
         // First, we attempt to get the NPC's preset from the keys npcFormID and npc from the JSON
-        std::optional<Preset> preset{jsonParser.GetNPCPreset(actorName, actorID, female, ube)};
+        std::optional<Preset> preset{jsonParser.GetNPCPreset(actorName, lookupIDs, female, ube)};
 
         if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
@@ -387,8 +422,10 @@ namespace Body {
             }
 
             // If that also fails, we check if we have a preset in the NPC's plugin
-            if (!preset.has_value()) {
-                preset = jsonParser.GetNPCPluginPreset(actorBase, actorName, female, ube);
+            // A leveled actor's temporary base belongs to no plugin, so its source records are checked too
+            for (const auto* const npc : lookupNPCs) {
+                if (preset.has_value()) break;
+                preset = jsonParser.GetNPCPluginPreset(npc, actorName, female, ube);
             }
 
             // And if that also fails, we check if we have a preset in the NPC's race
