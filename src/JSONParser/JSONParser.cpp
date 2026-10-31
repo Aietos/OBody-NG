@@ -908,9 +908,20 @@ namespace Parser {
         return false;
     }
 
-    bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
-                                              const bool female) {
-        const auto actorOwningMod{GetNthFormLocationName(a_actor, 0)};
+    bool JSONParser::IsNPCBlacklistedGlobally(const RE::Actor* a_actor,
+                                              const std::vector<const RE::TESNPC*>& a_lookupNPCs, const char* actorRace,
+                                              const char* actorClass, const bool female) {
+        auto actorOwningMod{GetNthFormLocationName(a_actor, 0)};
+
+        // An actor spawned at runtime (0xFF ID) is in no plugin, so it goes by the plugin of the first
+        // record it was generated from that has one. Placed actors still go by their reference
+        if (actorOwningMod.empty()) {
+            for (const auto* const npc : a_lookupNPCs) {
+                actorOwningMod = GetNthFormLocationName(npc, 0);
+
+                if (!actorOwningMod.empty()) break;
+            }
+        }
 
         if (female) {
             return IsStringInJsonConfigKey(actorOwningMod, "blacklistedNpcsPluginFemale") ||
@@ -973,10 +984,13 @@ namespace Parser {
                     logger::info("{} uses the npcFormID entry of {:08X}, the record it was generated from", actorName,
                                  formID);
                 }
+
                 characterBodyslidePresets.insert_range(characterBodyslidePresets.end(), character->bodyslidePresets);
+
                 return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female, a_ube);
             }
         }
+
         if (const auto npcItr{presetDistributionConfig.FindMember("npc")};
             npcItr != presetDistributionConfig.MemberEnd()) {
             const auto npcActorItr{npcItr->value.FindMember(actorName)};
@@ -984,11 +998,14 @@ namespace Parser {
             if (npcActorItr == npcItr->value.MemberEnd()) return {};
 
             characterBodyslidePresets.reserve(npcActorItr->value.Size());
+
             for (const auto& item : npcActorItr->value.GetArray()) {
                 characterBodyslidePresets.emplace_back(item.GetString());
             }
+
             return PresetManager::GetRandomPresetByName(presetSet, characterBodyslidePresets, female, a_ube);
         }
+
         return std::nullopt;
     }
 

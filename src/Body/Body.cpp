@@ -31,7 +31,7 @@ namespace Body {
         // The NPC records an actor's preset can be configured on, most specific first. An actor spawned from a
         // leveled list has a temporary base (0xFF______) that no config can name, so after the actor's own base this
         // adds the NPC the leveled list picked (ExtraLeveledCreature::templateBase) and the placed record
-        // (originalBase), each followed by the NPCs it inherits from through its template (TPLT) chain
+        // (originalBase), each followed by the NPCs it inherits its traits from through its template (TPLT) chain
         std::vector<const RE::TESNPC*> GetLookupNPCs(RE::Actor* a_actor) {
             std::vector<const RE::TESNPC*> npcs;
 
@@ -39,8 +39,15 @@ namespace Body {
                 // Template chains are short; the cap only guards against a malformed cycle
                 for (int depth{0}; a_form && depth < 16; ++depth) {
                     const auto* const npc{a_form->As<RE::TESNPC>()};
+
                     if (!npc) break;  // a leveled list (LVLN) ends the chain
+
                     if (std::ranges::find(npcs, npc) == npcs.end()) npcs.push_back(npc);
+
+                    // The body comes from the template only with Use Traits. An NPC that borrows just its inventory,
+                    // AI or spells from a template keeps its own body, so that template's config doesn't apply to it
+                    if (npc->actorData.templateUseFlags.none(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kTraits)) break;
+
                     a_form = npc->baseTemplateForm;
                 }
             };
@@ -348,10 +355,12 @@ namespace Body {
         auto actorName{actorBase->GetName()};
 
         // FormID-keyed config (npcFormID, blacklistedNpcsFormID) and npcPlugin* are also checked against the
-        // records a leveled actor was generated from, see GetLookupNPCs
+        // records a leveled actor was generated from, see GetLookupNPCs. blacklistedNpcsPlugin falls back to them
+        // for an actor spawned at runtime
         const auto lookupNPCs{GetLookupNPCs(a_actor)};
         std::vector<RE::FormID> lookupIDs;
         lookupIDs.reserve(lookupNPCs.size());
+
         for (const auto* const npc : lookupNPCs) {
             lookupIDs.push_back(npc->GetFormID());
         }
@@ -408,7 +417,8 @@ namespace Body {
                                                 : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
-            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), actorClass.c_str(), female)) {
+            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, lookupNPCs, actorRace.c_str(), actorClass.c_str(),
+                                                    female)) {
                 blacklistNPC();
                 return;
             }
@@ -452,7 +462,8 @@ namespace Body {
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
-                                   ::OBody::API::IPluginInterface* responsibleInterface) const {
+                                   ::OBody::API::IPluginInterface* responsibleInterface,
+                                   const bool a_beforeLoad3D) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
@@ -468,7 +479,7 @@ namespace Body {
             return;
         }
 
-        GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
+        GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface, a_beforeLoad3D);
     }
 
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
@@ -575,8 +586,37 @@ namespace Body {
         for (const auto& slider : a_sliders | std::views::values) ApplySlider(a_actor, slider, a_key, weight);
     }
 
+    void OBody::PreviewPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
+                              PresetManager::SliderSet& a_extraSliders, const bool a_clothed) const {
+        // The markers live in the "OBody" key too. They're kept, so the actor stays processed while previewed
+        std::vector<std::string> markers;
+        for (const auto& marker : {distributionKey, std::string{"obody_blacklisted"}, std::string{"obody_synthebd"}}) {
+            if (!marker.empty() && morphInterface->HasBodyMorph(a_actor, marker.c_str(), "OBody")) {
+                markers.push_back(marker);
+            }
+        }
+
+        morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
+        morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
+
+        for (const auto& marker : markers) {
+            SetMorph(a_actor, marker.c_str(), "OBody", 1.0F);
+        }
+
+        ApplySliderSet(a_actor, a_preset.sliders, "OBody");
+        ApplySliderSet(a_actor, a_extraSliders, "OBody");
+
+        if (a_clothed && setRefit) {
+            ApplyClothePreset(a_actor, false, false, nullptr, &a_preset);
+        }
+
+        if (a_actor->Is3DLoaded()) {
+            morphInterface->ApplyBodyMorphs(a_actor, true);
+        }
+    }
+
     bool OBody::ApplyClothePreset(RE::Actor* a_actor, const bool a_onlyIfChanged, const bool a_removingArmor,
-                                  const RE::TESForm* a_changedArmor) const {
+                                  const RE::TESForm* a_changedArmor, const PresetManager::Preset* a_actorPreset) const {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         const bool isFemale = IsFemale(a_actor);
@@ -599,7 +639,9 @@ namespace Body {
 
         // Pick the refit first, without touching the actor
         std::optional<Preset> refitPreset;
-        const auto actorPreset{ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)};
+        const auto actorPreset{a_actorPreset
+                                   ? std::optional<Preset>{*a_actorPreset}
+                                   : ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, isFemale)};
         bool differential{false};
 
         // "<Preset>-Refit<anything>" presets are full copies of a base preset

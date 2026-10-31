@@ -1,6 +1,8 @@
 #include "SaveFileState/SaveFileState.h"
 
 #include "Body/Body.h"
+#include "UI/PreviewPanel.h"
+#include "UI/UI.h"
 
 #pragma push_macro("max")
 #pragma push_macro("min")
@@ -47,6 +49,14 @@ namespace SaveFileState {
                 logger::critical("Failed to open a record for the distribution key!");
             }
         }
+
+        if (save->OpenRecord(PreviewSettingsTypeID, 0)) {
+            if (!WriteRecordDataForPreviewSettingsV0(save)) {
+                logger::critical("Failed to save the preview settings!");
+            }
+        } else {
+            logger::critical("Failed to open a record for the preview settings!");
+        }
     }
 
     void LoadState(SKSE::SerializationInterface* load) {
@@ -56,6 +66,7 @@ namespace SaveFileState {
         size_t presetNameMapCount = 0;
         size_t backwardsCompatibilityStateCount = 0;
         size_t distributionKeyCount = 0;
+        size_t previewSettingsCount = 0;
 
         uint32_t type;
         uint32_t version;
@@ -143,6 +154,25 @@ namespace SaveFileState {
                     }
                     break;
                 }
+                case PreviewSettingsTypeID: {
+                    switch (version) {
+                        case 0: {
+                            if (++previewSettingsCount == 1) {
+                                if (!ReadRecordDataForPreviewSettingsV0(load, length)) {
+                                    logger::critical("Failed to load the preview settings!");
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            logger::error(
+                                "A preview-settings record of an unknown version '{}' was found in the cosave.",
+                                version);
+                            break;
+                        }
+                    }
+                    break;
+                }
                 default: {
                     logger::error("A record of unknown type {:#010x} was found in the cosave.", type);
                     break;
@@ -165,6 +195,9 @@ namespace SaveFileState {
         if (distributionKeyCount > 1) {
             logger::error("Multiple distribution-key records were found in the cosave. Only the first one was read.");
         }
+        if (previewSettingsCount > 1) {
+            logger::error("Multiple preview-settings records were found in the cosave. Only the first one was read.");
+        }
     }
 
     // In this context, revert means to undo the effects of a call to LoadState.
@@ -183,6 +216,10 @@ namespace SaveFileState {
 
         // Saves from before the cosave kept the distribution key only get it once Papyrus sets it
         Body::OBody::GetInstance().distributionKeyIsSet = false;
+
+        // New games, and saves from before the cosave kept them, have the preview checkboxes as they start out
+        UI::PresetList::SetPreviewEnabled(true);
+        UI::PreviewPanel::SetKeepMenuOpen(false);
     }
 
     bool WriteRecordDataForActorRegistryV0(SKSE::SerializationInterface* save, Buffer buffer,
@@ -526,6 +563,30 @@ namespace SaveFileState {
         obody.distributionKey = std::move(distributionKey);
         obody.distributionKeyIsSet = true;
         logger::info("Distribution key from the cosave: {}", obody.distributionKey);
+
+        return true;
+    }
+
+    bool WriteRecordDataForPreviewSettingsV0(SKSE::SerializationInterface* save) {
+        PreviewSettingsV0 settings{0};
+
+        if (UI::PresetList::IsPreviewEnabled()) settings.flags |= PreviewSettingsV0::kLivePreview;
+
+        if (UI::PreviewPanel::IsKeepMenuOpenSet()) settings.flags |= PreviewSettingsV0::kKeepMenuOpen;
+
+        return save->WriteRecordData(&settings, sizeof(settings));
+    }
+
+    bool ReadRecordDataForPreviewSettingsV0(SKSE::SerializationInterface* load, const uint32_t length) {
+        PreviewSettingsV0 settings{0};
+
+        if (length < sizeof(settings) || load->ReadRecordData(&settings, sizeof(settings)) != sizeof(settings)) {
+            logger::critical("This save file's preview settings are invalid! {{length: {}}}", length);
+            return false;
+        }
+
+        UI::PresetList::SetPreviewEnabled((settings.flags & PreviewSettingsV0::kLivePreview) != 0);
+        UI::PreviewPanel::SetKeepMenuOpen((settings.flags & PreviewSettingsV0::kKeepMenuOpen) != 0);
 
         return true;
     }
