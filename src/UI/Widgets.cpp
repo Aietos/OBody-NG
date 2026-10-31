@@ -77,7 +77,8 @@ namespace {
         for (const auto& hint : a_hints) {
             const float width{HintWidth(hint, a_metrics)};
 
-            if (rows.empty() || (!rows.back().first.empty() && rows.back().second + a_metrics.between + width > a_width)) {
+            if (rows.empty() ||
+                (!rows.back().first.empty() && rows.back().second + a_metrics.between + width > a_width)) {
                 rows.push_back({{&hint}, width});
             } else {
                 rows.back().first.push_back(&hint);

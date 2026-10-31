@@ -43,8 +43,8 @@ namespace Parser {
         bool IsOutfitBlacklisted(const RE::TESObjectARMO& a_outfit);
         bool IsAnyForceRefitItemEquipped(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor);
         bool IsNPCBlacklisted(std::string_view actorName, const std::vector<RE::FormID>& actorIDs);
-        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const char* actorRace, const char* actorClass,
-                                      bool female);
+        bool IsNPCBlacklistedGlobally(const RE::Actor* a_actor, const std::vector<const RE::TESNPC*>& a_lookupNPCs,
+                                      const char* actorRace, const char* actorClass, bool female);
 
         std::optional<PresetManager::Preset> GetNPCFactionPreset(const RE::TESNPC* a_actor, bool female, bool a_ube);
 

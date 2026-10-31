@@ -216,13 +216,14 @@ namespace {
         g_bindings = bindings;
 
         const auto name{[](const Button* a_button) { return a_button ? a_button->name : "none"; }};
-        LogChange(g_loggedBindings,
-                  std::format("hotkey {}, SKSE Menu Framework's toggle {}. Pan with {}, zoom in with {}, out with {}{}, "
-                              "recenter with {}",
-                              a_hotkey, g_menuToggle ? std::to_string(*g_menuToggle) : "none", name(bindings.pan),
-                              name(bindings.zoomIn), name(bindings.zoomOut),
-                              bindings.zoomOut && bindings.zoomOut == bindings.zoomIn ? " and pan held" : "",
-                              name(bindings.recenter)));
+        LogChange(
+            g_loggedBindings,
+            std::format("hotkey {}, SKSE Menu Framework's toggle {}. Pan with {}, zoom in with {}, out with {}{}, "
+                        "recenter with {}",
+                        a_hotkey, g_menuToggle ? std::to_string(*g_menuToggle) : "none", name(bindings.pan),
+                        name(bindings.zoomIn), name(bindings.zoomOut),
+                        bindings.zoomOut && bindings.zoomOut == bindings.zoomIn ? " and pan held" : "",
+                        name(bindings.recenter)));
     }
 
     // Past the deadzone, from 0 to 1, squared so a slight tilt is slow enough to aim
@@ -281,8 +282,8 @@ void UI::GamepadCamera::Control() {
 
     const float across{Shape(
         Analog(ImGuiMCP::ImGuiKey_GamepadRStickRight) - Analog(ImGuiMCP::ImGuiKey_GamepadRStickLeft), kStickDeadzone)};
-    const float down{Shape(
-        Analog(ImGuiMCP::ImGuiKey_GamepadRStickDown) - Analog(ImGuiMCP::ImGuiKey_GamepadRStickUp), kStickDeadzone)};
+    const float down{Shape(Analog(ImGuiMCP::ImGuiKey_GamepadRStickDown) - Analog(ImGuiMCP::ImGuiKey_GamepadRStickUp),
+                           kStickDeadzone)};
 
     if (across != 0.0f || down != 0.0f) {
         if (panHeld) {
