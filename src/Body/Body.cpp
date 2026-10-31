@@ -31,7 +31,7 @@ namespace Body {
         // The NPC records an actor's preset can be configured on, most specific first. An actor spawned from a
         // leveled list has a temporary base (0xFF______) that no config can name, so after the actor's own base this
         // adds the NPC the leveled list picked (ExtraLeveledCreature::templateBase) and the placed record
-        // (originalBase), each followed by the NPCs it inherits from through its template (TPLT) chain
+        // (originalBase), each followed by the NPCs it inherits its traits from through its template (TPLT) chain
         std::vector<const RE::TESNPC*> GetLookupNPCs(RE::Actor* a_actor) {
             std::vector<const RE::TESNPC*> npcs;
 
@@ -39,8 +39,15 @@ namespace Body {
                 // Template chains are short; the cap only guards against a malformed cycle
                 for (int depth{0}; a_form && depth < 16; ++depth) {
                     const auto* const npc{a_form->As<RE::TESNPC>()};
+
                     if (!npc) break;  // a leveled list (LVLN) ends the chain
+
                     if (std::ranges::find(npcs, npc) == npcs.end()) npcs.push_back(npc);
+
+                    // The body comes from the template only with Use Traits. An NPC that borrows just its inventory,
+                    // AI or spells from a template keeps its own body, so that template's config doesn't apply to it
+                    if (npc->actorData.templateUseFlags.none(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kTraits)) break;
+
                     a_form = npc->baseTemplateForm;
                 }
             };
@@ -348,10 +355,12 @@ namespace Body {
         auto actorName{actorBase->GetName()};
 
         // FormID-keyed config (npcFormID, blacklistedNpcsFormID) and npcPlugin* are also checked against the
-        // records a leveled actor was generated from, see GetLookupNPCs
+        // records a leveled actor was generated from, see GetLookupNPCs. blacklistedNpcsPlugin falls back to them
+        // for an actor spawned at runtime
         const auto lookupNPCs{GetLookupNPCs(a_actor)};
         std::vector<RE::FormID> lookupIDs;
         lookupIDs.reserve(lookupNPCs.size());
+
         for (const auto* const npc : lookupNPCs) {
             lookupIDs.push_back(npc->GetFormID());
         }
@@ -408,7 +417,8 @@ namespace Body {
                                                 : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
-            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, actorRace.c_str(), actorClass.c_str(), female)) {
+            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, lookupNPCs, actorRace.c_str(), actorClass.c_str(),
+                                                    female)) {
                 blacklistNPC();
                 return;
             }
