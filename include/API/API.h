@@ -369,9 +369,8 @@ namespace OBody::API {
     struct AssignPresetPayload {
         enum Flags : uint64_t {
             None = 0,
-            /** If this bit is set, OBody will immediately apply or remove the morphs
-                for the assigned preset to the actor, instead of queuing the morphs to
-                be applied later. */
+            /** No longer has any effect: OBody always applies or removes the morphs right away.
+                It's kept so that existing plugins still compile and work. */
             ForceImmediateApplicationOfMorphs = 1 << 0,
             /** If this bit is set, OBody will refrain from applying the morphs, and from
                 queuing the morphs to be applied later, for a preset when assigning a preset to an

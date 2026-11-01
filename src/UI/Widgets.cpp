@@ -7,6 +7,18 @@ bool UI::Widgets::SearchField(const char* a_label, const char* a_id, char* a_buf
     ImGuiMCP::Spacing();
     ImGuiMCP::Spacing();
 
+    ImGuiMCP::AlignTextToFramePadding();
+    ImGuiMCP::TextUnformatted(a_label);
+    ImGuiMCP::SameLine();
+
+    const bool changed{SearchInput(a_id, a_buffer, a_size, a_focus)};
+
+    ImGuiMCP::Spacing();
+    ImGuiMCP::Spacing();
+    return changed;
+}
+
+bool UI::Widgets::SearchInput(const char* a_id, char* a_buffer, const std::size_t a_size, const bool a_focus) {
     ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 1.0f);
     ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameRounding, 3.0f);
     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0.19f, 0.18f, 0.17f, 1.0f});
@@ -15,10 +27,6 @@ bool UI::Widgets::SearchField(const char* a_label, const char* a_id, char* a_buf
     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Border, ImGuiMCP::ImVec4{0.55f, 0.46f, 0.30f, 1.0f});
 
     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_TextDisabled, ImGuiMCP::ImVec4{0.66f, 0.64f, 0.60f, 1.0f});
-
-    ImGuiMCP::AlignTextToFramePadding();
-    ImGuiMCP::TextUnformatted(a_label);
-    ImGuiMCP::SameLine();
 
     if (a_focus) {
         ImGuiMCP::SetKeyboardFocusHere();
@@ -32,9 +40,34 @@ bool UI::Widgets::SearchField(const char* a_label, const char* a_id, char* a_buf
     ImGuiMCP::PopStyleColor(5);
     ImGuiMCP::PopStyleVar(2);
 
-    ImGuiMCP::Spacing();
-    ImGuiMCP::Spacing();
     return changed;
+}
+
+namespace {
+    // Set by Esc with a dropdown open, the dropdown that's drawn next closes
+    bool g_closeOpenCombo{false};
+    // A dropdown was open when the last frame ended
+    bool g_comboWasOpen{false};
+}  // namespace
+
+bool UI::Widgets::BeginCombo(const char* a_id, const char* a_preview, const ImGuiMCP::ImGuiComboFlags a_flags) {
+    if (!ImGuiMCP::BeginCombo(a_id, a_preview, a_flags)) return false;
+
+    if (g_closeOpenCombo) {
+        g_closeOpenCombo = false;
+        ImGuiMCP::CloseCurrentPopup();
+    }
+
+    return true;
+}
+
+void UI::Widgets::CloseOpenCombo() { g_closeOpenCombo = true; }
+
+bool UI::Widgets::WasComboOpen() { return g_comboWasOpen; }
+
+void UI::Widgets::EndFrame() {
+    g_closeOpenCombo = false;
+    g_comboWasOpen = ImGuiMCP::IsPopupOpen("", ImGuiMCP::ImGuiPopupFlags_AnyPopup);
 }
 
 namespace {

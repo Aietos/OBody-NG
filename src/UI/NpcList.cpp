@@ -21,18 +21,20 @@ namespace {
     // TODO: Can consider making this adjustable
     constexpr float kNearbyMeters{40.0f};
 
-    // Header colours
-    constexpr ImGuiMCP::ImVec4 kHeaderBackground{0.26f, 0.21f, 0.14f, 1.0f};
-    constexpr ImGuiMCP::ImVec4 kHeaderText{0.96f, 0.84f, 0.58f, 1.0f};
     constexpr ImGuiMCP::ImVec4 kHintText{0.7f, 0.7f, 0.75f, 1.0f};
 
     // A section's title, with its button on the same line
-    bool SectionTitle(const char* a_title, const char* a_button) {
+    void SectionTitle(const char* a_title) {
         ImGuiMCP::AlignTextToFramePadding();
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kHeaderText);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, UI::Widgets::TableHeaderText);
         ImGuiMCP::TextUnformatted(a_title);
         ImGuiMCP::PopStyleColor();
+    }
+
+    bool SectionTitle(const char* a_title, const char* a_button) {
+        SectionTitle(a_title);
         ImGuiMCP::SameLine();
+
         return ImGuiMCP::Button(a_button);
     }
 
@@ -43,8 +45,16 @@ namespace {
     char g_nearbySearch[128] = "";
     char g_allSearch[128] = "";
 
+    // An actor without a name can't be told apart, usually helpers, so not included in the lists
+    bool HasName(RE::Actor* a_actor) {
+        const char* const name{a_actor->GetDisplayFullName()};
+
+        return name && *name;
+    }
+
     bool IsListed(RE::Actor* a_actor) {
-        return UI::Util::IsPresetTarget(a_actor) && !Preview::Session::GetInstance().IsAnyCopy(a_actor);
+        return UI::Util::IsPresetTarget(a_actor) && HasName(a_actor) &&
+               !Preview::Session::GetInstance().IsAnyCopy(a_actor);
     }
 
     std::wstring Query(const char* a_search) { return UI::Util::ToLowerWide(UI::Util::Utf8ToWide(a_search)); }
@@ -92,7 +102,13 @@ namespace {
 
         g_all.clear();
         auto* const player{RE::PlayerCharacter::GetSingleton()};
+        std::size_t nameless{0};
+
         for (auto* const actor : actors) {
+            if (actor && !actor->IsDeleted() && UI::Util::IsPresetTarget(actor) && !HasName(actor)) {
+                ++nameless;
+            }
+
             if (!actor || actor->IsDeleted() || !IsListed(actor)) continue;
             g_all.push_back(MakeEntry(
                 actor, actor->Is3DLoaded() ? player->GetPosition().GetDistance(actor->GetPosition()) : -1.0f));
@@ -105,7 +121,7 @@ namespace {
         });
         g_allScanned = true;
 
-        logger::info("NPC scan found {} NPCs", g_all.size());
+        logger::info("NPC scan found {} NPCs, {} without a name were left out", g_all.size(), nameless);
     }
 
     bool RenderRow(const NpcEntry& a_entry, RE::Actor* a_actor, const RE::Actor* a_target) {
@@ -155,7 +171,7 @@ namespace {
                              ImGuiMCP::ImGuiTableFlags_SizingStretchProp};
 
         ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_CellPadding, ImGuiMCP::ImVec2{8.0f, 5.0f});
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_TableHeaderBg, kHeaderBackground);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_TableHeaderBg, UI::Widgets::TableHeaderBackground);
         if (!ImGuiMCP::BeginTable(a_id, 4, flags, ImGuiMCP::ImVec2{0.0f, a_height})) {
             ImGuiMCP::PopStyleColor();
             ImGuiMCP::PopStyleVar();
@@ -169,7 +185,7 @@ namespace {
 
         // The header stays in place while the rows scroll
         ImGuiMCP::TableSetupScrollFreeze(0, 1);
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kHeaderText);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, UI::Widgets::TableHeaderText);
         ImGuiMCP::TableHeadersRow();
         ImGuiMCP::PopStyleColor();
 
@@ -202,10 +218,7 @@ RE::Actor* UI::NpcList::Render(const RE::Actor* a_target, const bool a_appearing
         ScanNearby();
     }
 
-    if (SectionTitle(UI::Translations::Get("obody_nearby_npcs").c_str(),
-                     UI::Translations::Get("obody_npc_refresh").c_str())) {
-        ScanNearby();
-    }
+    SectionTitle(UI::Translations::Get("obody_nearby_npcs").c_str());
 
     UI::Widgets::SearchField(UI::Translations::Get("obody_search_npcs").c_str(), "##NearbyNpcSearch", g_nearbySearch,
                              sizeof(g_nearbySearch));
