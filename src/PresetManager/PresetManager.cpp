@@ -45,21 +45,10 @@ namespace PresetManager {
 
         auto& container{PresetManager::PresetContainer::GetInstance()};
 
-        auto& femalePresets{container.femalePresets};
-        auto& malePresets{container.malePresets};
-
         auto& allFemalePresets{container.allFemalePresets};
         auto& allMalePresets{container.allMalePresets};
 
-        auto& blacklistedFemalePresets{container.blacklistedFemalePresets};
-        auto& blacklistedMalePresets{container.blacklistedMalePresets};
         auto& parser{Parser::JSONParser::GetInstance()};
-        auto& presetDistributionConfig{parser.presetDistributionConfig};
-
-        auto& blacklistedPresets{presetDistributionConfig["blacklistedPresetsFromRandomDistribution"]};
-        stl::RemoveDuplicatesInJsonArray(blacklistedPresets, presetDistributionConfig.GetAllocator());
-        const auto blacklistedPresetsBegin = blacklistedPresets.Begin();
-        const auto blacklistedPresetsEnd = blacklistedPresets.End();
 
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
@@ -83,30 +72,15 @@ namespace PresetManager {
                 auto preset = GeneratePreset(node);
                 if (!preset) continue;
 
-                const bool blacklisted{std::find(blacklistedPresetsBegin, blacklistedPresetsEnd,
-                                                 preset.value().name.c_str()) != blacklistedPresetsEnd ||
-                                       IsRefitPreset(preset.value().name)};
-
                 // The same UBE presets shape both sexes, so they go in both lists
                 if (preset->ube || IsFemalePreset(*preset)) {
-                    (blacklisted ? blacklistedFemalePresets : femalePresets).push_back(*preset);
+                    allFemalePresets.push_back(*preset);
                 }
                 if (preset->ube || !IsFemalePreset(*preset)) {
-                    (blacklisted ? blacklistedMalePresets : malePresets).push_back(*preset);
+                    allMalePresets.push_back(*preset);
                 }
             }
         }
-        // For performance reasons, PresetContainer::AssignPresetIndexes
-        // relies on the blacklisted presets coming after the non-blacklisted presets.
-        // (In order to not rely on this order, we'd instead have to perform string-key lookups
-        //  via a hash-table, instead of direct array access. Which wouldn't be good for code
-        //  that runs every time a saved-game is loaded).
-
-        allFemalePresets = femalePresets;
-        allFemalePresets.insert_range(allFemalePresets.end(), blacklistedFemalePresets);
-
-        allMalePresets = malePresets;
-        allMalePresets.insert_range(allMalePresets.end(), blacklistedMalePresets);
 
         for (const PresetSet* const presets : {&allFemalePresets, &allMalePresets}) {
             for (const auto& preset : *presets) {
@@ -118,17 +92,12 @@ namespace PresetManager {
             }
         }
 
-        logger::info("Female presets: {}, Male presets: {}", femalePresets.size(), malePresets.size());
-        logger::info("Blacklisted: Female presets: {}, Male Presets: {}", blacklistedFemalePresets.size(),
-                     blacklistedMalePresets.size());
-        logger::info("UBE presets, in both lists: {}, blacklisted: {}",
-                     std::ranges::count_if(femalePresets, &Preset::ube),
-                     std::ranges::count_if(blacklistedFemalePresets, &Preset::ube));
+        logger::info("Read {} female presets and {} male presets, UBE ones in both: {}", allFemalePresets.size(),
+                     allMalePresets.size(), std::ranges::count_if(allFemalePresets, &Preset::ube));
     }
 
     bool PresetContainer::HasPresetsFor(const bool a_female, const bool a_ube) const {
-        return std::ranges::any_of(a_female ? femalePresets : malePresets,
-                                   [=](const Preset& a_preset) { return a_preset.ube == a_ube; });
+        return Parser::JSONParser::GetInstance().GetConfig()->HasPresetsFor(a_female, a_ube);
     }
 
     std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node) {
@@ -145,52 +114,33 @@ namespace PresetManager {
     }
 
     void PresetContainer::AssignPresetIndexes() {
-        auto assignIndexes = [&](PresetSet& allLoadedPresets, PresetSet& nonBlacklistedPresets,
-                                 PresetSet& blacklistedPresets, auto& presetIndexMap, auto& sparseIndexMap,
+        auto assignIndexes = [&](PresetSet& allLoadedPresets, auto& presetIndexMap, auto& sparseIndexMap,
                                  auto& nextPresetIndex) {
-            assert(allLoadedPresets.size() == nonBlacklistedPresets.size() + blacklistedPresets.size());
-
             // We ensure that absent presets have an index of -1 to signify their absence.
             sparseIndexMap.resize(0);
             sparseIndexMap.resize(nextPresetIndex.value, -1);
 
-            size_t loadedIndexOffset = 0;
+            for (size_t loadedIndex = 0; loadedIndex < allLoadedPresets.size(); ++loadedIndex) {
+                auto& preset = allLoadedPresets[loadedIndex];
+                auto indexAssignment = presetIndexMap.emplace(preset.name, nextPresetIndex.value);
 
-            auto assignSubset = [&](PresetSet& subset) {
-                size_t loadedIndex = 0;
-
-                for (; loadedIndex < subset.size(); ++loadedIndex) {
-                    auto& presetInSubset = subset[loadedIndex];
-                    auto& presetInAll = allLoadedPresets[loadedIndexOffset + loadedIndex];
-
-                    assert(presetInSubset.name == presetInAll.name);
-
-                    auto indexAssignment = presetIndexMap.emplace(presetInSubset.name, nextPresetIndex.value);
-
-                    if (indexAssignment.second) {
-                        // This is a preset name we haven't seen before.
-                        ++nextPresetIndex.value;
-                        sparseIndexMap.resize(nextPresetIndex.value);
-                    }
-
-                    auto assignedIndex = indexAssignment.first->second;
-                    sparseIndexMap[assignedIndex.value] = loadedIndexOffset + loadedIndex;
-
-                    presetInSubset.assignedIndex = assignedIndex;
-                    presetInAll.assignedIndex = assignedIndex;
+                if (indexAssignment.second) {
+                    // This is a preset name we haven't seen before.
+                    ++nextPresetIndex.value;
+                    sparseIndexMap.resize(nextPresetIndex.value);
                 }
 
-                loadedIndexOffset += loadedIndex;
-            };
+                auto assignedIndex = indexAssignment.first->second;
+                sparseIndexMap[assignedIndex.value] = loadedIndex;
 
-            assignSubset(nonBlacklistedPresets);
-            assignSubset(blacklistedPresets);
+                preset.assignedIndex = assignedIndex;
+            }
         };
 
-        assignIndexes(this->allFemalePresets, this->femalePresets, this->blacklistedFemalePresets,
-                      this->femalePresetIndexByName, this->allFemalePresetsByIndex, this->nextFemalePresetIndex);
-        assignIndexes(this->allMalePresets, this->malePresets, this->blacklistedMalePresets,
-                      this->malePresetIndexByName, this->allMalePresetsByIndex, this->nextMalePresetIndex);
+        assignIndexes(this->allFemalePresets, this->femalePresetIndexByName, this->allFemalePresetsByIndex,
+                      this->nextFemalePresetIndex);
+        assignIndexes(this->allMalePresets, this->malePresetIndexByName, this->allMalePresetsByIndex,
+                      this->nextMalePresetIndex);
 
         logger::info("Assigned indexes to all the loaded presets.");
     }
@@ -235,14 +185,15 @@ namespace PresetManager {
         }
 
         logger::info("Preset not found, choosing a random one.");
-        const auto& container{PresetManager::PresetContainer::GetInstance()};
-        return GetRandomPreset(female ? container.femalePresets : container.malePresets, a_ube);
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
+
+        return GetRandomPreset(config->GetPresetLists(female).allowed, a_ube);
     }
 
-    std::optional<Preset> GetRandomPreset(const PresetSet& a_presetSet, const bool a_ube) {
-        const auto fits = [=](const Preset& a_preset) { return a_preset.ube == a_ube; };
+    std::optional<Preset> GetRandomPreset(const PresetPointers& a_presets, const bool a_ube) {
+        const auto fits = [=](const Preset* a_preset) { return a_preset->ube == a_ube; };
 
-        std::size_t count{static_cast<std::size_t>(std::ranges::count_if(a_presetSet, fits))};
+        std::size_t count{static_cast<std::size_t>(std::ranges::count_if(a_presets, fits))};
         if (count == 0) {
             return std::nullopt;
         }
@@ -250,9 +201,9 @@ namespace PresetManager {
         static_assert(std::is_same_v<decltype(0llu), decltype(count)>,
                       "Ensure that below literal is of type std::size_t");
         auto chosen{stl::random(0llu, count)};
-        for (const auto& preset : a_presetSet) {
+        for (const auto* const preset : a_presets) {
             if (fits(preset) && chosen-- == 0) {
-                return preset;
+                return *preset;
             }
         }
         return std::nullopt;
@@ -298,7 +249,8 @@ namespace PresetManager {
             if (!stl::cmp(preset.name, a_name)) continue;
 
             if (preset.ube != a_ube) {
-                logger::info("Refit preset '{}' is {}made for UBE, and the actor's body {}, so it isn't used",
+                logger::info("Refit preset '{}' is {}made for UBE, and it would refit a body or preset that {}, so it "
+                             "isn't used",
                              preset.name, preset.ube ? "" : "not ", a_ube ? "is UBE" : "isn't");
                 return nullptr;
             }

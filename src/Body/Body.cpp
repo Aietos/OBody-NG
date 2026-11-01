@@ -61,6 +61,18 @@ namespace Body {
 
             return npcs;
         }
+
+        // Whether the presets were re-rolled since OBody last generated the actor's body, it's cleared once read
+        bool TakeRerollPending(RE::Actor* a_actor) {
+            bool pending{false};
+
+            ActorTracker::Registry::GetInstance().stateForActor.visit(a_actor->GetFormID(), [&](auto& entry) {
+                pending = entry.second.rerollPending;
+                entry.second.rerollPending = false;
+            });
+
+            return pending;
+        }
     }  // namespace
 
     OBody& OBody::GetInstance() { return instance_; }
@@ -150,51 +162,14 @@ namespace Body {
         }
     }
 
-    void OBody::ApplyMorphs(RE::Actor* a_actor, const bool updateMorphsWithoutTimer,
-                            const bool applyProcessedMorph) const {
-        // If updateMorphsWithoutTimer is true, OBody NG will call the ApplyBodyMorphs function without waiting a random
-        // amount of time. That is useful for undressing/redressing.
-        // If performance mode is turned off, we also apply morphs randomly immediately no matter the context.
+    void OBody::ApplyMorphs(RE::Actor* a_actor, const bool applyProcessedMorph) const {
+        if (applyProcessedMorph) {
+            SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
+        }
 
-        RE::ActorHandle actorHandle{a_actor->GetHandle()};
-
-        if (updateMorphsWithoutTimer || !setPerformanceMode) {
-            if (RE::Actor* actor = actorHandle.get().get()) {
-                if (applyProcessedMorph) {
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
-                }
-
-                // ReSharper disable once CppDFAConstantConditions
-                if (actor && actor->Is3DLoaded()) {
-                    morphInterface->ApplyBodyMorphs(actor, true);
-                    NotifyMorphApplied(actor);
-                }
-            }
-        } else {
-            // ReSharper disable CppDFAUnreadVariable
-            // ReSharper disable CppDFAUnusedValue
-            auto actorName{a_actor->GetActorBase()->GetName()};
-
-            // We do this to prevent stutters due to Racemenu attempting to update morphs for too many NPCs
-            std::thread([this, actorHandle, actorName] {
-                // Held for the whole thread, so the actor can't be deleted while it's used
-                const auto actorPtr{actorHandle.get()};
-                if (RE::Actor * actor{actorPtr.get()}) {
-                    logger::info("Actor {} is valid, updating morphs now", actorName);
-
-                    SetMorph(actor, distributionKey.c_str(), "OBody", 1.0F);
-
-                    // ReSharper disable once CppDFAConstantConditions
-                    if (actor && actor->Is3DLoaded() &&
-                        !morphInterface->HasBodyMorph(actor, "obody_synthebd", "OBody")) {
-                        morphInterface->ApplyBodyMorphs(actor, true);
-
-                        NotifyMorphApplied(actor);
-                    }
-                } else {
-                    logger::info("Actor {} is no longer valid, not updating morphs", actorName);
-                }
-            }).detach();
+        if (a_actor->Is3DLoaded()) {
+            morphInterface->ApplyBodyMorphs(a_actor, true);
+            NotifyMorphApplied(a_actor);
         }
     }
 
@@ -223,7 +198,7 @@ namespace Body {
             }
 
             if (RefreshClothePreset(actor.get(), false, nullptr)) {
-                ApplyMorphs(actor.get(), true);
+                ApplyMorphs(actor.get());
             }
         });
     }
@@ -334,22 +309,31 @@ namespace Body {
                                   const bool a_beforeLoad3D) const {
         // The main function of OBody NG
 
+        // The presets were re-rolled: the actor's preset and morphs go, so they're processed again below
+        if (TakeRerollPending(a_actor)) {
+            logger::info("The presets were re-rolled, {} gets a new one", a_actor->GetName());
+            UnassignPreset(a_actor, responsibleInterface);
+            ClearActorMorphs(a_actor, responsibleInterface);
+        }
+
         // If actor is already processed, no need to do anything
         if (IsProcessed(a_actor)) {
+            // Saves from before blacklisted actors got an entry: they get one as they load, so re-rolling all
+            // presets finds them (OBody::RerollAllBodies). Does nothing when the actor has one
+            ActorTracker::Registry::GetInstance().stateForActor.emplace(a_actor->GetFormID(),
+                                                                        ActorTracker::ActorState{});
             return;
         }
 
         bool female{IsFemale(a_actor)};
         const bool ube{IsUBE(a_actor)};
 
-        auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
 
         // If we have no presets for the actor's sex and body, then don't do anything
-        if (!presetContainer.HasPresetsFor(female, ube)) {
+        if (!config->HasPresetsFor(female, ube)) {
             return;
         }
-
-        auto& jsonParser{Parser::JSONParser::GetInstance()};
 
         auto actorBase{a_actor->GetActorBase()};
         auto actorName{actorBase->GetName()};
@@ -371,12 +355,14 @@ namespace Body {
             SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
             SetMorph(a_actor, "obody_blacklisted", "OBody", 1.0F);
 
-            // Clear their preset assignment, if they have one.
+            // Clear their preset assignment, if they have one. An actor without one gets an entry too, so re-rolling
+            // all presets finds them while they aren't loaded (OBody::RerollAllBodies)
             auto& registry{ActorTracker::Registry::GetInstance()};
             uint32_t previousPresetIndex = 0;
-            registry.stateForActor.visit(a_actor->formID, [&](auto& entry) {
+            registry.stateForActor.emplace_or_visit(a_actor->formID, ActorTracker::ActorState{}, [&](auto& entry) {
                 previousPresetIndex = entry.second.presetIndex;
                 entry.second.presetIndex = 0;
+                entry.second.presetPickedByHand = false;
             });
 
             if (previousPresetIndex != 0) {
@@ -403,13 +389,13 @@ namespace Body {
         };
 
         // If NPC is blacklisted, set him as processed
-        if (jsonParser.IsNPCBlacklisted(actorName, lookupIDs)) {
+        if (config->IsNPCBlacklisted(actorName, lookupIDs)) {
             blacklistNPC();
             return;
         }
 
         // First, we attempt to get the NPC's preset from the keys npcFormID and npc from the JSON
-        std::optional<Preset> preset{jsonParser.GetNPCPreset(actorName, lookupIDs, female, ube)};
+        std::optional<Preset> preset{config->GetNPCPreset(actorName, lookupIDs, female, ube)};
 
         if (!preset.has_value()) {
             auto actorRace{stl::get_editorID(actorBase->GetRace()->As<RE::TESForm>())};
@@ -417,38 +403,37 @@ namespace Body {
                                                 : std::string{}};
 
             // if we can't find it, we check if the NPC is blacklisted by plugin name or by race
-            if (jsonParser.IsNPCBlacklistedGlobally(a_actor, lookupNPCs, actorRace.c_str(), actorClass.c_str(),
+            if (config->IsNPCBlacklistedGlobally(a_actor, lookupNPCs, actorRace.c_str(), actorClass.c_str(),
                                                     female)) {
                 blacklistNPC();
                 return;
             }
 
             // Next up, we check if we have a preset defined in one of the NPC's factions
-            preset = jsonParser.GetNPCFactionPreset(actorBase, female, ube);
+            preset = config->GetNPCFactionPreset(actorBase, female, ube);
 
             // If that also fails, we check if we have a preset in the NPC's class
             if (!preset.has_value() && !actorClass.empty()) {
-                preset = jsonParser.GetNPCClassPreset(actorClass.c_str(), female, ube);
+                preset = config->GetNPCClassPreset(actorClass.c_str(), female, ube);
             }
 
             // If that also fails, we check if we have a preset in the NPC's plugin
             // A leveled actor's temporary base belongs to no plugin, so its source records are checked too
             for (const auto* const npc : lookupNPCs) {
                 if (preset.has_value()) break;
-                preset = jsonParser.GetNPCPluginPreset(npc, actorName, female, ube);
+                preset = config->GetNPCPluginPreset(npc, actorName, female, ube);
             }
 
             // And if that also fails, we check if we have a preset in the NPC's race
             if (!preset.has_value()) {
-                preset = jsonParser.GetNPCRacePreset(actorRace.c_str(), female, ube);
+                preset = config->GetNPCRacePreset(actorRace.c_str(), female, ube);
             }
         }
 
         // If we got here without a preset, then we just fetch one randomly
         if (!preset.has_value()) {
             logger::info("No preset defined for this actor, getting it randomly");
-            preset = PresetManager::GetRandomPreset(
-                female ? presetContainer.femalePresets : presetContainer.malePresets, ube);
+            preset = PresetManager::GetRandomPreset(config->GetPresetLists(female).allowed, ube);
         }
 
         // Can't happen, HasPresetsFor made sure there's one
@@ -458,7 +443,8 @@ namespace Body {
 
         logger::info("Preset {} will be applied to {}", preset->name, actorName);
 
-        GenerateBodyByPreset(a_actor, *preset, false, responsibleInterface, a_beforeLoad3D);
+        GenerateBodyByPreset(a_actor, *preset, responsibleInterface, a_beforeLoad3D);
+        ActorTracker::Registry::GetInstance().SetPresetPickedByHand(a_actor, false);
     }
 
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
@@ -479,11 +465,11 @@ namespace Body {
             return;
         }
 
-        GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface, a_beforeLoad3D);
+        GenerateBodyByPreset(a_actor, *preset, responsibleInterface, a_beforeLoad3D);
+        ActorTracker::Registry::GetInstance().SetPresetPickedByHand(a_actor, true);
     }
 
     void OBody::GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
-                                     const bool updateMorphsWithoutTimer,
                                      ::OBody::API::IPluginInterface* responsibleInterface,
                                      const bool a_beforeLoad3D) const {
         auto& registry{ActorTracker::Registry::GetInstance()};
@@ -547,7 +533,7 @@ namespace Body {
             SetMorph(a_actor, distributionKey.c_str(), "OBody", 1.0F);
             NotifyMorphApplied(a_actor);
         } else {
-            ApplyMorphs(a_actor, updateMorphsWithoutTimer);
+            ApplyMorphs(a_actor);
         }
 
         SendActorChangeEvent(
@@ -620,22 +606,23 @@ namespace Body {
         const auto& presetContainer{PresetContainer::GetInstance()};
 
         const bool isFemale = IsFemale(a_actor);
-        // UBE bodies only use refit presets made for UBE, the additive defaults being "UBE Female-Refit..."
+        // The additive refits are added to the body itself, so they must be made for the actor's body: UBE bodies
+        // use "UBE Female-Refit..." ones
         const bool ube = IsUBE(a_actor);
         const auto& allPresets{isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
 
         // "Female-Refit" / "Male-Refit", or "UBE Female-Refit" / "UBE Male-Refit"
         const std::string sexDefaultName{std::string{SexRefitBaseName(isFemale, ube)} + "-Refit"};
 
-        const auto findRefit = [&](const std::string_view a_name) -> std::optional<Preset> {
+        const auto findRefit = [&](const std::string_view a_name, const bool a_ube) -> std::optional<Preset> {
             logger::info("Looking for preset: {}", a_name);
-            if (const auto* const preset{FindRefitPreset(allPresets, a_name, ube)}) {
+            if (const auto* const preset{FindRefitPreset(allPresets, a_name, a_ube)}) {
                 return *preset;
             }
             return std::nullopt;
         };
 
-        auto& jsonParser{Parser::JSONParser::GetInstance()};
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
 
         // Pick the refit first, without touching the actor
         std::optional<Preset> refitPreset;
@@ -647,17 +634,21 @@ namespace Body {
         // "<Preset>-Refit<anything>" presets are full copies of a base preset
         // with some sliders adjusted. What gets applied while clothed is the difference between those sliders
         if (actorPreset) {
+            // A differential refit is compared with its base preset, so it must be made for the preset's body, which
+            // isn't always the actor's one (presets for other bodies can be picked by hand)
+            const bool presetUbe{actorPreset->ube};
+
             // Outfit / keyword specific refit (refitOutfitPresets*, refitOutfitKeywords*)
             // picked by matching the actor's current preset
-            refitPreset = jsonParser.GetRefitPresetFromEquippedItems(a_actor, isFemale, ube, actorPreset->name,
+            refitPreset = config->GetRefitPresetFromEquippedItems(a_actor, isFemale, presetUbe, actorPreset->name,
                                                                      a_changedArmor, a_removingArmor);
 
             // Otherwise the plain "<Preset>-Refit"
             if (!refitPreset) {
                 const std::string perPresetName{actorPreset->name + "-Refit"};
                 // "Female-Refit"/"Male-Refit" are additive defaults
-                if (!stl::cmp(perPresetName, sexDefaultName)) {
-                    refitPreset = findRefit(perPresetName);
+                if (!stl::cmp(perPresetName, std::string{SexRefitBaseName(isFemale, presetUbe)} + "-Refit")) {
+                    refitPreset = findRefit(perPresetName, presetUbe);
                 }
             }
 
@@ -668,13 +659,13 @@ namespace Body {
         // or whatever the user listed in the JSON. Applied additively, so it works for any preset
         if (!refitPreset) {
             refitPreset =
-                jsonParser.GetRefitDefaultFromEquippedItems(a_actor, isFemale, ube, a_changedArmor, a_removingArmor);
+                config->GetRefitDefaultFromEquippedItems(a_actor, isFemale, ube, a_changedArmor, a_removingArmor);
         }
 
         // Universal additive default: Female-Refit / Male-Refit (UBE Female-Refit / UBE Male-Refit)
         // Applied additively, so it works for any preset
         if (!refitPreset) {
-            refitPreset = findRefit(sexDefaultName);
+            refitPreset = findRefit(sexDefaultName, ube);
         }
 
         // The sliders of what was picked. If nothing was configured by the user, it's the hardcoded ORefit values,
@@ -702,8 +693,8 @@ namespace Body {
 
         if (!refitPreset && ube) {
             logger::info(
-                "No UBE -Refit preset found for actor {} (preset '{}'), and the default ORefit values aren't made for "
-                "UBE, so ORefit doesn't change their body",
+                "No -Refit preset found for actor {} (preset '{}'), and the default ORefit values aren't made for "
+                "their UBE body, so ORefit doesn't change it",
                 a_actor->GetName(), actorPreset ? actorPreset->name : "none");
         } else if (!refitPreset) {
             logger::info("No -Refit preset found for actor {} (preset '{}'), using the default ORefit values",
@@ -718,11 +709,10 @@ namespace Body {
         return true;
     }
 
-    void OBody::ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
-                                 ::OBody::API::IPluginInterface* responsibleInterface) const {
+    void OBody::ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
         morphInterface->ClearBodyMorphKeys(a_actor, "OBody");
         morphInterface->ClearBodyMorphKeys(a_actor, "OClothe");
-        ApplyMorphs(a_actor, updateMorphsWithoutTimer, false);
+        ApplyMorphs(a_actor, false);
 
         SendActorChangeEvent(
             a_actor,
@@ -743,12 +733,97 @@ namespace Body {
             ActorTracker::Registry::GetInstance().GetPresetForActor(a_actor, IsFemale(a_actor));
 
         if (preset) {
-            GenerateBodyByPreset(a_actor, *preset, true, responsibleInterface);
+            GenerateBodyByPreset(a_actor, *preset, responsibleInterface);
             return;
         }
 
         // No preset is assigned to the actor, we fallback to GenerateActorBody.
         GenerateActorBody(a_actor, responsibleInterface);
+    }
+
+    void OBody::RerollActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
+        logger::info("Re-rolling the preset of {}", a_actor->GetName());
+
+        // GenerateActorBody takes the preset and morphs away first
+        ActorTracker::ActorState fallbackActorState{};
+        fallbackActorState.rerollPending = true;
+
+        ActorTracker::Registry::GetInstance().stateForActor.emplace_or_visit(
+            a_actor->GetFormID(), fallbackActorState, [](auto& entry) { entry.second.rerollPending = true; });
+
+        GenerateActorBody(a_actor, responsibleInterface, !a_actor->Is3DLoaded());
+    }
+
+    std::size_t OBody::RerollAllBodies(const std::vector<RE::Actor*>& a_loaded,
+                                       const std::vector<RE::Actor*>& a_notLoaded) const {
+        auto& registry{ActorTracker::Registry::GetInstance()};
+        std::size_t marked{0};
+
+        // The actors that aren't loaded get theirs when they load
+        registry.stateForActor.visit_all([&](auto& entry) {
+            if (!entry.second.presetPickedByHand) {
+                entry.second.rerollPending = true;
+                ++marked;
+            }
+        });
+
+        // Processed actors without an entry, such as blacklisted in a save from before they got one
+        ActorTracker::ActorState pendingState{};
+        pendingState.rerollPending = true;
+        std::size_t untracked{0};
+
+        for (auto* const actor : a_notLoaded) {
+            if (IsProcessed(actor) && registry.stateForActor.emplace(actor->GetFormID(), pendingState)) {
+                ++untracked;
+            }
+        }
+
+        std::size_t rerolled{0};
+
+        for (auto* const actor : a_loaded) {
+            if (registry.IsPresetPickedByHand(actor)) continue;
+
+            RerollActorBody(actor, nullptr);
+            ++rerolled;
+        }
+
+        logger::info("Re-rolled the presets of {} loaded actors, {} actors are re-rolled when OBody next sees them",
+                     rerolled, marked + untracked);
+
+        return rerolled;
+    }
+
+    void OBody::UnassignPreset(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const {
+        uint32_t previousPresetIndex = 0;
+
+        ActorTracker::Registry::GetInstance().stateForActor.visit(a_actor->formID, [&](auto& entry) {
+            previousPresetIndex = entry.second.presetIndex;
+            entry.second.presetIndex = 0;
+            entry.second.presetPickedByHand = false;
+        });
+
+        if (previousPresetIndex == 0) {
+            return;
+        }
+
+        SendActorChangeEvent(
+            a_actor,
+            [&] {
+                using Event = ::OBody::API::IActorChangeEventListener;
+
+                Event::OnActorPresetChangedWithoutGeneration::Payload payload{
+                    responsibleInterface,
+                    // Note that the plugin-API mandates that this be a null-terminated string.
+                    // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
+                    PresetManager::AssignedPresetIndex{previousPresetIndex - 1}.GetPresetNameView(IsFemale(a_actor))};
+
+                auto flags = Event::OnActorPresetChangedWithoutGeneration::Flags::PresetWasUnassigned;
+
+                return std::make_pair(flags, payload);
+            },
+            [](auto listener, auto actor, auto&& args) {
+                listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
+            });
     }
 
     void OBody::ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
@@ -758,7 +833,7 @@ namespace Body {
         } else {
             RemoveClothePreset(a_actor);
         }
-        ApplyMorphs(a_actor, true);
+        ApplyMorphs(a_actor);
 
         SendActorChangeEvent(
             a_actor,
@@ -807,7 +882,7 @@ namespace Body {
 
     bool OBody::IsNaked(RE::Actor* a_actor, const bool a_removingArmor, const RE::TESForm* a_equippedArmor) {
         using BipedObjectSlot = RE::BGSBipedObjectForm::BipedObjectSlot;
-        auto& jsonParser{Parser::JSONParser::GetInstance()};
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
 
         const auto* outfitBody{stl::GetWornArmor(a_actor, BipedObjectSlot::kBody)};
         const auto* outergarmentChest{stl::GetWornArmor(a_actor, BipedObjectSlot::kModChestPrimary)};
@@ -834,7 +909,7 @@ namespace Body {
         // if outfit is blacklisted from ORefit, we assume as not having the outfit so ORefit is not applied
         const auto countsAsClothing = [&](const RE::TESObjectARMO* a_armor) {
             if (!a_armor) return false;
-            if (jsonParser.IsOutfitBlacklisted(*a_armor)) {
+            if (config->IsOutfitBlacklisted(*a_armor)) {
                 logger::info("ORefit: '{}' ({:08X}) is blacklisted from ORefit, so it doesn't count as clothing",
                              a_armor->GetName(), a_armor->GetFormID());
                 return false;
@@ -849,7 +924,7 @@ namespace Body {
         // he has no clothing in the slots defined above / they are blacklisted from ORefit
         // if the items in the outfitsForceRefit key are not equipped
         return !hasBodyOutfit && !hasOutergarment && !hasUndergarment &&
-               !jsonParser.IsAnyForceRefitItemEquipped(a_actor, a_removingArmor, a_equippedArmor);
+               !config->IsAnyForceRefitItemEquipped(a_actor, a_removingArmor, a_equippedArmor);
     }
 
     bool OBody::IsRemovingClothes(RE::Actor* a_actor, const bool a_removingArmor, const RE::TESForm* a_equippedArmor) {
@@ -1206,7 +1281,7 @@ namespace Body {
     }
 
     void OBody::AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                                    bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const {
+                                    bool a_doNotApplyMorphs) const {
         auto& registry{ActorTracker::Registry::GetInstance()};
         auto formID = a_actor->formID;
 
@@ -1216,10 +1291,11 @@ namespace Body {
             registry.stateForActor.visit(formID, [&](auto& entry) {
                 previousPresetIndex = entry.second.presetIndex;
                 entry.second.presetIndex = 0;
+                entry.second.presetPickedByHand = false;
             });
 
             if (!a_doNotApplyMorphs) {
-                ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
+                ClearActorMorphs(a_actor, &specialPapyrusPluginInterface);
             }
 
             if (previousPresetIndex != 0) {
@@ -1264,7 +1340,7 @@ namespace Body {
         }
 
         if (!a_doNotApplyMorphs) {
-            GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs, &specialPapyrusPluginInterface);
+            GenerateBodyByPreset(a_actor, *preset, &specialPapyrusPluginInterface);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;
@@ -1294,6 +1370,8 @@ namespace Body {
                     listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
                 });
         }
+
+        registry.SetPresetPickedByHand(a_actor, true);
     }
 
 }  // namespace Body

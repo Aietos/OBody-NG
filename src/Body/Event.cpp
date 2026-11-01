@@ -9,20 +9,20 @@
 
 constinit Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
 
+bool Event::IsDistributionTarget(RE::Actor* a_actor) {
+    if (!a_actor->HasKeywordString("ActorTypeNPC") || a_actor->IsChild()) {
+        return false;
+    }
+
+    const auto config{Parser::JSONParser::GetInstance().GetConfig()};
+
+    return Body::OBody::IsFemale(a_actor) ? !config->distributionDisabledForFemale
+                                          : !config->distributionDisabledForMale;
+}
+
 namespace {
     // NPCs that loaded before OBody could distribute to them, see GenerateWaitingBodies
     boost::concurrent_flat_set<RE::FormID> g_waitingForDistribution;
-
-    // Whether OBody distributes presets to this actor by itself
-    bool IsDistributionTarget(RE::Actor* a_actor) {
-        if (!a_actor->HasKeywordString("ActorTypeNPC") || a_actor->IsChild()) {
-            return false;
-        }
-
-        const auto& parser{Parser::JSONParser::GetInstance()};
-        return Body::OBody::IsFemale(a_actor) ? !parser.distributionDisabledForFemale
-                                              : !parser.distributionDisabledForMale;
-    }
 
     // Until the save has finished loading, the presets have the indexes of the previous one. And until the save's
     // distribution key is known, distributionKey may be another save's, so NPCs that already have their body would
@@ -45,7 +45,7 @@ namespace {
             }
 
             if (const auto& obody{Body::OBody::GetInstance()};
-                CanDistribute(obody) && obody.morphInterface && IsDistributionTarget(a_this)) {
+                CanDistribute(obody) && obody.morphInterface && Event::IsDistributionTarget(a_this)) {
                 // A 3D that is already there doesn't get attached again, so it needs ApplyBodyMorphs
                 obody.GenerateActorBody(a_this, nullptr, !a_this->Is3DLoaded());
             }
@@ -86,7 +86,7 @@ void Event::GenerateWaitingBodies() {
             // The ones whose 3D isn't loaded anymore get their body when it's loaded again
             // The form ID may be of another actor by now if another save was loaded
             auto* const actor{RE::TESForm::LookupByID<RE::Actor>(formID)};
-            if (!actor || !actor->Is3DLoaded() || !IsDistributionTarget(actor)) continue;
+            if (!actor || !actor->Is3DLoaded() || !Event::IsDistributionTarget(actor)) continue;
 
             if (obody.IsProcessed(actor)) {
                 ++alreadyProcessed;

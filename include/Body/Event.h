@@ -7,6 +7,9 @@ namespace Event {
     // Hooks Character::Load3D, to generate the bodies of NPCs before their 3D is built
     void InstallHooks();
 
+    // Whether OBody distributes presets to this actor
+    bool IsDistributionTarget(RE::Actor* a_actor);
+
     // Generates the bodies of the NPCs that loaded before OBody could distribute to them
     // During the loading screen or before Papyrus set the distribution key of a save whose cosave doesn't have it
     // Even if the cosave has it, this also makes sure we generate all needed bodies

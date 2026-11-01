@@ -12,4 +12,19 @@ namespace UI::Util {
     int CompareLinguistic(const std::wstring& a, const std::wstring& b);
 
     bool IsPresetTarget(RE::Actor* a_actor);
+
+    // How the preset lists show and order a preset, the preset menu and the Config Editor alike
+    struct PresetOrder {
+        std::string name;         // exact preset name, the only thing used for lookups
+        std::string displayName;  // name without leading/trailing whitespace, shown in the list
+        std::wstring searchText;  // displayName as lowercase UTF-16, used for searching
+        std::wstring sortKey;     // displayName as UTF-16 without leading non-letters/digits, used for ordering
+        bool hasAlnum{false};     // false for names with no letters/digits at all, so they go last
+    };
+
+    PresetOrder MakePresetOrder(const std::string& a_name);
+
+    // Alphabetical by the first letter or digit, so "(HIMBO) Foo" and "--((HIMBO) Foo" both sort under H. The names
+    // without letters or digits go last
+    bool IsBeforeInPresetOrder(const PresetOrder& a, const PresetOrder& b);
 }  // namespace UI::Util

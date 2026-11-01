@@ -36,4 +36,15 @@ namespace ActorTracker {
         return std::nullopt;
     }
 
+    bool Registry::IsPresetPickedByHand(RE::Actor* a_actor) const {
+        bool byHand{false};
+        stateForActor.cvisit(a_actor->formID, [&](auto& entry) { byHand = entry.second.presetPickedByHand; });
+
+        return byHand;
+    }
+
+    void Registry::SetPresetPickedByHand(RE::Actor* a_actor, const bool a_byHand) {
+        stateForActor.visit(a_actor->formID, [&](auto& entry) { entry.second.presetPickedByHand = a_byHand; });
+    }
+
 }  // namespace ActorTracker

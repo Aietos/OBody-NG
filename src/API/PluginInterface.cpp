@@ -1,5 +1,6 @@
 #include "API/PluginInterface.h"
 #include "Body/Body.h"
+#include "JSONParser/JSONParser.h"
 
 #pragma push_macro("max")
 #pragma push_macro("min")
@@ -51,32 +52,34 @@ namespace OBody::API {
     }
 
     void PluginInterface::GetPresetCounts(PresetCounts& payload) {
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        payload.female = static_cast<decltype(payload.female)>(presetContainer.femalePresets.size());
-        payload.male = static_cast<decltype(payload.male)>(presetContainer.malePresets.size());
-        payload.femaleBlacklisted =
-            static_cast<decltype(payload.femaleBlacklisted)>(presetContainer.blacklistedFemalePresets.size());
-        payload.maleBlacklisted =
-            static_cast<decltype(payload.maleBlacklisted)>(presetContainer.blacklistedMalePresets.size());
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
+        const auto& female{config->GetPresetLists(true)};
+        const auto& male{config->GetPresetLists(false)};
+
+        payload.female = static_cast<decltype(payload.female)>(female.allowed.size());
+        payload.male = static_cast<decltype(payload.male)>(male.allowed.size());
+        payload.femaleBlacklisted = static_cast<decltype(payload.femaleBlacklisted)>(female.blacklisted.size());
+        payload.maleBlacklisted = static_cast<decltype(payload.maleBlacklisted)>(male.blacklisted.size());
     }
 
     size_t PluginInterface::GetPresetNames(PresetCategory category, std::string_view* buffer, size_t bufferLength,
                                            size_t offset, size_t limit) {
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const PresetManager::PresetSet* presets;
+        // A reload between two calls can change the lists, the names stay valid: they belong to the presets
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
+        const PresetManager::PresetPointers* presets;
 
         switch (category) {
             case PresetCategory::PresetCategoryFemale:
-                presets = &presetContainer.femalePresets;
+                presets = &config->GetPresetLists(true).allowed;
                 break;
             case PresetCategory::PresetCategoryFemaleBlacklisted:
-                presets = &presetContainer.blacklistedFemalePresets;
+                presets = &config->GetPresetLists(true).blacklisted;
                 break;
             case PresetCategory::PresetCategoryMale:
-                presets = &presetContainer.malePresets;
+                presets = &config->GetPresetLists(false).allowed;
                 break;
             case PresetCategory::PresetCategoryMaleBlacklisted:
-                presets = &presetContainer.blacklistedMalePresets;
+                presets = &config->GetPresetLists(false).blacklisted;
                 break;
             default:
                 presets = nullptr;
@@ -91,8 +94,8 @@ namespace OBody::API {
 
         size_t index = 0;
         for (size_t presetIndex = offset; (presetIndex < presetCount) & (index < limit); ++presetIndex, ++index) {
-            const auto& preset = (*presets)[presetIndex];
-            buffer[index] = {preset.name.data(), preset.name.size()};
+            const auto* const preset = (*presets)[presetIndex];
+            buffer[index] = {preset->name.data(), preset->name.size()};
         }
 
         return index;
@@ -107,7 +110,7 @@ namespace OBody::API {
     }
 
     void PluginInterface::RemoveOBodyMorphsFromActor(Actor* a_actor) {
-        Body::OBody::GetInstance().ClearActorMorphs(a_actor, true, this);
+        Body::OBody::GetInstance().ClearActorMorphs(a_actor, this);
     }
 
     void PluginInterface::ForcefullyChangeORefitForActor(Actor* a_actor, bool orefitShouldBeApplied) {
@@ -148,11 +151,12 @@ namespace OBody::API {
             registry.stateForActor.visit(formID, [&](auto& entry) {
                 previousPresetIndex = entry.second.presetIndex;
                 entry.second.presetIndex = 0;
+                entry.second.presetPickedByHand = false;
             });
 
+            // ForceImmediateApplicationOfMorphs isn't needed anymore, morphs are always applied right away
             if ((payload.flags & AssignPresetPayload::Flags::DoNotApplyMorphs) == 0) {
-                bool immediate = (payload.flags & AssignPresetPayload::Flags::ForceImmediateApplicationOfMorphs) != 0;
-                obody.ClearActorMorphs(a_actor, immediate, this);
+                obody.ClearActorMorphs(a_actor, this);
             }
 
             if (previousPresetIndex != 0) {
@@ -197,8 +201,7 @@ namespace OBody::API {
         }
 
         if ((payload.flags & AssignPresetPayload::Flags::DoNotApplyMorphs) == 0) {
-            bool immediate = (payload.flags & AssignPresetPayload::Flags::ForceImmediateApplicationOfMorphs) != 0;
-            obody.GenerateBodyByPreset(a_actor, *preset, immediate, this);
+            obody.GenerateBodyByPreset(a_actor, *preset, this);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;
@@ -228,6 +231,8 @@ namespace OBody::API {
                     listener->OnActorPresetChangedWithoutGeneration(actor, args.first, args.second);
                 });
         }
+
+        registry.SetPresetPickedByHand(a_actor, true);
 
         return true;
     }

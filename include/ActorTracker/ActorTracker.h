@@ -16,13 +16,20 @@ namespace ActorTracker {
                 // or unequips armour in response to it: it can easily cause an infinite loop of `TESEquipEvent`s,
                 // which would freeze the game until it crashes from a stack overflow.
                 uint32_t actorChangeEventsAreBeingSent : 1;
-                uint32_t unusedSpareBitsForLaterUse : 11;
+                uint32_t unusedSpareBitsForLaterUse : 9;
+                // The presets were re-rolled while OBody wasn't looking at this actor, so the next time it does, the
+                // actor gets a new one (see OBody::RerollAllBodies)
+                uint32_t rerollPending : 1;
+                // The preset was picked for the actor by hand (OBody's menu, Papyrus or another plugin), not given
+                // out by the distribution. Re-rolling all presets keeps it
+                uint32_t presetPickedByHand : 1;
                 static_assert(PresetManager::AssignedPresetIndex::BitWidth == 20);
                 uint32_t presetIndex : 20;
             };
         };
 
-        static constexpr uint32_t PersistedInCosaveMask = 0b11111111111111111111000000000000;
+        // Older versions of OBody keep only presetIndex from a save, so the bits above it read as cleared there
+        static constexpr uint32_t PersistedInCosaveMask = 0b11111111111111111111110000000000;
     };
 
     // We want this structure to be the same size as a FormID so that
@@ -39,6 +46,10 @@ namespace ActorTracker {
         uint32_t GetPresetIndexForActor(RE::Actor* a_actor) const;
         std::optional<PresetManager::Preset> GetPresetForActor(RE::Actor* a_actor, const bool isFemale) const;
         std::optional<std::string> GetPresetNameForActor(RE::Actor* a_actor, const bool isFemale) const;
+
+        bool IsPresetPickedByHand(RE::Actor* a_actor) const;
+        // The actor has to have an entry already, as they do once a preset was assigned to them
+        void SetPresetPickedByHand(RE::Actor* a_actor, bool a_byHand);
 
         boost::concurrent_flat_map<RE::FormID, ActorState> stateForActor;
 
