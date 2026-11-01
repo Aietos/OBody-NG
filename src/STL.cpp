@@ -57,41 +57,6 @@ errno_t stl::FilePtrManager::error() const noexcept { return err; }
 
 #pragma warning(pop)
 
-void stl::MergeJsonDocument(rapidjson::Value& target, rapidjson::Value& source,
-                            rapidjson::Document::AllocatorType& allocator) {
-    if (!source.IsObject() || !target.IsObject()) return;
-
-    for (auto srcIt = source.MemberBegin(); srcIt != source.MemberEnd(); ++srcIt) {
-        auto dstIt = target.FindMember(srcIt->name);
-        if (dstIt == target.MemberEnd()) {
-            rapidjson::Value key;
-            key.CopyFrom(srcIt->name, allocator);
-            rapidjson::Value val;
-            val.CopyFrom(srcIt->value, allocator);
-            target.AddMember(key, val, allocator);
-        } else if (srcIt->value.IsObject() && dstIt->value.IsObject()) {
-            MergeJsonDocument(dstIt->value, srcIt->value, allocator);
-        } else {
-            dstIt->value.CopyFrom(srcIt->value, allocator);
-        }
-    }
-}
-
-void stl::MergeJsonArray(rapidjson::Value& target, rapidjson::Value& source,
-                         rapidjson::Document::AllocatorType& allocator) {
-    if (!source.IsArray() || !target.IsArray()) return;
-
-    for (auto& item : source.GetArray()) {
-        const bool alreadyPresent = std::any_of(target.Begin(), target.End(),
-                                                [&item](const rapidjson::Value& existing) { return existing == item; });
-        if (!alreadyPresent) {
-            rapidjson::Value val;
-            val.CopyFrom(item, allocator);
-            target.PushBack(val, allocator);
-        }
-    }
-}
-
 stl::timeit::~timeit() {
     const auto stop{std::chrono::steady_clock::now() - start};
     logger::info(

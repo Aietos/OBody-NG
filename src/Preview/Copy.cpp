@@ -315,7 +315,6 @@ namespace Preview {
 
         auto* const copy{copy_.get()};
         auto* const root{copy->Get3D(false)};
-        SettlePose(copy, root);
         Body::OBody::GetInstance().morphInterface->ApplyBodyMorphs(copy, true);
 
         root->SetAppCulled(false);
@@ -323,6 +322,7 @@ namespace Preview {
         actor_ = copy_;
         root_ = RE::NiPointer<RE::NiAVObject>{root};
         copyShown_ = true;
+        BeginSettling();
         morphs_.clear();
         SnapshotMorphs();
         originalHeading_.reset();
@@ -338,8 +338,8 @@ namespace Preview {
 
         Physics::Reset();
 
-        // Framed where it stands, the target hidden with the other actors
-        Present();
+        // Framed where it stands, the target hidden with the other actors. In the target's place, the camera stays
+        Present(!copyAtPlayer_);
 
         if (lit_) {
             QueueLightUpdate();
@@ -358,6 +358,7 @@ namespace Preview {
 
         RemoveLight();
         copyShown_ = false;
+        settlingSince_.reset();
 
         auto* const root{target_->Get3D(false)};
         actor_ = target_;
@@ -381,7 +382,9 @@ namespace Preview {
         }
 
         Physics::Reset();
-        Present();
+
+        // Where the copy stood, unless it was brought to the player
+        Present(!copyAtPlayer_);
 
         if (lit_) {
             QueueLightUpdate();

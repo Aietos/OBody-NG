@@ -3,6 +3,12 @@
 #include "PresetManager/PresetManager.h"
 
 namespace Preview {
+    struct ThirdPersonBackup {
+        RE::CameraState state{};
+        RE::NiPoint2 freeRotation;
+        bool freeRotationEnabled{};
+    };
+
     // Shows presets live on an actor while the preset menu is open
     class Session {
     public:
@@ -27,8 +33,10 @@ namespace Preview {
         // For a game being loaded the references are going away, so only what outlives them is put back
         void Abandon();
 
-        // a_func runs once SKSE Menu Framework's menu closes, which lets time run again. Dropped when a game is loaded
-        void RunWhenMenuCloses(std::function<void()> a_func);
+        // a_func runs once SKSE Menu Framework's menu closes, which lets time run again. Dropped when a game is loaded.
+        // It replaces what waited for the same a_key, so an actor whose preset changed several times while the menu
+        // was open is told once, about the last one
+        void RunWhenMenuCloses(RE::FormID a_key, std::function<void()> a_func);
         void OnMenuClosed();
 
         // The copies Live Preview used and disabled are deleted, so the save doesn't keep them
@@ -108,6 +116,7 @@ namespace Preview {
             bool switched{};
             RE::NiPoint3 translation;
             RE::BSTPoint2<float> rotation;
+            std::optional<ThirdPersonBackup> thirdPerson;
         };
 
         // How the camera looks at the actor
@@ -137,8 +146,13 @@ namespace Preview {
 
         static Session instance_;
 
-        // The game doesn't animate actors far from the player, so their skeleton can be in the A-pose
-        static void SettlePose(RE::Actor* a_actor, RE::NiAVObject* a_root);
+        // The game doesn't animate actors far from the player, so their skeleton can be in the A-pose. Returns false
+        // when their animation couldn't pose them
+        static bool SettlePose(RE::Actor* a_actor, RE::NiAVObject* a_root);
+
+        // Settles the pose of who's shown. If it doesn't take, it's tried again each frame (UpdateSettling)
+        void BeginSettling();
+        void UpdateSettling();
 
         void SnapshotMorphs();
         void RestoreMorphs();
@@ -163,8 +177,9 @@ namespace Preview {
         void RestoreBlur();
         void RestoreHUD();
 
-        // Starts framing the actor, once the free camera is on
-        void Present();
+        // Starts framing the actor once the free camera is on. a_keepView: they stand where the actor shown before
+        // stood, so the camera stays as it was moved
+        void Present(bool a_keepView = false);
 
         // Picks where around the actor the camera starts, with nothing in between them
         void ChooseView();
@@ -227,7 +242,7 @@ namespace Preview {
         static inline std::atomic_bool alwaysCopy_{false};
 
         // See RunWhenMenuCloses
-        std::vector<std::function<void()>> onMenuClosed_;
+        std::vector<std::pair<RE::FormID, std::function<void()>>> onMenuClosed_;
 
         // Bring to me is on, the copy is shown where the player stands
         bool bring_{false};
@@ -242,6 +257,8 @@ namespace Preview {
         bool copyAtPlayer_{false};
         std::chrono::steady_clock::time_point copyRequestedAt_;
         std::chrono::steady_clock::time_point copyDressedAt_;
+
+        std::optional<std::chrono::steady_clock::time_point> settlingSince_;
 
         RE::FormID copyFailedFor_{0};
 
@@ -288,7 +305,7 @@ namespace Preview {
         // The HUD with the subtitles, crosshair prompts and compass, hidden while previewing
         RE::GPtr<RE::IMenu> hiddenHUD_;
 
-        // The camera is left alone in VR, or when SmoothCam or another mod keeps it
+        // The camera is left alone in VR
         bool framingAvailable_{false};
         bool presented_{false};
         std::optional<CameraBackup> cameraBackup_;

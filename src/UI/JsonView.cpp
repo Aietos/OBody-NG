@@ -1,5 +1,6 @@
 #include "UI/JsonView.h"
 #include "SKSEMenuFramework.h"
+#include "UI/Lookups.h"
 #include "UI/Translations.h"
 
 namespace {
@@ -49,25 +50,72 @@ namespace {
             Seg(std::format("{}", v.GetDouble()), kNumber);
     }
 
-    void Node(const char* key, const rapidjson::Value& v, bool comma);
+    struct Path {
+        const char* key{nullptr};
+        const char* plugin{nullptr};
+        // 1 for the top-level keys, 2 for the plugins under them, 3 for what the plugins hold
+        int depth{0};
+    };
 
-    void Children(const rapidjson::Value& v) {
+    bool IsFormID(const Path& a_path) {
+        return a_path.depth == 3 && a_path.key && a_path.plugin && std::string_view{a_path.key}.ends_with("FormID");
+    }
+
+    // The label/name of a FormID, so it's easier for users to read what is being edited/assigned
+    const std::string& FormIDComment(const std::string_view a_plugin, const std::string_view a_formID) {
+        static std::unordered_map<std::string, std::string> comments;
+
+        const auto [it, added]{comments.try_emplace(std::format("{}|{}", a_plugin, a_formID))};
+
+        if (added) {
+            const auto* const form{UI::Lookups::FindRecord(a_plugin, a_formID)};
+            const char* const name{form ? form->GetName() : nullptr};
+
+            it->second = !form ? std::format("  // {}", UI::Translations::Get("obody_editor_not_found"))
+                               : std::format("  // {}", name && *name ? name : "?");
+        }
+
+        return it->second;
+    }
+
+    void Node(const char* key, const rapidjson::Value& v, bool comma, const Path& a_path);
+
+    void Children(const rapidjson::Value& v, const Path& a_path) {
+        Path child{a_path};
+        ++child.depth;
+
         if (v.IsObject()) {
             for (auto it = v.MemberBegin(); it != v.MemberEnd(); ++it) {
+                if (child.depth == 1) {
+                    child.key = it->name.GetString();
+                } else if (child.depth == 2) {
+                    child.plugin = it->name.GetString();
+                }
+
                 ImGuiMCP::PushID(it->name.GetString());
-                Node(it->name.GetString(), it->value, std::next(it) != v.MemberEnd());
+                Node(it->name.GetString(), it->value, std::next(it) != v.MemberEnd(), child);
                 ImGuiMCP::PopID();
             }
         } else if (v.IsArray()) {
             for (rapidjson::SizeType i = 0; i < v.Size(); ++i) {
                 ImGuiMCP::PushID(static_cast<int>(i));
-                Node(nullptr, v[i], i + 1 < v.Size());
+                Node(nullptr, v[i], i + 1 < v.Size(), child);
                 ImGuiMCP::PopID();
             }
         }
     }
 
-    void Node(const char* key, const rapidjson::Value& v, bool comma) {
+    void Node(const char* key, const rapidjson::Value& v, bool comma, const Path& a_path) {
+        std::string comment;
+
+        if (IsFormID(a_path)) {
+            if (key) {
+                comment = FormIDComment(a_path.plugin, key);
+            } else if (v.IsString()) {
+                comment = FormIDComment(a_path.plugin, v.GetString());
+            }
+        }
+
         const bool isObj = v.IsObject();
         const bool isArr = v.IsArray();
 
@@ -81,6 +129,7 @@ namespace {
             else
                 Scalar(v);
             Comma(comma);
+            if (!comment.empty()) Seg(comment, kDim);
             return;
         }
 
@@ -101,11 +150,16 @@ namespace {
             Seg(" … ", kDim);
             Seg(close, kPunct);
             Comma(comma);
-            Seg(std::format("  // {} {}", count, isObj ? "keys" : "items"), kDim);
+            if (comment.empty())
+                Seg(std::format("  // {} {}", count, isObj ? "keys" : "items"), kDim);
+            else
+                Seg(std::format("{}, {} {}", comment, count, isObj ? "keys" : "items"), kDim);
             return;
         }
 
-        Children(v);
+        if (!comment.empty()) Seg(comment, kDim);
+
+        Children(v, a_path);
         ImGuiMCP::TreePop();
 
         BeginLeafLine("##close");
@@ -140,13 +194,13 @@ void UI::JsonView::Render(const rapidjson::Value& root) {
             Seg(isObj ? "{" : "[", kPunct);
 
             ImGuiMCP::Indent();
-            Children(root);
+            Children(root, Path{});
             ImGuiMCP::Unindent();
 
             BeginLeafLine("##rootClose");
             Seg(isObj ? "}" : "]", kPunct);
         } else {
-            Node(nullptr, root, false);
+            Node(nullptr, root, false, Path{});
         }
 
         ImGuiMCP::PopStyleVar();

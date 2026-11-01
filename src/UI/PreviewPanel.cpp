@@ -81,7 +81,7 @@ void UI::PreviewPanel::PlaceWindow(const ImGuiMCP::ImGuiViewport* a_viewport) {
         g_docked = true;
         ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{a_viewport->Pos.x + 16.0f, a_viewport->Pos.y + 16.0f},
                                    ImGuiMCP::ImGuiCond_Always);
-        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{a_viewport->Size.x * 0.3f, a_viewport->Size.y - 32.0f},
+        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{a_viewport->Size.x * 0.36f, a_viewport->Size.y - 32.0f},
                                     ImGuiMCP::ImGuiCond_Always);
     } else if (g_docked && !UI::PresetList::IsPreviewEnabled()) {
         g_docked = false;
@@ -253,7 +253,7 @@ void UI::PreviewPanel::Apply(RE::Actor* a_actor, const std::function<void()>& a_
         preview.Apply(a_apply);
         // As when the menu closes for the preset. Sent now, the script's unequip would wait for the actor's next
         // update, which doesn't come while time is frozen
-        preview.RunWhenMenuCloses(std::move(a_announce));
+        preview.RunWhenMenuCloses(a_actor->GetFormID(), std::move(a_announce));
     } else {
         preview.End(true);
         a_apply();
