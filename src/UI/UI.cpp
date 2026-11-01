@@ -1,17 +1,20 @@
 #include "UI/UI.h"
 #include "UI/Translations.h"
+#include "UI/ConfigEditor.h"
+#include "UI/ConfigTabs.h"
 #include "UI/GamepadCamera.h"
-#include "UI/JsonView.h"
 #include "UI/NpcList.h"
 #include "UI/PresetsTab.h"
 #include "UI/PreviewPanel.h"
 #include "UI/Util.h"
+#include "UI/Widgets.h"
 #include "Body/Event.h"
-#include "JSONParser/JSONParser.h"
 
 namespace {
     std::atomic<std::uint32_t> g_hotkeyScanCode{0x18};
     std::atomic_bool g_previewEnabled{true};
+
+    bool g_closeAfterTextInput{false};
 
     constexpr auto kNumKeyboardKeys{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumKeyboardKeys)};
     constexpr auto kNumMouseButtons{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumMouseButtons)};
@@ -30,6 +33,37 @@ namespace {
             default:
                 return kInvalidKeyCode;
         }
+    }
+
+    // The game's idle camera starts spinning around the player when nothing has been pressed for fAutoVanityModeDelay,
+    // which happens while the menu is open. The camera keeps its own allowAutoVanityMode, set from Skyrim.ini's
+    // bDisableAutoVanityMode, so changing that setting while playing does nothing. The camera's vanity mode is
+    // turned off while the menu is open, and put back as it was when it closes
+    std::optional<bool> g_autoVanityAllowedBefore;
+
+    void DisableAutoVanity() {
+        auto* const camera{RE::PlayerCamera::GetSingleton()};
+
+        if (!camera) return;
+
+        auto& allowed{camera->GetRuntimeData2().allowAutoVanityMode};
+
+        if (!g_autoVanityAllowedBefore) {
+            g_autoVanityAllowedBefore = allowed;
+            logger::info("The idle camera is off while the menu is open, it was {}", allowed ? "on" : "off already");
+        }
+
+        allowed = false;
+    }
+
+    void RestoreAutoVanity() {
+        if (!g_autoVanityAllowedBefore) return;
+
+        if (auto* const camera{RE::PlayerCamera::GetSingleton()}) {
+            camera->GetRuntimeData2().allowAutoVanityMode = *g_autoVanityAllowedBefore;
+        }
+
+        g_autoVanityAllowedBefore.reset();
     }
 
     bool IsGameTextEntryActive() {
@@ -73,12 +107,15 @@ namespace {
         // The window can be closed without rendering again, by the hotkey or by SKSE Menu Framework itself
         if (UI::PresetList::Window && !UI::PresetList::Window->IsOpen.load()) {
             UI::PreviewPanel::End();
+            RestoreAutoVanity();
         }
 
         if (a_type == SKSEMenuFramework::Model::EventType::kCloseMenu) {
             UI::PreviewPanel::OnMenuClosed();
         }
     }
+
+    bool g_editorTabShown{false};
 
     // The actor the menu is for, picked when it opens: the NPC in the crosshair, or the player. The NPC tab can
     // pick another. It's kept while the menu is open, because the preview's camera changes what the crosshair is on
@@ -120,8 +157,11 @@ void __stdcall UI::PresetList::Render() {
 
     if (!isOpen) {
         PreviewPanel::End();
+        RestoreAutoVanity();
         return;
     }
+
+    DisableAutoVanity();
 
     auto* viewport = ImGuiMCP::GetMainViewport();
 
@@ -130,12 +170,17 @@ void __stdcall UI::PresetList::Render() {
     const auto center = ImGuiMCP::ImGuiViewportManager::GetCenter(viewport);
 
     ImGuiMCP::SetNextWindowPos(center, ImGuiMCP::ImGuiCond_FirstUseEver, ImGuiMCP::ImVec2{0.5f, 0.5f});
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.35f, viewport->Size.y * 0.5f},
+    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.38f, viewport->Size.y * 0.75f},
                                 ImGuiMCP::ImGuiCond_FirstUseEver);
 
     PreviewPanel::PlaceWindow(viewport);
 
-    if (!ImGuiMCP::Begin("OBody##OBodyPresetWindow", &isOpen)) {
+    // The Config Editor's page is as tall as its rules, so the window's scrollbar would come and go with the category
+    // and the search, and everything would get narrower and wider with it: on that tab, its room is always kept
+    const ImGuiMCP::ImGuiWindowFlags windowFlags{g_editorTabShown ? ImGuiMCP::ImGuiWindowFlags_AlwaysVerticalScrollbar
+                                                                  : ImGuiMCP::ImGuiWindowFlags_None};
+
+    if (!ImGuiMCP::Begin("OBody##OBodyPresetWindow", &isOpen, windowFlags)) {
         ImGuiMCP::End();
         Window->IsOpen = isOpen;
         return;
@@ -146,8 +191,11 @@ void __stdcall UI::PresetList::Render() {
     const bool justOpened = ImGuiMCP::IsWindowAppearing();
 
     if (justOpened) {
+        g_closeAfterTextInput = false;
         ImGuiMCP::SetScrollY(0.0f);
         PresetsTab::Reset();
+        ConfigTabs::Reset();
+        ConfigEditor::Reset();
 
         RE::Actor* crosshairActor{Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get()};
         if (Util::IsPresetTarget(crosshairActor)) {
@@ -159,11 +207,23 @@ void __stdcall UI::PresetList::Render() {
         GamepadCamera::OnMenuOpened();
     }
 
-    // Esc closes the menu, also after dragging on the preview's overlay
+    if (g_closeAfterTextInput) {
+        g_closeAfterTextInput = false;
+        isOpen = false;
+    }
+
     if ((ImGuiMCP::IsWindowFocused(ImGuiMCP::ImGuiFocusedFlags_RootAndChildWindows) ||
          PreviewPanel::IsOverlayFocused()) &&
         ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape, false)) {
-        isOpen = false;
+        if (ImGuiMCP::IsPopupOpen("", ImGuiMCP::ImGuiPopupFlags_AnyPopup) || Widgets::WasComboOpen()) {
+            ImGuiMCP::ClearActiveID();
+            Widgets::CloseOpenCombo();
+        } else if (ImGuiMCP::IsAnyItemActive()) {
+            ImGuiMCP::ClearActiveID();
+            g_closeAfterTextInput = true;
+        } else {
+            isOpen = false;
+        }
     }
 
     // The NPC picked may have been unloaded or deleted since
@@ -215,8 +275,25 @@ void __stdcall UI::PresetList::Render() {
             npcTabWasOpen = false;
         }
 
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_settings_header").c_str())) {
+            ConfigTabs::RenderSettings();
+            ImGuiMCP::EndTabItem();
+        }
+
+        g_editorTabShown = ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_editor_tab").c_str());
+
+        if (g_editorTabShown) {
+            ConfigEditor::Render(actor);
+            ImGuiMCP::EndTabItem();
+        }
+
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_include_files_header").c_str())) {
+            ConfigTabs::RenderIncludeFiles();
+            ImGuiMCP::EndTabItem();
+        }
+
         if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_config_viewer_tab").c_str())) {
-            JsonView::Render(Parser::JSONParser::GetInstance().presetDistributionConfig);
+            ConfigTabs::RenderViewer();
             ImGuiMCP::EndTabItem();
         }
 
@@ -225,8 +302,10 @@ void __stdcall UI::PresetList::Render() {
 
     ImGuiMCP::End();
     Window->IsOpen = isOpen;
+    Widgets::EndFrame();
 
     if (!isOpen) {
         PreviewPanel::End();
+        RestoreAutoVanity();
     }
 }

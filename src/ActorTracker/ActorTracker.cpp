@@ -14,9 +14,15 @@ namespace ActorTracker {
     }
 
     std::optional<PresetManager::Preset> Registry::GetPresetForActor(RE::Actor* a_actor, const bool isFemale) const {
-        uint32_t actorPresetIndex = GetPresetIndexForActor(a_actor);
+        uint32_t actorPresetIndex = 0;
+        bool otherSex{false};
 
-        if (actorPresetIndex != 0) {
+        stateForActor.cvisit(a_actor->formID, [&](auto& entry) {
+            actorPresetIndex = entry.second.presetIndex;
+            otherSex = entry.second.presetSexKnown && static_cast<bool>(entry.second.presetFemale) != isFemale;
+        });
+
+        if (actorPresetIndex != 0 && !otherSex) {
             // Minus one because an index of zero assigned to the actor signifies the absence of a preset.
             auto preset = PresetManager::AssignedPresetIndex{actorPresetIndex - 1}.GetPreset(isFemale);
 
@@ -34,6 +40,17 @@ namespace ActorTracker {
             return preset->name;
         }
         return std::nullopt;
+    }
+
+    bool Registry::IsPresetPickedByHand(RE::Actor* a_actor) const {
+        bool byHand{false};
+        stateForActor.cvisit(a_actor->formID, [&](auto& entry) { byHand = entry.second.presetPickedByHand; });
+
+        return byHand;
+    }
+
+    void Registry::SetPresetPickedByHand(RE::Actor* a_actor, const bool a_byHand) {
+        stateForActor.visit(a_actor->formID, [&](auto& entry) { entry.second.presetPickedByHand = a_byHand; });
     }
 
 }  // namespace ActorTracker

@@ -2,7 +2,6 @@
 
 #include "Body/Body.h"
 #include "Preview/Physics.h"
-#include "Preview/SmoothCam.h"
 #include "SKSEMenuFramework.h"
 #include "STL.h"
 
@@ -92,6 +91,48 @@ namespace Preview {
             return static_cast<RE::FreeCameraState*>(a_camera->currentState.get());  // NOLINT(*-static-cast-downcast)
         }
 
+        // Null unless the camera is in third person or on a horse
+        RE::ThirdPersonState* GetActiveThirdPersonState(RE::PlayerCamera* a_camera) {
+            if (!a_camera || !a_camera->currentState) return nullptr;
+
+            const auto state{a_camera->currentState->id};
+
+            if (state != RE::CameraState::kThirdPerson && state != RE::CameraState::kMount) return nullptr;
+
+            return static_cast<RE::ThirdPersonState*>(a_camera->currentState.get());  // NOLINT(*-static-cast-downcast)
+        }
+
+        // Puts the third person camera's angle back to what it previously was
+        void RestoreThirdPerson(const ThirdPersonBackup& a_backup, const int a_triesLeft) {
+            auto* const camera{RE::PlayerCamera::GetSingleton()};
+
+            if (!camera) return;
+
+            camera->Update();
+
+            auto* const state{GetActiveThirdPersonState(camera)};
+
+            if (!state || camera->currentState->id != a_backup.state) {
+                if (a_triesLeft > 0) {
+                    SKSE::GetTaskInterface()->AddTask(
+                        [a_backup, a_triesLeft] { RestoreThirdPerson(a_backup, a_triesLeft - 1); });
+                } else {
+                    logger::info("Preview: the camera didn't go back to third person, its angle wasn't put back");
+                }
+                return;
+            }
+
+            logger::info(
+                "Preview: third person camera angle put back to ({:.2f}, {:.2f}), free {}, it was ({:.2f}, "
+                "{:.2f}), free {}",
+                a_backup.freeRotation.x, a_backup.freeRotation.y, a_backup.freeRotationEnabled, state->freeRotation.x,
+                state->freeRotation.y, state->freeRotationEnabled);
+
+            state->freeRotation = a_backup.freeRotation;
+            state->freeRotationEnabled = a_backup.freeRotationEnabled;
+            camera->Update();
+        }
+
         // The free camera is placed where the preview wants it and nothing else moves it: the third person camera
         // turned out to have its free rotation turned off for some actors whatever the preview did, and its collision
         // to pull it in front of pillars. Switching to it or back can set whether time is frozen, so that's kept
@@ -157,6 +198,63 @@ namespace Preview {
         constexpr int kSettleSteps{10};
         constexpr float kSettleStep{1.0F / 60.0F};
 
+        constexpr auto kSettleTimeout{std::chrono::seconds{3}};
+
+        constexpr std::array kPoseBones{"NPC L UpperArm [LUar]", "NPC R UpperArm [RUar]", "NPC L Thigh [LThg]",
+                                        "NPC R Thigh [RThg]"};
+
+        constexpr float kAPoseDegrees{12.0F};
+
+        // How many degrees the bone is turned from where the meshes skinned to it were made, which is the A-pose.
+        // Nullopt when no mesh is skinned to it
+        std::optional<float> DegreesFromAPose(RE::NiAVObject* a_root, const RE::NiAVObject* a_bone) {
+            std::optional<float> degrees;
+
+            RE::BSVisit::TraverseScenegraphGeometries(a_root, [&](RE::BSGeometry* a_geometry) {
+                const auto& skin{a_geometry->GetGeometryRuntimeData().skinInstance};
+
+                if (!skin || !skin->skinData || !skin->bones || !skin->rootParent) {
+                    return RE::BSVisit::BSVisitControl::kContinue;
+                }
+
+                const auto& data{*skin->skinData};
+
+                for (std::uint32_t i = 0; i < data.GetBoneCount(); ++i) {
+                    if (skin->bones[i] != a_bone) continue;
+
+                    const auto matrix{data.rootParentToSkin * skin->rootParent->world.Invert() * a_bone->world *
+                                      data.GetBoneDataSkinToBone(i)};
+                    const auto& rotation{matrix.rotate.entry};
+                    const float trace{rotation[0][0] + rotation[1][1] + rotation[2][2]};
+                    degrees =
+                        std::acos(std::clamp((trace - 1.0F) * 0.5F, -1.0F, 1.0F)) * 180.0F / std::numbers::pi_v<float>;
+
+                    return RE::BSVisit::BSVisitControl::kStop;
+                }
+
+                return RE::BSVisit::BSVisitControl::kContinue;
+            });
+
+            return degrees;
+        }
+
+        bool IsInAPose(RE::NiAVObject* a_root) {
+            int measured{0};
+
+            for (const auto* const name : kPoseBones) {
+                const auto* const bone{a_root->GetObjectByName(name)};
+                const auto degrees{bone ? DegreesFromAPose(a_root, bone) : std::nullopt};
+
+                if (!degrees) continue;
+
+                if (*degrees >= kAPoseDegrees) return false;
+
+                ++measured;
+            }
+
+            return measured > 0;
+        }
+
         // Whether nothing but actors is between the points
         bool IsClear(RE::bhkWorld* a_world, const RE::NiPoint3& a_from, const RE::NiPoint3& a_to) {
             bool clear{true};
@@ -172,15 +270,51 @@ namespace Preview {
     Session& Session::GetInstance() { return instance_; }
 
     // Their skeleton can be left in the default A-pose or halfway out of it.
-    // Their animation is played for a few frames, so their skeleton takes the pose they're in
-    void Session::SettlePose(RE::Actor* a_actor, RE::NiAVObject* a_root) {
-        if (a_actor->IsPlayerRef()) return;
+    // Their animation is played for a few frames, so their skeleton takes the pose they're in. Right after their 3D is
+    // built, and when the game hasn't animated them for a while, it can't pose them yet: they stay in the A-pose
+    bool Session::SettlePose(RE::Actor* a_actor, RE::NiAVObject* a_root) {
+        if (a_actor->IsPlayerRef()) return true;
 
         for (int i = 0; i < kSettleSteps; ++i) {
             a_actor->UpdateAnimation(kSettleStep);
         }
         RE::NiUpdateData updateData;
         a_root->Update(updateData);
+
+        return !IsInAPose(a_root);
+    }
+
+    void Session::BeginSettling() {
+        settlingSince_.reset();
+
+        if (SettlePose(actor_.get(), root_.get())) return;
+
+        logger::info(
+            "Preview: {}{} is in the A-pose, their animation couldn't pose them yet, it's tried again each "
+            "frame",
+            copyShown_ ? "the copy of " : "", actor_->GetDisplayFullName());
+        settlingSince_ = std::chrono::steady_clock::now();
+    }
+
+    // A new copy is only posed a while after it's shown: hidden, it stays in the A-pose
+    void Session::UpdateSettling() {
+        if (!settlingSince_) return;
+
+        const auto waited{std::chrono::steady_clock::now() - *settlingSince_};
+        const auto* const who{copyShown_ ? "the copy of " : ""};
+
+        if (SettlePose(actor_.get(), root_.get())) {
+            logger::info("Preview: {}{} took their pose {} ms later", who, actor_->GetDisplayFullName(),
+                         std::chrono::duration_cast<std::chrono::milliseconds>(waited).count());
+            settlingSince_.reset();
+
+            // Their hair and clothes are where the A-pose had them
+            Physics::Reset();
+        } else if (waited > kSettleTimeout) {
+            logger::info("Preview: {}{} is still in the A-pose after {} s, their pose isn't tried anymore", who,
+                         actor_->GetDisplayFullName(), kSettleTimeout.count());
+            settlingSince_.reset();
+        }
     }
 
     bool Session::Begin(RE::Actor* a_actor) {
@@ -214,7 +348,7 @@ namespace Preview {
         root_ = RE::NiPointer<RE::NiAVObject>{root};
         formID_ = a_actor->GetFormID();
 
-        SettlePose(a_actor, root);
+        BeginSettling();
 
         SnapshotMorphs();
 
@@ -322,13 +456,21 @@ namespace Preview {
         ResetActor();
     }
 
-    void Session::RunWhenMenuCloses(std::function<void()> a_func) {
+    void Session::RunWhenMenuCloses(const RE::FormID a_key, std::function<void()> a_func) {
         std::lock_guard lock{lock_};
-        onMenuClosed_.push_back(std::move(a_func));
+
+        if (const auto waiting{std::ranges::find(onMenuClosed_, a_key, &decltype(onMenuClosed_)::value_type::first)};
+            waiting != onMenuClosed_.end()) {
+            logger::info("Preview: {:08X} changed again, only the last change is announced as the menu closes", a_key);
+            waiting->second = std::move(a_func);
+            return;
+        }
+
+        onMenuClosed_.emplace_back(a_key, std::move(a_func));
     }
 
     void Session::OnMenuClosed() {
-        std::vector<std::function<void()>> ready;
+        std::vector<std::pair<RE::FormID, std::function<void()>>> ready;
         {
             std::lock_guard lock{lock_};
             ready.swap(onMenuClosed_);
@@ -336,7 +478,7 @@ namespace Preview {
         if (ready.empty()) return;
 
         logger::info("Preview: the menu closed, doing the {} things that waited for it", ready.size());
-        for (const auto& func : ready) {
+        for (const auto& func : ready | std::views::values) {
             func();
         }
     }
@@ -358,7 +500,6 @@ namespace Preview {
         if (frozeTime_) {
             RE::Main::GetSingleton()->GetRuntimeData().freezeTime = false;
         }
-        SmoothCam::ReleaseCamera();
         // The framework still counts its blur, it takes it off once its windows close
         RestoreBlur();
         RestoreHUD();
@@ -377,8 +518,8 @@ namespace Preview {
 
         auto* const camera{RE::PlayerCamera::GetSingleton()};
 
-        // SmoothCam is asked last, it would keep the camera for nothing otherwise
-        framingAvailable_ = camera && !REL::Module::IsVR() && SmoothCam::AcquireCamera();
+        // The preview uses the game's free camera, which camera mods like SmoothCam leave alone
+        framingAvailable_ = camera && !REL::Module::IsVR();
 
         // Present frames the actor once the camera switched, which can take it a frame
         if (framingAvailable_) {
@@ -387,6 +528,11 @@ namespace Preview {
                 cameraBackup_->translation = state->translation;
                 cameraBackup_->rotation = state->rotation;
             } else {
+                if (const auto* const thirdPerson{GetActiveThirdPersonState(camera)}) {
+                    cameraBackup_->thirdPerson = ThirdPersonBackup{camera->currentState->id, thirdPerson->freeRotation,
+                                                                   thirdPerson->freeRotationEnabled};
+                }
+
                 ToggleFreeCamera(camera);
                 cameraBackup_->switched = true;
             }
@@ -445,7 +591,6 @@ namespace Preview {
         if (!sceneActive_) return;
 
         RestoreCamera();
-        SmoothCam::ReleaseCamera();
         RestoreBlur();
         RestoreHUD();
 
@@ -456,7 +601,7 @@ namespace Preview {
         ResetScene();
     }
 
-    void Session::Present() {
+    void Session::Present(const bool a_keepView) {
         if (!actor_ || !framingAvailable_) return;
 
         if (!GetActiveFreeCameraState(RE::PlayerCamera::GetSingleton())) {
@@ -464,9 +609,15 @@ namespace Preview {
             return;
         }
 
+        const bool wasPresented{presented_};
+
         presented_ = true;
         HideOtherActors();
-        ChooseView();
+
+        if (!a_keepView || !wasPresented) {
+            ChooseView();
+        }
+
         ApplyFraming();
     }
 
@@ -688,12 +839,16 @@ namespace Preview {
             state->rotation = backup.rotation;
         }
 
-        // Once, so the camera is back where it was before the game moves on
-        SKSE::GetTaskInterface()->AddTask([] {
-            if (auto* const playerCamera{RE::PlayerCamera::GetSingleton()}) {
-                playerCamera->Update();
-            }
-        });
+        if (backup.switched && backup.thirdPerson) {
+            SKSE::GetTaskInterface()->AddTask(
+                [thirdPerson{*backup.thirdPerson}] { RestoreThirdPerson(thirdPerson, 5); });
+        } else {
+            SKSE::GetTaskInterface()->AddTask([] {
+                if (auto* const playerCamera{RE::PlayerCamera::GetSingleton()}) {
+                    playerCamera->Update();
+                }
+            });
+        }
     }
 
     bool Session::IsActive() const {
@@ -958,6 +1113,7 @@ namespace Preview {
             return;
         }
 
+        UpdateSettling();
         UpdateCopy();
 
         if (framingAvailable_) {
@@ -1150,6 +1306,7 @@ namespace Preview {
         clothed_ = true;
         unequipped_.clear();
         originalHeading_.reset();
+        settlingSince_.reset();
         bring_ = false;
         presented_ = false;
     }

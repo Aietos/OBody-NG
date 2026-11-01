@@ -40,8 +40,6 @@ Function SetNippleRand(Bool a_enabled) Global Native
 
 Function SetGenitalRand(Bool a_enabled) Global Native
 
-Function SetPerformanceMode(Bool a_enabled) Global Native
-
 Function SetLegacyStorageUtilUsageEnabled(Bool a_enabled) Global Native
 
 Function SetDistributionKey(String a_distributionKey) Global Native
@@ -58,7 +56,7 @@ String Function GetPresetAssignedToActor(Actor a_actor) Global Native
 ; is found instead of falling back to a random preset.
 ; Additionally, this can be used to remove the preset assignment from an actor
 ; by supplying an empty string.
-; `a_doNotApplyMorphs` takes precedence over `a_forceImmediateApplicationOfMorphs`.
+; `a_forceImmediateApplicationOfMorphs` no longer has any effect, the morphs are always applied right away.
 ; This returns whether the preset assignment succeeded or not.
 Bool Function AssignPresetToActor(Actor a_actor, String a_presetName, Bool a_forceImmediateApplicationOfMorphs = True, Bool a_doNotApplyMorphs = False) Global Native
 

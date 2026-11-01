@@ -4,7 +4,6 @@ bool Property ORefitEnabled auto
 bool Property NippleSlidersORefitEnabled auto
 bool Property NippleRandEnabled auto
 bool Property GenitalRandEnabled auto
-bool Property PerformanceMode auto
 bool Property ForcePresetApplicationImmediate auto
 bool Property LegacyStorageUtilUsageEnabled auto
 
@@ -35,7 +34,6 @@ Function OnLoad()
 	OBodyNative.SetNippleSlidersORefitEnabled(NippleSlidersORefitEnabled)
 	OBodyNative.SetNippleRand(NippleRandEnabled)
 	OBodyNative.SetGenitalRand(GenitalRandEnabled)
-	OBodyNative.setPerformanceMode(PerformanceMode)
 	OBodyNative.SetLegacyStorageUtilUsageEnabled(LegacyStorageUtilUsageEnabled)
 	OBodyNative.UpdatePresetMenuKey(PresetKey)
 	OBodyNative.SetForcePresetApplicationImmediate(ForcePresetApplicationImmediate)
@@ -87,6 +85,7 @@ Event OnActorPresetChangedWithoutGeneration(Actor akActor, String asPresetName)
 EndEvent
 
 
+; No longer used by the MCM (the OBody menu's "Re-roll all NPCs" replaces it), kept for the mods that call it
 Function ResetDistribution()
 	int distributionResetAmount = StorageUtil.GetIntValue(none, "obody_ng_distribution_reset_amount") + 1
 
