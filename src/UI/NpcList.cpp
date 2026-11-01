@@ -21,15 +21,12 @@ namespace {
     // TODO: Can consider making this adjustable
     constexpr float kNearbyMeters{40.0f};
 
-    // Header colours
-    constexpr ImGuiMCP::ImVec4 kHeaderBackground{0.26f, 0.21f, 0.14f, 1.0f};
-    constexpr ImGuiMCP::ImVec4 kHeaderText{0.96f, 0.84f, 0.58f, 1.0f};
     constexpr ImGuiMCP::ImVec4 kHintText{0.7f, 0.7f, 0.75f, 1.0f};
 
     // A section's title, with its button on the same line
     bool SectionTitle(const char* a_title, const char* a_button) {
         ImGuiMCP::AlignTextToFramePadding();
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kHeaderText);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, UI::Widgets::TableHeaderText);
         ImGuiMCP::TextUnformatted(a_title);
         ImGuiMCP::PopStyleColor();
         ImGuiMCP::SameLine();
@@ -155,7 +152,7 @@ namespace {
                              ImGuiMCP::ImGuiTableFlags_SizingStretchProp};
 
         ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_CellPadding, ImGuiMCP::ImVec2{8.0f, 5.0f});
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_TableHeaderBg, kHeaderBackground);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_TableHeaderBg, UI::Widgets::TableHeaderBackground);
         if (!ImGuiMCP::BeginTable(a_id, 4, flags, ImGuiMCP::ImVec2{0.0f, a_height})) {
             ImGuiMCP::PopStyleColor();
             ImGuiMCP::PopStyleVar();
@@ -169,7 +166,7 @@ namespace {
 
         // The header stays in place while the rows scroll
         ImGuiMCP::TableSetupScrollFreeze(0, 1);
-        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kHeaderText);
+        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, UI::Widgets::TableHeaderText);
         ImGuiMCP::TableHeadersRow();
         ImGuiMCP::PopStyleColor();
 

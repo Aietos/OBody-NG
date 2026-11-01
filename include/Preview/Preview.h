@@ -27,8 +27,10 @@ namespace Preview {
         // For a game being loaded the references are going away, so only what outlives them is put back
         void Abandon();
 
-        // a_func runs once SKSE Menu Framework's menu closes, which lets time run again. Dropped when a game is loaded
-        void RunWhenMenuCloses(std::function<void()> a_func);
+        // a_func runs once SKSE Menu Framework's menu closes, which lets time run again. Dropped when a game is loaded.
+        // It replaces what waited for the same a_key, so an actor whose preset changed several times while the menu
+        // was open is told once, about the last one
+        void RunWhenMenuCloses(RE::FormID a_key, std::function<void()> a_func);
         void OnMenuClosed();
 
         // The copies Live Preview used and disabled are deleted, so the save doesn't keep them
@@ -227,7 +229,7 @@ namespace Preview {
         static inline std::atomic_bool alwaysCopy_{false};
 
         // See RunWhenMenuCloses
-        std::vector<std::function<void()>> onMenuClosed_;
+        std::vector<std::pair<RE::FormID, std::function<void()>>> onMenuClosed_;
 
         // Bring to me is on, the copy is shown where the player stands
         bool bring_{false};

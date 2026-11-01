@@ -10,7 +10,12 @@
 #include "UI/UI.h"
 
 namespace PapyrusBody {
+    // Without Racemenu's interface OBody does nothing, the functions that change bodies return right away
+    bool CanChangeBodies() { return Body::OBody::GetInstance().morphInterface != nullptr; }
+
     void GenActor(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
         obody.GenerateActorBody(a_actor, &obody.specialPapyrusPluginInterface);
     }
@@ -27,10 +32,6 @@ namespace PapyrusBody {
 
     void SetGenitalRand(RE::StaticFunctionTag*, const bool a_enabled) {
         Body::OBody::GetInstance().setGenitalRand = a_enabled;
-    }
-
-    void SetPerformanceMode(RE::StaticFunctionTag*, const bool a_enabled) {
-        Body::OBody::GetInstance().setPerformanceMode = a_enabled;
     }
 
     void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, const bool a_enabled) {
@@ -52,11 +53,11 @@ namespace PapyrusBody {
     }
 
     int GetFemaleDatabaseSize(RE::StaticFunctionTag*) {
-        return static_cast<int>(PresetManager::PresetContainer::GetInstance().femalePresets.size());
+        return static_cast<int>(Parser::JSONParser::GetInstance().GetConfig()->GetPresetLists(true).allowed.size());
     }
 
     int GetMaleDatabaseSize(RE::StaticFunctionTag*) {
-        return static_cast<int>(PresetManager::PresetContainer::GetInstance().malePresets.size());
+        return static_cast<int>(Parser::JSONParser::GetInstance().GetConfig()->GetPresetLists(false).allowed.size());
     }
 
     void RegisterForOBodyEvent(RE::StaticFunctionTag*, const RE::TESQuest* a_quest) {
@@ -75,6 +76,8 @@ namespace PapyrusBody {
     // ReSharper disable once CppPassValueParameterByConstReference
     void ApplyPresetByName(RE::StaticFunctionTag*, RE::Actor* a_actor,
                            const std::string a_name) {  // NOLINT(*-unnecessary-value-param)
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
         obody.GenerateBodyByName(a_actor, a_name, &obody.specialPapyrusPluginInterface);
     }
@@ -83,21 +86,29 @@ namespace PapyrusBody {
     // in the Papyrus script is non-native, and making it native could have broken
     // pre-existing scripts, so now it forwards to the native `RemoveClothesOverlay_`.
     void RemoveClothesOverlay_(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
         obody.ForcefullyChangeORefit(a_actor, false, &obody.specialPapyrusPluginInterface);
     }
 
     void AddClothesOverlay(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
         obody.ForcefullyChangeORefit(a_actor, true, &obody.specialPapyrusPluginInterface);
     }
 
     void ResetActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
-        obody.ClearActorMorphs(a_actor, true, &obody.specialPapyrusPluginInterface);
+        obody.ClearActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
     }
 
     void ReapplyActorOBodyMorphs(RE::StaticFunctionTag*, RE::Actor* a_actor) {
+        if (!CanChangeBodies()) return;
+
         const auto& obody{Body::OBody::GetInstance()};
         obody.ReapplyActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
     }
@@ -107,9 +118,8 @@ namespace PapyrusBody {
     }
 
     std::vector<std::string> GetAllPossiblePresets(RE::StaticFunctionTag*, RE::Actor* a_actor) {
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-
-        const auto& presetDistributionConfig{Parser::JSONParser::GetInstance().presetDistributionConfig};
+        const auto config{Parser::JSONParser::GetInstance().GetConfig()};
+        const auto& presetDistributionConfig{config->presetDistributionConfig};
         const auto showBlacklistedPresetsItr{presetDistributionConfig.FindMember("blacklistedPresetsShowInOBodyMenu")};
         const auto end{presetDistributionConfig.MemberEnd()};
 
@@ -126,13 +136,15 @@ namespace PapyrusBody {
 
         const bool ube{Body::OBody::IsUBE(a_actor)};
 
+        const auto presets{config->GetPresets(Body::OBody::IsFemale(a_actor), showBlacklistedPresets)};
+
         auto presets_to_show =
-            (Body::OBody::IsFemale(a_actor)
-                 ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
-                 : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets)) |
+            presets |
             // Only the presets made for the actor's body, UBE or not
-            std::views::filter([ube](const PresetManager::Preset& preset) { return preset.ube == ube; }) |
-            std::views::transform(&PresetManager::Preset::name) |
+            std::views::filter([ube](const PresetManager::Preset* preset) { return preset->ube == ube; }) |
+            std::views::transform([](const PresetManager::Preset* preset) -> const std::string& {
+                return preset->name;
+            }) |
             // Make sure "-Refit" presets are not in the result
             std::views::filter([](const std::string& name) { return !PresetManager::IsRefitPreset(name); });
 
@@ -152,8 +164,11 @@ namespace PapyrusBody {
         return "";
     }
 
+    // a_forceImmediateApplicationOfMorphs is kept for the scripts that pass it, morphs are always applied right away
     bool AssignPresetToActor(RE::StaticFunctionTag*, RE::Actor* a_actor, const std::string a_presetName,
-                             bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) {
+                             [[maybe_unused]] bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) {
+        if (!CanChangeBodies()) return false;
+
         const auto& obody{Body::OBody::GetInstance()};
         auto& registry{ActorTracker::Registry::GetInstance()};
         auto formID = a_actor->formID;
@@ -164,11 +179,11 @@ namespace PapyrusBody {
             registry.stateForActor.visit(formID, [&](auto& entry) {
                 previousPresetIndex = entry.second.presetIndex;
                 entry.second.presetIndex = 0;
+                entry.second.presetPickedByHand = false;
             });
 
             if (!a_doNotApplyMorphs) {
-                obody.ClearActorMorphs(a_actor, a_forceImmediateApplicationOfMorphs,
-                                       &obody.specialPapyrusPluginInterface);
+                obody.ClearActorMorphs(a_actor, &obody.specialPapyrusPluginInterface);
             }
 
             if (previousPresetIndex != 0) {
@@ -213,8 +228,7 @@ namespace PapyrusBody {
         }
 
         if (!a_doNotApplyMorphs) {
-            obody.GenerateBodyByPreset(a_actor, *preset, a_forceImmediateApplicationOfMorphs,
-                                       &obody.specialPapyrusPluginInterface);
+            obody.GenerateBodyByPreset(a_actor, *preset, &obody.specialPapyrusPluginInterface);
         } else {
             // Assign the preset to the actor.
             auto assignedPresetIndex = preset->assignedIndex;
@@ -245,6 +259,8 @@ namespace PapyrusBody {
                 });
         }
 
+        registry.SetPresetPickedByHand(a_actor, true);
+
         return true;
     }
 
@@ -274,7 +290,6 @@ namespace PapyrusBody {
         OBODY_PAPYRUS_BIND(SetNippleSlidersORefitEnabled);
         OBODY_PAPYRUS_BIND(SetNippleRand);
         OBODY_PAPYRUS_BIND(SetGenitalRand);
-        OBODY_PAPYRUS_BIND(SetPerformanceMode);
         OBODY_PAPYRUS_BIND(SetLegacyStorageUtilUsageEnabled);
         OBODY_PAPYRUS_BIND(SetDistributionKey);
         OBODY_PAPYRUS_BIND(UpdatePresetMenuKey);

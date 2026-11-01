@@ -322,13 +322,21 @@ namespace Preview {
         ResetActor();
     }
 
-    void Session::RunWhenMenuCloses(std::function<void()> a_func) {
+    void Session::RunWhenMenuCloses(const RE::FormID a_key, std::function<void()> a_func) {
         std::lock_guard lock{lock_};
-        onMenuClosed_.push_back(std::move(a_func));
+
+        if (const auto waiting{std::ranges::find(onMenuClosed_, a_key, &decltype(onMenuClosed_)::value_type::first)};
+            waiting != onMenuClosed_.end()) {
+            logger::info("Preview: {:08X} changed again, only the last change is announced as the menu closes", a_key);
+            waiting->second = std::move(a_func);
+            return;
+        }
+
+        onMenuClosed_.emplace_back(a_key, std::move(a_func));
     }
 
     void Session::OnMenuClosed() {
-        std::vector<std::function<void()>> ready;
+        std::vector<std::pair<RE::FormID, std::function<void()>>> ready;
         {
             std::lock_guard lock{lock_};
             ready.swap(onMenuClosed_);
@@ -336,7 +344,7 @@ namespace Preview {
         if (ready.empty()) return;
 
         logger::info("Preview: the menu closed, doing the {} things that waited for it", ready.size());
-        for (const auto& func : ready) {
+        for (const auto& func : ready | std::views::values) {
             func();
         }
     }

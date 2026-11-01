@@ -1,17 +1,19 @@
 #include "UI/UI.h"
 #include "UI/Translations.h"
+#include "UI/ConfigEditor.h"
+#include "UI/ConfigTabs.h"
 #include "UI/GamepadCamera.h"
-#include "UI/JsonView.h"
 #include "UI/NpcList.h"
 #include "UI/PresetsTab.h"
 #include "UI/PreviewPanel.h"
 #include "UI/Util.h"
 #include "Body/Event.h"
-#include "JSONParser/JSONParser.h"
 
 namespace {
     std::atomic<std::uint32_t> g_hotkeyScanCode{0x18};
     std::atomic_bool g_previewEnabled{true};
+
+    bool g_closeAfterTextInput{false};
 
     constexpr auto kNumKeyboardKeys{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumKeyboardKeys)};
     constexpr auto kNumMouseButtons{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumMouseButtons)};
@@ -130,7 +132,7 @@ void __stdcall UI::PresetList::Render() {
     const auto center = ImGuiMCP::ImGuiViewportManager::GetCenter(viewport);
 
     ImGuiMCP::SetNextWindowPos(center, ImGuiMCP::ImGuiCond_FirstUseEver, ImGuiMCP::ImVec2{0.5f, 0.5f});
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.35f, viewport->Size.y * 0.5f},
+    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.38f, viewport->Size.y * 0.75f},
                                 ImGuiMCP::ImGuiCond_FirstUseEver);
 
     PreviewPanel::PlaceWindow(viewport);
@@ -146,8 +148,11 @@ void __stdcall UI::PresetList::Render() {
     const bool justOpened = ImGuiMCP::IsWindowAppearing();
 
     if (justOpened) {
+        g_closeAfterTextInput = false;
         ImGuiMCP::SetScrollY(0.0f);
         PresetsTab::Reset();
+        ConfigTabs::Reset();
+        ConfigEditor::Reset();
 
         RE::Actor* crosshairActor{Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get()};
         if (Util::IsPresetTarget(crosshairActor)) {
@@ -159,11 +164,20 @@ void __stdcall UI::PresetList::Render() {
         GamepadCamera::OnMenuOpened();
     }
 
-    // Esc closes the menu, also after dragging on the preview's overlay
+    if (g_closeAfterTextInput) {
+        g_closeAfterTextInput = false;
+        isOpen = false;
+    }
+
     if ((ImGuiMCP::IsWindowFocused(ImGuiMCP::ImGuiFocusedFlags_RootAndChildWindows) ||
          PreviewPanel::IsOverlayFocused()) &&
         ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape, false)) {
-        isOpen = false;
+        if (ImGuiMCP::IsAnyItemActive()) {
+            ImGuiMCP::ClearActiveID();
+            g_closeAfterTextInput = true;
+        } else {
+            isOpen = false;
+        }
     }
 
     // The NPC picked may have been unloaded or deleted since
@@ -215,8 +229,23 @@ void __stdcall UI::PresetList::Render() {
             npcTabWasOpen = false;
         }
 
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_settings_header").c_str())) {
+            ConfigTabs::RenderSettings();
+            ImGuiMCP::EndTabItem();
+        }
+
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_editor_tab").c_str())) {
+            ConfigEditor::Render(actor);
+            ImGuiMCP::EndTabItem();
+        }
+
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_include_files_header").c_str())) {
+            ConfigTabs::RenderIncludeFiles();
+            ImGuiMCP::EndTabItem();
+        }
+
         if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_config_viewer_tab").c_str())) {
-            JsonView::Render(Parser::JSONParser::GetInstance().presetDistributionConfig);
+            ConfigTabs::RenderViewer();
             ImGuiMCP::EndTabItem();
         }
 

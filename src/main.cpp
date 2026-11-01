@@ -102,6 +102,33 @@ namespace {
         }
     }
 
+    bool RequestMorphInterface(Body::OBody& a_obody) {
+        SKEE::InterfaceExchangeMessage msg;
+        const auto* const intfc{SKSE::GetMessagingInterface()};
+        intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, &msg,
+                        sizeof(SKEE::InterfaceExchangeMessage*), "skee");
+        if (!msg.interfaceMap) {
+            logger::critical("Couldn't get Racemenu's interface map!");
+            return false;
+        }
+
+        const auto morphInterface = static_cast<SKEE::IBodyMorphInterface*>(
+            msg.interfaceMap->QueryInterface("BodyMorph"));  // NOLINT(*-pro-type-static-cast-downcast)
+        if (!morphInterface) {
+            logger::critical("Couldn't get Racemenu's BodyMorph interface!");
+            return false;
+        }
+
+        logger::info("BodyMorph Version {}", morphInterface->GetVersion());
+
+        if (!a_obody.SetMorphInterface(morphInterface)) {
+            logger::critical("Racemenu's BodyMorph interface has no version, it can't be used");
+            return false;
+        }
+
+        return true;
+    }
+
     // ReSharper disable once CppParameterMayBeConstPtrOrRef
     void SKSEMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
         auto& obody{Body::OBody::GetInstance()};
@@ -111,24 +138,10 @@ namespace {
             case SKSE::MessagingInterface::kPostPostLoad: {
                 SmoothCam::RequestInterface();
 
-                SKEE::InterfaceExchangeMessage msg;
-                const auto* const intfc{SKSE::GetMessagingInterface()};
-                intfc->Dispatch(SKEE::InterfaceExchangeMessage::kExchangeInterface, &msg,
-                                sizeof(SKEE::InterfaceExchangeMessage*), "skee");
-                if (!msg.interfaceMap) {
-                    logger::critical("Couldn't get interface map!");
-                    return;
+                // Racemenu doesn't always answer this early (seen mostly on 1.5.97), it's asked again at kDataLoaded
+                if (!RequestMorphInterface(obody)) {
+                    logger::warn("Racemenu's BodyMorph interface is asked for again once the game data is loaded");
                 }
-
-                const auto morphInterface = static_cast<SKEE::IBodyMorphInterface*>(
-                    msg.interfaceMap->QueryInterface("BodyMorph"));  // NOLINT(*-pro-type-static-cast-downcast)
-                if (!morphInterface) {
-                    logger::critical("Couldn't get serialization MorphInterface!");
-                    return;
-                }
-
-                logger::info("BodyMorph Version {}", morphInterface->GetVersion());
-                if (!obody.SetMorphInterface(morphInterface)) logger::info("BodyMorphInterace not provided");
 
                 return;
             }
@@ -137,12 +150,10 @@ namespace {
             // Bodyslide presets
             case SKSE::MessagingInterface::kDataLoaded: {
                 auto& parser{Parser::JSONParser::GetInstance()};
-                parser.ProcessJSONCategories();
 
                 try {
                     PresetManager::GeneratePresets();
                     parser.bodyslidePresetsParsingValid = true;
-                    parser.ValidateRefitPresetNames();
                 } catch (const std::runtime_error& re) {
                     logger::info("{} ", re.what());
                     parser.bodyslidePresetsParsingValid = false;
@@ -154,20 +165,33 @@ namespace {
                     parser.bodyslidePresetsParsingValid = false;
                 }
 
+                if (const auto result{parser.Load()}; result.error) {
+                    SKSE::stl::report_and_fail(std::format("{}. Please check OBody.log.", *result.error));
+                }
+
                 RE::TESDataHandler* pDataHandler = RE::TESDataHandler::GetSingleton();
 
                 obody.synthesisInstalled = pDataHandler->LookupModByName("SynthEBD.esp") != nullptr;
 
                 logger::info("Synthesis installed value is {}.", obody.synthesisInstalled);
 
-                UI::Register();
+                // Before UI::Register, which can show a translated message
                 UI::Translations::Init();
+
+                // Without Racemenu's interface every body change would crash the game
+                if (!obody.morphInterface && !RequestMorphInterface(obody)) {
+                    logger::critical(
+                        "OBody can't work without Racemenu's BodyMorph interface: no menu, no hooks and no events "
+                        "this session");
+                    RE::DebugMessageBox(UI::Translations::Get("obody_racemenu_failure").c_str());
+                    return;
+                }
+
+                UI::Register();
 
                 Event::InstallHooks();
 
-                if (obody.morphInterface) {
-                    obody.CacheSkinMorphFiles();
-                }
+                obody.CacheSkinMorphFiles();
 
                 return;
             }
@@ -180,6 +204,9 @@ namespace {
                 BackwardsCompatibility::State::GetInstance().SetStateUponStartOfNewGame();
 
                 PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
+
+                // Without Racemenu's interface, OBody stays out of the game (see kDataLoaded)
+                if (!obody.morphInterface) return;
 
                 Event::OBodyEventHandler::Register();
 
@@ -220,6 +247,9 @@ namespace {
                 PresetManager::PresetContainer::GetInstance().AssignPresetIndexes();
 
                 BackwardsCompatibility::State::GetInstance().FixupAfterLoadingGame();
+
+                // Without Racemenu's interface, OBody stays out of the game (see kDataLoaded)
+                if (!obody.morphInterface) return;
 
                 Event::OBodyEventHandler::Register();
 
@@ -277,138 +307,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse) {
     }
 
     Papyrus::Bind();
-    auto& parser{Parser::JSONParser::GetInstance()};
-    rapidjson::Document sd;
-    {
-        stl::FilePtrManager file{"Data/SKSE/Plugins/OBody_presetDistributionConfig_schema.json"};
-        if (file.error() != 0) {
-            SKSE::stl::report_and_fail(
-                "Please Check the Obody.log. Seems like there is a issue with loading the schema");
-        }
-        char readBuffer[65535];
-        rapidjson::FileReadStream bis(file.get(), readBuffer, std::size(readBuffer));
-
-        rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);
-        if (sd.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis).HasParseError()) {
-            logger::info("Error(offset {}): {}", sd.GetErrorOffset(), rapidjson::GetParseError_En(sd.GetParseError()));
-            SKSE::stl::report_and_fail(
-                "Please Check the Obody.log. Seems like there is a issue with loading "
-                "OBody_presetDistributionConfig_schema.json");
-        }
-    }
-    stl::FilePtrManager file("Data/SKSE/Plugins/OBody_presetDistributionConfig.json");
-    if (file.error() != 0) {
-        SKSE::stl::report_and_fail(
-            "Please Check the Obody.log. Seems like there is a issue with loading OBody_presetDistributionConfig.json");
-    }
-    rapidjson::SchemaDocument schema(sd);
-    char readBuffer[65535];
-    rapidjson::FileReadStream bis(file.get(), readBuffer, std::size(readBuffer));
-
-    rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);
-    if (parser.presetDistributionConfig.ParseStream<0, rapidjson::AutoUTF<unsigned>>(eis).HasParseError()) {
-        logger::info("Config Error(offset {}): {}", parser.presetDistributionConfig.GetErrorOffset(),
-                     rapidjson::GetParseError_En(parser.presetDistributionConfig.GetParseError()));
-        SKSE::stl::report_and_fail(
-            "Please Check the Obody.log. Seems like there is an error when parsing "
-            "OBody_presetDistributionConfig.json");
-    }
-    if (rapidjson::SchemaValidator validator(schema); !parser.presetDistributionConfig.Accept(validator)) {
-        rapidjson::StringBuffer sb;
-        const auto invalidSchemaPointer = validator.GetInvalidSchemaPointer();
-        invalidSchemaPointer.StringifyUriFragment(sb);
-        logger::error("Invalid schema: {}", sb.GetString());
-        logger::error("Invalid keyword: {}", validator.GetInvalidSchemaKeyword());
-        sb.Clear();
-        const auto invalidDocumentPointer = validator.GetInvalidDocumentPointer();
-        invalidDocumentPointer.StringifyUriFragment(sb);
-        logger::error("Invalid document: {}", sb.GetString());
-        sb.Clear();
-        if (auto* err_value_ptr = invalidDocumentPointer.Get(parser.presetDistributionConfig)) {
-            rapidjson::PrettyWriter writer(sb);
-            err_value_ptr->Accept(writer);
-            logger::error("Error at: {}", sb.GetString());
-            sb.Clear();
-        }
-        if (auto* err_values_schema_pointer = invalidSchemaPointer.Get(sd)) {
-            rapidjson::PrettyWriter writer(sb);
-            err_values_schema_pointer->Accept(writer);
-            logger::error("Schema Definition of Error: {}", sb.GetString());
-        }
-        SKSE::stl::report_and_fail(
-            "Please Check the Obody.log. Seems like there is an error when validating the config using the json "
-            "schema");
-    }
-    logger::info("Validated Data/SKSE/Plugins/OBody_presetDistributionConfig.json successfully");
-
-    // Load and merge include files from the includes directory
-    constexpr auto includesDir = "Data/SKSE/Plugins/OBody/obody_includes";
-    if (fs::exists(includesDir) && fs::is_directory(includesDir)) {
-        std::vector<fs::directory_entry> includeFiles;
-        for (const auto& entry : fs::directory_iterator(includesDir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".json") {
-                includeFiles.push_back(entry);
-            }
-        }
-        std::ranges::sort(includeFiles, {}, [](const fs::directory_entry& e) { return e.path().filename().string(); });
-
-        const auto total = includeFiles.size();
-        for (size_t i = 0; i < total; ++i) {
-            const auto pathStr = includeFiles[i].path().string();
-            logger::info("Loading include file [{}/{}]: {}", i + 1, total, pathStr);
-
-            stl::FilePtrManager includeFile(pathStr.c_str());
-            if (includeFile.error() != 0) {
-                SKSE::stl::report_and_fail(std::format("Failed to open include file: {}", pathStr));
-            }
-
-            char includeBuf[65535];
-            rapidjson::FileReadStream includeBis(includeFile.get(), includeBuf, std::size(includeBuf));
-            rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> includeEis(includeBis);
-
-            rapidjson::Document includeDoc;
-            if (includeDoc.ParseStream<0, rapidjson::AutoUTF<unsigned>>(includeEis).HasParseError()) {
-                logger::error("Include file parse error (offset {}): {}", includeDoc.GetErrorOffset(),
-                              rapidjson::GetParseError_En(includeDoc.GetParseError()));
-                SKSE::stl::report_and_fail(std::format("Parse error in include file: {}", pathStr));
-            }
-
-            if (!includeDoc.IsObject()) {
-                SKSE::stl::report_and_fail(std::format("Include file is not a JSON object: {}", pathStr));
-            }
-
-            auto& allocator = parser.presetDistributionConfig.GetAllocator();
-            for (auto srcIt = includeDoc.MemberBegin(); srcIt != includeDoc.MemberEnd(); ++srcIt) {
-                const std::string_view key{srcIt->name.GetString(), srcIt->name.GetStringLength()};
-
-                if (!srcIt->value.IsArray() && !srcIt->value.IsObject()) {
-                    logger::warn(
-                        "Include file {}: ignoring unsupported key '{}' (only array/object keys can be set via "
-                        "includes)",
-                        pathStr, key);
-                    continue;
-                }
-
-                auto dstIt = parser.presetDistributionConfig.FindMember(srcIt->name);
-                if (dstIt == parser.presetDistributionConfig.MemberEnd()) {
-                    rapidjson::Value k;
-                    k.CopyFrom(srcIt->name, allocator);
-                    rapidjson::Value v;
-                    v.CopyFrom(srcIt->value, allocator);
-                    parser.presetDistributionConfig.AddMember(k, v, allocator);
-                } else if (srcIt->value.IsArray() && dstIt->value.IsArray()) {
-                    stl::MergeJsonArray(dstIt->value, srcIt->value, allocator);
-                } else if (srcIt->value.IsObject() && dstIt->value.IsObject()) {
-                    // Merge object keys additively (last-loaded-wins for conflicts)
-                    stl::MergeJsonDocument(dstIt->value, srcIt->value, allocator);
-                } else {
-                    logger::warn("Include file {}: ignoring key '{}' (type mismatch with main config)", pathStr, key);
-                }
-            }
-            logger::info("Merged include file: {}", pathStr);
-        }
-        logger::info("Loaded {} include file(s) from {}", total, includesDir);
-    }
 
     logger::info("{} has finished loading.", plugin->GetName());
 
