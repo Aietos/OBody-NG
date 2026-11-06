@@ -188,6 +188,13 @@ namespace {
     };
     std::optional<GroupDrag> g_groupDrag;
 
+    // The groups of rules collapsed to their header
+    // This makes it easier to reorder long lists of plugins
+    std::unordered_set<std::string> g_collapsed;
+
+    // Changes when groups are folded or unfolded, the rules below them jump to their new places instead of sliding
+    std::uint32_t g_collapsedVersion{0};
+
     // The rule the last move put somewhere
     struct MovedFlash {
         std::string id;
@@ -1515,10 +1522,38 @@ namespace {
             }
         }
 
+        // Outfits listed by record are grouped by plugin, the groups can be folded while nothing is searched
+        const bool grouped{IsOrdered(a_category) && IsRecord(a_category.target)};
+        const bool foldable{grouped && query.empty()};
+        // 1 = unfold all the groups, -1 = fold them all
+        int foldAll{0};
+
         // Always there, so the table doesn't move when a search starts
         VerticalSpace(0.1f);
         TextColored(kDimText,
                     Translate("obody_editor_rules_shown", std::to_string(shown.size()), std::to_string(ofSex.size())));
+
+        if (foldable && !shown.empty()) {
+            const auto expandLabel{Translate("obody_expand_all")};
+            const auto collapseLabel{Translate("obody_collapse_all")};
+            const auto& padding{ImGuiMCP::GetStyle()->FramePadding};
+            const float width{ImGuiMCP::CalcTextSize(expandLabel.c_str()).x +
+                              ImGuiMCP::CalcTextSize(collapseLabel.c_str()).x + padding.x * 4.0f +
+                              ImGuiMCP::GetStyle()->ItemSpacing.x};
+
+            ImGuiMCP::SameLine(ImGuiMCP::GetWindowContentRegionMax().x - width);
+
+            if (ImGuiMCP::SmallButton(expandLabel.c_str())) {
+                foldAll = 1;
+            }
+
+            ImGuiMCP::SameLine();
+
+            if (ImGuiMCP::SmallButton(collapseLabel.c_str())) {
+                foldAll = -1;
+            }
+        }
+
         VerticalSpace(0.2f);
 
         const auto keepHeight = [&] {
@@ -1599,7 +1634,6 @@ namespace {
             }
         }
 
-        const bool grouped{IsOrdered(a_category) && IsRecord(a_category.target)};
         const auto plugins{grouped ? PluginOrder(order) : std::vector<std::string>{}};
         std::unordered_map<std::string, std::size_t> groupStart;
 
@@ -1624,7 +1658,30 @@ namespace {
 
         const auto& pluginsShown{groupDragging ? g_groupDrag->shownOrder : plugins};
 
+        const auto groupId = [](const std::string& a_header) {
+            return a_header.empty() ? std::string{"#switched off"} : PluginGroupId(a_header);
+        };
+        const auto foldId = [&](const std::string& a_header) { return std::format("{}|{}", key, groupId(a_header)); };
+
+        if (foldAll != 0) {
+            const auto prefix{std::format("{}|", key)};
+
+            std::erase_if(g_collapsed, [&](const std::string& a_id) { return a_id.starts_with(prefix); });
+
+            if (foldAll < 0) {
+                for (const auto& plugin : plugins) {
+                    g_collapsed.insert(foldId(plugin));
+                }
+
+                g_collapsed.insert(foldId({}));
+            }
+
+            ++g_collapsedVersion;
+        }
+
         std::vector<std::optional<std::string>> headers(shown.size());
+        std::vector<bool> folded(shown.size(), false);
+        std::unordered_map<std::string, std::size_t> groupSizes;
 
         if (grouped) {
             const auto groupOf = [&](const std::size_t a_shown) {
@@ -1633,10 +1690,18 @@ namespace {
                 return row.switchedOff ? std::string{} : row.ref.plugin;
             };
 
+            bool groupFolded{false};
+
             for (std::size_t s{0}; s < shown.size(); ++s) {
-                if (s == 0 || groupOf(s - 1) != groupOf(s)) {
-                    headers[s] = groupOf(s);
+                const auto group{groupOf(s)};
+
+                if (s == 0 || groupOf(s - 1) != group) {
+                    headers[s] = group;
+                    groupFolded = foldable && g_collapsed.contains(foldId(group));
                 }
+
+                folded[s] = groupFolded;
+                ++groupSizes[group];
             }
         }
 
@@ -1644,7 +1709,7 @@ namespace {
         bool messageShown{false};
 
         for (std::size_t s{0}; s < shown.size(); ++s) {
-            if (messageFor(Parser::EntrySourceId(rows[shown[s]].ref)) ||
+            if ((!folded[s] && messageFor(Parser::EntrySourceId(rows[shown[s]].ref))) ||
                 (headers[s] && !headers[s]->empty() && messageFor(PluginGroupId(*headers[s])))) {
                 messageShown = true;
             }
@@ -1678,8 +1743,11 @@ namespace {
         }
 
         ImGuiMCP::ImVec2 groupSlot{};
+        float groupWidth{0.0f};
         bool groupDragged{false};
         float groupOffset{0.0f};
+        // A fold toggle clicked, applied once the list is drawn
+        std::optional<std::string> toggled;
 
         struct Slide {
             float place{-1.0f};
@@ -1689,7 +1757,8 @@ namespace {
         static std::unordered_map<std::string, Slide> slides;
         static std::string slidesFor;
 
-        if (const auto context{std::format("{}|{}|{:.0f}", key, g_ruleSearch, ImGuiMCP::GetContentRegionAvail().x)};
+        if (const auto context{std::format("{}|{}|{:.0f}|{}", key, g_ruleSearch, ImGuiMCP::GetContentRegionAvail().x,
+                                           g_collapsedVersion)};
             context != slidesFor) {
             slides.clear();
             slidesFor = context;
@@ -1736,6 +1805,34 @@ namespace {
                 ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{kGoldText.x, kGoldText.y, kGoldText.z, 0.22f * fade}), 3.0f, 0);
         };
 
+        const auto endGroup = [&](const Row& a_last) {
+            const float groupBottom{ImGuiMCP::GetCursorScreenPos().y - style.ItemSpacing.y};
+            const float groupHeight{groupBottom - groupSlot.y - (groupDragged ? groupOffset : 0.0f)};
+
+            if (!a_last.switchedOff) {
+                groupHeights[a_last.ref.plugin] = groupHeight;
+                groupRects.push_back(GroupRect{a_last.ref.plugin, groupSlot.y, groupSlot.y + groupHeight});
+            }
+
+            if (!groupDragged) return;
+
+            const float pad{style.ItemSpacing.y * 0.5f};
+            const ImGuiMCP::ImVec2 min{groupSlot.x - pad, groupSlot.y + groupOffset - pad};
+            const ImGuiMCP::ImVec2 max{groupSlot.x + groupWidth + pad, groupBottom + pad};
+
+            ImGuiMCP::ImDrawListManager::AddRectFilled(
+                drawList, min, max,
+                ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{kGoldText.x, kGoldText.y, kGoldText.z, 0.08f}), 3.0f, 0);
+            ImGuiMCP::ImDrawListManager::AddRect(
+                drawList, min, max,
+                ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{kGoldText.x, kGoldText.y, kGoldText.z, 0.5f}), 3.0f, 0, 1.0f);
+            ImGuiMCP::ImDrawListManager::ChannelsSetCurrent(drawList, 0);
+
+            ImGuiMCP::SetCursorScreenPos(groupSlot);
+            ImGuiMCP::Dummy(ImGuiMCP::ImVec2{0.0f, groupHeight});
+            groupDragged = false;
+        };
+
         // The dragged rule or group is drawn over the others
         if (dragging || groupDragging) {
             ImGuiMCP::ImDrawListManager::ChannelsSplit(drawList, 2);
@@ -1754,7 +1851,8 @@ namespace {
 
             if (const auto& header{headers[n]}) {
                 const bool off{header->empty()};
-                const auto id{off ? std::string{"#switched off"} : PluginGroupId(*header)};
+                const auto id{groupId(*header)};
+                const bool groupFolded{folded[n]};
                 const float left{ImGuiMCP::GetCursorPosX()};
                 const float right{left + ImGuiMCP::GetContentRegionAvail().x};
                 const auto slot{ImGuiMCP::GetCursorScreenPos()};
@@ -1762,6 +1860,7 @@ namespace {
                 auto& headerSlide{slideAt(id)};
 
                 groupSlot = slot;
+                groupWidth = right - left;
                 groupDragged = groupDragging && !off && *header == g_groupDrag->plugin;
 
                 // The dragged group follows the mouse, its header and its rules together
@@ -1793,8 +1892,49 @@ namespace {
 
                 ImGuiMCP::PushID(id.c_str());
 
+                const auto foldMark = [&](const float a_lineHeight) {
+                    if (!foldable) return;
+
+                    const float size{ImGuiMCP::GetFontSize()};
+                    const auto at{ImGuiMCP::GetCursorScreenPos()};
+
+                    ImGuiMCP::RenderArrow(drawList, ImGuiMCP::ImVec2{at.x, at.y + (a_lineHeight - size * 0.7f) * 0.5f},
+                                          ImGuiMCP::GetColorU32(kDimText),
+                                          groupFolded ? ImGuiMCP::ImGuiDir_Right : ImGuiMCP::ImGuiDir_Down, 0.7f);
+                    ImGuiMCP::Dummy(ImGuiMCP::ImVec2{size, a_lineHeight});
+                    ImGuiMCP::SameLine(0.0f, 0.0f);
+                };
+                const auto foldHint{Translate(groupFolded ? "obody_editor_group_unfold" : "obody_editor_group_fold")};
+                const auto folding{groupFolded ? std::format(" ({})", groupSizes[*header]) : std::string{}};
+
                 if (off) {
-                    TextColored(kDimText, Translate("obody_editor_switched_off_group"));
+                    const float lineHeight{ImGuiMCP::GetTextLineHeight()};
+
+                    if (foldable) {
+                        const bool clicked{ImGuiMCP::InvisibleButton(
+                            "##fold", ImGuiMCP::ImVec2{(std::max)(right - left, 1.0f), lineHeight})};
+
+                        if (clicked && !dragging && !groupDragging) {
+                            toggled = foldId(*header);
+                        }
+
+                        if (ImGuiMCP::IsItemHovered() && !g_ruleDrag && !g_groupDrag) {
+                            ImGuiMCP::ImDrawListManager::AddRectFilled(
+                                drawList, ImGuiMCP::ImVec2{start.x - pad, start.y - pad},
+                                ImGuiMCP::ImVec2{start.x + (right - left) + pad, start.y + lineHeight + pad},
+                                ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{1.0f, 1.0f, 1.0f, 0.04f}), 3.0f, 0);
+                        }
+
+                        if (ImGuiMCP::IsItemHovered(ImGuiMCP::ImGuiHoveredFlags_DelayNormal) && !g_ruleDrag &&
+                            !g_groupDrag) {
+                            ImGuiMCP::SetTooltip("%s", foldHint.c_str());
+                        }
+
+                        ImGuiMCP::SetCursorScreenPos(start);
+                    }
+
+                    foldMark(lineHeight);
+                    TextColored(kDimText, Translate("obody_editor_switched_off_group") + folding);
                 } else {
                     const auto place{
                         static_cast<std::size_t>(std::ranges::find(pluginsShown, *header) - pluginsShown.begin())};
@@ -1802,12 +1942,17 @@ namespace {
                     const float lineHeight{ImGuiMCP::GetTextLineHeight() * 1.2f};
 
                     ImGuiMCP::SetNextItemAllowOverlap();
-                    ImGuiMCP::InvisibleButton(
-                        "##grab", ImGuiMCP::ImVec2{(std::max)(right - left - arrowsWidth, 1.0f), lineHeight});
+
+                    const bool grabClicked{ImGuiMCP::InvisibleButton(
+                        "##grab", ImGuiMCP::ImVec2{(std::max)(right - left - arrowsWidth, 1.0f), lineHeight})};
 
                     const bool grabHovered{ImGuiMCP::IsItemHovered()};
                     const bool grabHint{ImGuiMCP::IsItemHovered(ImGuiMCP::ImGuiHoveredFlags_DelayNormal)};
                     const bool grabHeld{ImGuiMCP::IsItemActive()};
+
+                    if (grabClicked && foldable && !g_groupDrag && !g_ruleDrag) {
+                        toggled = foldId(*header);
+                    }
 
                     if (grabHeld && ImGuiMCP::IsMouseDragging(0) && !g_groupDrag && !g_ruleDrag) {
                         // Where it was clicked, the drag started there
@@ -1826,7 +1971,9 @@ namespace {
                     }
 
                     if (grabHint && !g_ruleDrag && !g_groupDrag && !grabHeld) {
-                        ImGuiMCP::SetTooltip("%s", Translate("obody_editor_plugin_drag_hint").c_str());
+                        const auto dragHint{Translate("obody_editor_plugin_drag_hint")};
+
+                        ImGuiMCP::SetTooltip("%s", (foldable ? foldHint + "\n" + dragHint : dragHint).c_str());
                     }
 
                     ImGuiMCP::SetCursorScreenPos(start);
@@ -1861,6 +2008,7 @@ namespace {
 
                     ImGuiMCP::SameLine();
                     ImGuiMCP::SetCursorPosX(left);
+                    foldMark(lineHeight);
                     ImGuiMCP::SetWindowFontScale(1.2f);
                     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kDimText);
                     ImGuiMCP::TextUnformatted(std::format("{}.", place + 1).c_str());
@@ -1868,7 +2016,7 @@ namespace {
                     ImGuiMCP::SameLine();
                     ImGuiMCP::PushTextWrapPos(right - arrowsWidth);
                     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kGroupHeader);
-                    ImGuiMCP::TextWrapped("%s", header->c_str());
+                    ImGuiMCP::TextWrapped("%s", (*header + folding).c_str());
                     ImGuiMCP::PopStyleColor();
                     ImGuiMCP::PopTextWrapPos();
                     ImGuiMCP::SetWindowFontScale(1.0f);
@@ -1896,6 +2044,21 @@ namespace {
                     drawMessage();
                     VerticalSpace(0.25f);
                 }
+            }
+
+            const bool groupEnds{grouped && (n + 1 == shown.size() || headers[n + 1])};
+
+            // Only the header of a folded group is drawn
+            if (folded[n]) {
+                if (groupEnds) {
+                    endGroup(row);
+
+                    if (n + 1 < shown.size()) {
+                        VerticalSpace(0.9f);
+                    }
+                }
+
+                continue;
             }
 
             ImGuiMCP::PushID(static_cast<int>(i));
@@ -2182,33 +2345,8 @@ namespace {
                 drawMessage();
             }
 
-            if (grouped && (n + 1 == shown.size() || headers[n + 1])) {
-                const float groupBottom{ImGuiMCP::GetCursorScreenPos().y - style.ItemSpacing.y};
-                const float groupHeight{groupBottom - groupSlot.y - (groupDragged ? groupOffset : 0.0f)};
-
-                if (!row.switchedOff) {
-                    groupHeights[row.ref.plugin] = groupHeight;
-                    groupRects.push_back(GroupRect{row.ref.plugin, groupSlot.y, groupSlot.y + groupHeight});
-                }
-
-                if (groupDragged) {
-                    const float pad{style.ItemSpacing.y * 0.5f};
-                    const ImGuiMCP::ImVec2 min{groupSlot.x - pad, groupSlot.y + groupOffset - pad};
-                    const ImGuiMCP::ImVec2 max{groupSlot.x + (right - left) + pad, groupBottom + pad};
-
-                    ImGuiMCP::ImDrawListManager::AddRectFilled(
-                        drawList, min, max,
-                        ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{kGoldText.x, kGoldText.y, kGoldText.z, 0.08f}), 3.0f, 0);
-                    ImGuiMCP::ImDrawListManager::AddRect(
-                        drawList, min, max,
-                        ImGuiMCP::GetColorU32(ImGuiMCP::ImVec4{kGoldText.x, kGoldText.y, kGoldText.z, 0.5f}), 3.0f, 0,
-                        1.0f);
-                    ImGuiMCP::ImDrawListManager::ChannelsSetCurrent(drawList, 0);
-
-                    ImGuiMCP::SetCursorScreenPos(groupSlot);
-                    ImGuiMCP::Dummy(ImGuiMCP::ImVec2{0.0f, groupHeight});
-                    groupDragged = false;
-                }
+            if (groupEnds) {
+                endGroup(row);
             }
 
             // A group's header has its own line
@@ -2229,6 +2367,14 @@ namespace {
 
         ImGuiMCP::PopStyleColor(5);
         ImGuiMCP::PopStyleVar();
+
+        if (toggled) {
+            if (!g_collapsed.erase(*toggled)) {
+                g_collapsed.insert(*toggled);
+            }
+
+            ++g_collapsedVersion;
+        }
 
         const auto ruleDropAt{IsDragOf(key, order) ? Parser::EntrySourceId(order[g_ruleDrag->from]->ref)
                                                    : std::string{}};
