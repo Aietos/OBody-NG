@@ -71,10 +71,62 @@ namespace {
         return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
     }
 
+    constexpr std::uint32_t kVRTriggerButton{33};
+
+    bool IsVRController(const RE::INPUT_DEVICE a_device) {
+        if (!REL::Module::IsVR()) return false;
+
+        switch (a_device) {
+            case RE::INPUT_DEVICE::kVivePrimary:
+            case RE::INPUT_DEVICE::kViveSecondary:
+            case RE::INPUT_DEVICE::kOculusPrimary:
+            case RE::INPUT_DEVICE::kOculusSecondary:
+            case RE::INPUT_DEVICE::kWMRPrimary:
+            case RE::INPUT_DEVICE::kWMRSecondary:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The menu's left mouse button is held by a VR trigger
+    bool g_vrTriggerDown{false};
+
+    // Hacky attempt to workaround an issue with SKSE Menu Framework, where the VR controller wand trigger
+    // isn't being properly registered as an action click, preventing VR wand from interacting with OBody's menu.
+    void ClickWithVRTrigger(const RE::ButtonEvent& a_button) {
+        if (!IsVRController(a_button.GetDevice()) || a_button.GetIDCode() != kVRTriggerButton) return;
+
+        const bool open{UI::PresetList::Window && UI::PresetList::Window->IsOpen.load()};
+
+        if (a_button.IsDown() && open && !g_vrTriggerDown) {
+            static bool logged{false};
+
+            if (!logged) {
+                logger::info("VR Trigger click detected, translating to left mouse button click");
+                logged = true;
+            }
+
+            ImGuiMCP::ImGuiIOManager::AddMouseButtonEvent(ImGuiMCP::GetIO(), 0, true);
+            g_vrTriggerDown = true;
+        } else if (!a_button.IsPressed() && g_vrTriggerDown) {
+            ImGuiMCP::ImGuiIOManager::AddMouseButtonEvent(ImGuiMCP::GetIO(), 0, false);
+            g_vrTriggerDown = false;
+        }
+    }
+
     bool __stdcall OnHotkeyInput(RE::InputEvent* a_event) {
+        if (!a_event) {
+            return false;
+        }
+
+        if (const auto* const button{a_event->AsButtonEvent()}) {
+            ClickWithVRTrigger(*button);
+        }
+
         const auto scanCode = g_hotkeyScanCode.load();
 
-        if (scanCode == 0 || !a_event) {
+        if (scanCode == 0) {
             return false;
         }
 
