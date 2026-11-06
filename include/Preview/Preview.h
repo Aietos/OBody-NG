@@ -107,6 +107,10 @@ namespace Preview {
         struct UnequippedItem {
             RE::TESBoundObject* object;
             const RE::ExtraDataList* extraList;
+            // What was being held in the left hand (such as a shield), otherwise it's the item's own slot
+            RE::BGSEquipSlot* slot{nullptr};
+            // A quiver's arrows are worn all together
+            std::int32_t count{1};
         };
 
         // The camera as the preview found it, put back when it ends

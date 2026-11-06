@@ -45,23 +45,12 @@ namespace Preview {
         constexpr float kLightFade{1.0F};
         constexpr float kLitHeight{0.6F};
 
-        // What's taken off to show the body. Hair, jewelry, helmets and the like stay on
-        constexpr std::array kClothingSlots{
-            RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kForearms,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kFeet,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kCalves,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModChestPrimary,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModChestSecondary,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModPelvisPrimary,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModPelvisSecondary,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModLegRight,
-            RE::BGSBipedObjectForm::BipedObjectSlot::kModLegLeft,
-        };
+        bool IsTakenOff(const RE::TESBoundObject* a_object) {
+            if (const auto* const armor{a_object->As<RE::TESObjectARMO>()}) return armor->GetPlayable();
 
-        bool IsClothing(const RE::TESObjectARMO* a_armor) {
-            return std::ranges::any_of(kClothingSlots, [&](const auto a_slot) { return a_armor->HasPartOf(a_slot); });
+            if (const auto* const weapon{a_object->As<RE::TESObjectWEAP>()}) return !weapon->IsBound();
+
+            return a_object->Is(RE::FormType::Ammo, RE::FormType::Light);
         }
 
         float ActorHeight(RE::Actor* a_actor) {
@@ -325,15 +314,6 @@ namespace Preview {
         const bool female{a_actor && Body::OBody::IsFemale(a_actor)};
 
         if (!root || !obody.morphInterface) {
-            End();
-            return false;
-        }
-
-        // Nothing to show: the presets are for a body the actor doesn't have, UBE or not
-        if (const bool ube{Body::OBody::IsUBE(a_actor)};
-            !PresetManager::PresetContainer::GetInstance().HasPresetsFor(female, ube)) {
-            logger::info("Preview: no {} {} presets for {}, nothing to preview", ube ? "UBE" : "non-UBE",
-                         female ? "female" : "male", a_actor->GetDisplayFullName());
             End();
             return false;
         }
@@ -1211,28 +1191,38 @@ namespace Preview {
     void Session::Unequip() {
         auto* const actor{actor_.get()};
 
-        // Collected first, the entries change as items are unequipped
-        for (const auto* const entry : stl::GetWornEntries(actor)) {
-            const auto* const armor{entry->object->As<RE::TESObjectARMO>()};
-            if (!armor || !IsClothing(armor)) continue;
+        // Left hand equip slot (such as shields)
+        auto* const leftHand{RE::TESForm::LookupByID<RE::BGSEquipSlot>(0x13F43)};
 
-            const RE::ExtraDataList* wornList{nullptr};
+        for (const auto* const entry : stl::GetWornEntries(actor)) {
+            if (!IsTakenOff(entry->object)) continue;
+
+            const bool ammo{entry->object->Is(RE::FormType::Ammo)};
+            bool found{false};
+
             if (entry->extraLists) {
                 for (const auto* const extraList : *entry->extraLists) {
-                    if (extraList && (extraList->HasType(RE::ExtraDataType::kWorn) ||
-                                      extraList->HasType(RE::ExtraDataType::kWornLeft))) {
-                        wornList = extraList;
-                        break;
-                    }
+                    if (!extraList) continue;
+
+                    const bool left{extraList->HasType(RE::ExtraDataType::kWornLeft)};
+
+                    if (!left && !extraList->HasType(RE::ExtraDataType::kWorn)) continue;
+
+                    unequipped_.push_back({entry->object, extraList, left ? leftHand : nullptr,
+                                           ammo ? static_cast<std::int32_t>(extraList->GetCount()) : 1});
+                    found = true;
                 }
             }
-            unequipped_.push_back({entry->object, wornList});
+
+            if (!found) {
+                unequipped_.push_back({entry->object, nullptr});
+            }
         }
 
         auto* const equipManager{RE::ActorEquipManager::GetSingleton()};
         for (const auto& item : unequipped_) {
-            if (!equipManager->UnequipObject(actor, item.object, const_cast<RE::ExtraDataList*>(item.extraList), 1,
-                                             nullptr, false, true, false, true)) {
+            if (!equipManager->UnequipObject(actor, item.object, const_cast<RE::ExtraDataList*>(item.extraList),
+                                             item.count, item.slot, false, true, false, true)) {
                 logger::warn("Preview: {} ({:08X}) couldn't be taken off {}", item.object->GetName(),
                              item.object->GetFormID(), actor->GetDisplayFullName());
             }
@@ -1283,7 +1273,7 @@ namespace Preview {
                 }
             }
 
-            equipManager->EquipObject(actor, item.object, extraList, 1, nullptr, false, false, false, true);
+            equipManager->EquipObject(actor, item.object, extraList, item.count, item.slot, false, false, false, true);
         }
         if (!unequipped_.empty()) {
             QueueWornUpdate();
