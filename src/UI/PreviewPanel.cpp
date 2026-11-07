@@ -201,9 +201,13 @@ void UI::PreviewPanel::RenderControls(RE::Actor* a_actor) {
             ImGuiMCP::EndTable();
         }
     } else if (!a_actor->Is3DLoaded()) {
+        const ImGuiMCP::ImVec2 gap{0.0f, ImGuiMCP::GetTextLineHeight() * 0.4f};
+
+        ImGuiMCP::Dummy(gap);
         ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ImGuiMCP::ImVec4{0.7f, 0.7f, 0.75f, 1.0f});
         ImGuiMCP::TextWrapped("%s", UI::Translations::Get("obody_preview_unloaded").c_str());
         ImGuiMCP::PopStyleColor();
+        ImGuiMCP::Dummy(gap);
     }
 }
 

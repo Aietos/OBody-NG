@@ -179,6 +179,10 @@ namespace {
         const bool another{a_menuOpened || g_target.get().get() != a_actor};
         g_target = a_actor->GetHandle();
         UI::PreviewPanel::OnTargetSelected(another);
+
+        if (another) {
+            UI::PresetsTab::OnTargetSelected();
+        }
     }
 }  // namespace
 

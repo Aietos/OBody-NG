@@ -100,6 +100,8 @@ namespace {
         RE::FormID actor{0};
         std::string message;
         bool failed{false};
+        // The preset was saved while the menu is open, which the config entry line says until the menu closes
+        bool saved{false};
     };
     ConfigResult g_configResult;
 
@@ -115,6 +117,7 @@ namespace {
     // After the NPC's entry was written to the in-game config file: the config is reloaded to use it
     void OnConfigEntryChanged(RE::Actor* a_actor, const std::optional<std::string>& a_error, const char* a_doneKey) {
         g_configResult.actor = a_actor->GetFormID();
+        g_configResult.saved = false;
 
         if (a_error) {
             g_configResult.failed = true;
@@ -151,6 +154,7 @@ namespace {
 
         if (a_preset) {
             OnConfigEntryChanged(a_actor, Parser::SaveNpcPreset(plugin, formID, *a_preset), nullptr);
+            g_configResult.saved = !g_configResult.failed;
         } else {
             OnConfigEntryChanged(a_actor, Parser::RemoveNpcPreset(plugin, formID), "obody_config_entry_removed");
         }
@@ -221,8 +225,11 @@ namespace {
 
         std::vector<std::pair<ImGuiMCP::ImVec4, std::string>> lines;
 
+        const bool justSaved{g_configResult.saved && g_configResult.actor == a_actor->GetFormID()};
+        const char* const sameKey{justSaved ? "obody_config_entry_saved" : "obody_config_entry_same"};
+
         if (shownEntry && a_current && shownEntry->bodyslidePresets == std::vector{*a_current}) {
-            lines.emplace_back(kSuccessText, UI::Translations::Get("obody_config_entry_same"));
+            lines.emplace_back(kSuccessText, UI::Translations::Get(sameKey));
         } else if (shownEntry) {
             std::string presets;
 
@@ -391,6 +398,7 @@ namespace {
         int idx = 0;
         const PresetMenuEntry* hovered{nullptr};
         const PresetMenuEntry* focused{nullptr};
+        std::optional<std::string> pickedName;
 
         // this is here to later test glyphs sets
         // ImGuiMCP::Text("你好, 안녕하세요, こんにちは, Привет");
@@ -415,22 +423,7 @@ namespace {
             }
 
             if (picked) {
-                UI::PreviewPanel::Apply(
-                    a_actor,
-                    [&] {
-                        // An NPC that isn't loaded gets the morphs as their 3D is built
-                        obody.GenerateBodyByName(a_actor, entry.name, &obody.specialPapyrusPluginInterface,
-                                                 !a_actor->Is3DLoaded());
-                    },
-                    [handle{a_actor->GetHandle()}, name{entry.name}] {
-                        if (const auto actor{handle.get()}) {
-                            Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor.get(), name);
-                        }
-                    });
-                // The row clicked has the keyboard now, it isn't previewed for that
-                g_lastFocused = entry.name;
-                ImGuiMCP::PopID();
-                return true;
+                pickedName = entry.name;
             }
             if (ImGuiMCP::IsItemHovered()) {
                 hovered = &entry;
@@ -440,6 +433,25 @@ namespace {
             }
             ImGuiMCP::PopID();
             ++idx;
+        }
+
+        if (pickedName) {
+            UI::PreviewPanel::Apply(
+                a_actor,
+                [&] {
+                    // An NPC that isn't loaded gets the morphs as their 3D is built
+                    obody.GenerateBodyByName(a_actor, *pickedName, &obody.specialPapyrusPluginInterface,
+                                             !a_actor->Is3DLoaded());
+                },
+                [handle{a_actor->GetHandle()}, name{*pickedName}] {
+                    if (const auto actor{handle.get()}) {
+                        Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor.get(), name);
+                    }
+                });
+
+            g_lastFocused = *pickedName;
+
+            return true;
         }
 
         PreviewHovered(a_actor, hovered, focused, a_current);
@@ -457,6 +469,8 @@ void UI::PresetsTab::Reset() {
         cache.valid = false;
     }
 }
+
+void UI::PresetsTab::OnTargetSelected() { g_configResult = {}; }
 
 bool UI::PresetsTab::Render(RE::Actor* a_actor) {
     const auto current{
