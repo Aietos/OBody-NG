@@ -1,32 +1,20 @@
 #include "UI/UI.h"
 #include "UI/Translations.h"
-#include "Body/Body.h"
+#include "UI/ConfigEditor.h"
+#include "UI/ConfigTabs.h"
+#include "UI/GamepadCamera.h"
+#include "UI/NpcList.h"
+#include "UI/PresetsTab.h"
+#include "UI/PreviewPanel.h"
+#include "UI/Util.h"
+#include "UI/Widgets.h"
 #include "Body/Event.h"
-#include "PresetManager/PresetManager.h"
-#include "JSONParser/JSONParser.h"
-
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
 
 namespace {
     std::atomic<std::uint32_t> g_hotkeyScanCode{0x18};
+    std::atomic_bool g_previewEnabled{true};
 
-    void CenteredText(const char* text, float fontScale = 1.0f) {
-        const float windowWidth = ImGuiMCP::GetWindowSize().x;
-        ImGuiMCP::SetWindowFontScale(fontScale);
-        const float textWidth = ImGuiMCP::CalcTextSize(text).x;
-        ImGuiMCP::SetCursorPosX((windowWidth - textWidth) * 0.5f);
-        ImGuiMCP::Text("%s", text);
-        ImGuiMCP::SetWindowFontScale(1.0f);
-    }
-
-    bool CenteredButton(const char* label) {
-        const float windowWidth = ImGuiMCP::GetWindowSize().x;
-        const auto* style = ImGuiMCP::GetStyle();
-        const float buttonWidth = ImGuiMCP::CalcTextSize(label).x + style->FramePadding.x * 2.0f;
-        ImGuiMCP::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
-        return ImGuiMCP::Button(label);
-    }
+    bool g_closeAfterTextInput{false};
 
     constexpr auto kNumKeyboardKeys{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumKeyboardKeys)};
     constexpr auto kNumMouseButtons{static_cast<std::uint32_t>(SKSE::InputMap::kMacro_NumMouseButtons)};
@@ -47,15 +35,98 @@ namespace {
         }
     }
 
+    // The game's idle camera starts spinning around the player when nothing has been pressed for fAutoVanityModeDelay,
+    // which happens while the menu is open. The camera keeps its own allowAutoVanityMode, set from Skyrim.ini's
+    // bDisableAutoVanityMode, so changing that setting while playing does nothing. The camera's vanity mode is
+    // turned off while the menu is open, and put back as it was when it closes
+    std::optional<bool> g_autoVanityAllowedBefore;
+
+    void DisableAutoVanity() {
+        auto* const camera{RE::PlayerCamera::GetSingleton()};
+
+        if (!camera) return;
+
+        auto& allowed{camera->GetRuntimeData2().allowAutoVanityMode};
+
+        if (!g_autoVanityAllowedBefore) {
+            g_autoVanityAllowedBefore = allowed;
+            logger::info("The idle camera is off while the menu is open, it was {}", allowed ? "on" : "off already");
+        }
+
+        allowed = false;
+    }
+
+    void RestoreAutoVanity() {
+        if (!g_autoVanityAllowedBefore) return;
+
+        if (auto* const camera{RE::PlayerCamera::GetSingleton()}) {
+            camera->GetRuntimeData2().allowAutoVanityMode = *g_autoVanityAllowedBefore;
+        }
+
+        g_autoVanityAllowedBefore.reset();
+    }
+
     bool IsGameTextEntryActive() {
         const auto* controlMap = RE::ControlMap::GetSingleton();
         return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
     }
 
+    constexpr std::uint32_t kVRTriggerButton{33};
+
+    bool IsVRController(const RE::INPUT_DEVICE a_device) {
+        if (!REL::Module::IsVR()) return false;
+
+        switch (a_device) {
+            case RE::INPUT_DEVICE::kVivePrimary:
+            case RE::INPUT_DEVICE::kViveSecondary:
+            case RE::INPUT_DEVICE::kOculusPrimary:
+            case RE::INPUT_DEVICE::kOculusSecondary:
+            case RE::INPUT_DEVICE::kWMRPrimary:
+            case RE::INPUT_DEVICE::kWMRSecondary:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The menu's left mouse button is held by a VR trigger
+    bool g_vrTriggerDown{false};
+
+    // Hacky attempt to workaround an issue with SKSE Menu Framework, where the VR controller wand trigger
+    // isn't being properly registered as an action click, preventing VR wand from interacting with OBody's menu.
+    void ClickWithVRTrigger(const RE::ButtonEvent& a_button) {
+        if (!IsVRController(a_button.GetDevice()) || a_button.GetIDCode() != kVRTriggerButton) return;
+
+        const bool open{UI::PresetList::Window && UI::PresetList::Window->IsOpen.load()};
+
+        if (a_button.IsDown() && open && !g_vrTriggerDown) {
+            static bool logged{false};
+
+            if (!logged) {
+                logger::info("VR Trigger click detected, translating to left mouse button click");
+                logged = true;
+            }
+
+            ImGuiMCP::ImGuiIOManager::AddMouseButtonEvent(ImGuiMCP::GetIO(), 0, true);
+            g_vrTriggerDown = true;
+        } else if (!a_button.IsPressed() && g_vrTriggerDown) {
+            ImGuiMCP::ImGuiIOManager::AddMouseButtonEvent(ImGuiMCP::GetIO(), 0, false);
+            g_vrTriggerDown = false;
+        }
+    }
+
     bool __stdcall OnHotkeyInput(RE::InputEvent* a_event) {
+        if (!a_event) {
+            return false;
+        }
+
+        if (const auto* const button{a_event->AsButtonEvent()}) {
+            ClickWithVRTrigger(*button);
+        }
+
         const auto scanCode = g_hotkeyScanCode.load();
 
-        if (scanCode == 0 || !a_event) {
+        if (scanCode == 0) {
             return false;
         }
 
@@ -84,286 +155,47 @@ namespace {
         return false;
     }
 
-    // PresetContainer keeps non-blacklisted presets first and blacklisted ones last, and
-    // PresetContainer::AssignPresetIndexes relies on that order, so we must order the presets alphabetically ourselves
-    struct PresetMenuEntry {
-        std::string name;         // exact preset name, the only thing used for lookups
-        std::string displayName;  // name without leading/trailing whitespace, shown in the list
-        std::wstring searchText;  // displayName as lowercase UTF-16, used for searching
-        std::wstring sortKey;     // displayName as UTF-16 without leading non-letters/digits, used for ordering
-        bool hasAlnum;            // false for names with no letters/digits at all, so they go last
-    };
-
-    struct PresetMenuCache {
-        std::vector<PresetMenuEntry> entries;
-        bool valid{false};
-    };
-
-    // One per sex, whether blacklisted presets are shown, and body (UBE or not)
-    std::array<PresetMenuCache, 8> g_presetMenuCache;
-
-    std::string_view TrimWhitespace(std::string_view text) {
-        constexpr std::string_view whitespace{" \t\r\n\f\v"};
-        const auto first = text.find_first_not_of(whitespace);
-        if (first == std::string_view::npos) {
-            return {};
+    void __stdcall OnMenuFrameworkEvent(const SKSEMenuFramework::Model::EventType a_type) {
+        // The window can be closed without rendering again, by the hotkey or by SKSE Menu Framework itself
+        if (UI::PresetList::Window && !UI::PresetList::Window->IsOpen.load()) {
+            UI::PreviewPanel::End();
+            RestoreAutoVanity();
         }
-        const auto last = text.find_last_not_of(whitespace);
-        return text.substr(first, last - first + 1);
+
+        if (a_type == SKSEMenuFramework::Model::EventType::kCloseMenu) {
+            UI::PreviewPanel::OnMenuClosed();
+        }
     }
 
-    std::wstring Utf8ToWide(std::string_view text) {
-        if (text.empty()) {
-            return {};
+    bool g_editorTabShown{false};
+
+    // The actor the menu is for, picked when it opens: the NPC in the crosshair, or the player. The NPC tab can
+    // pick another. It's kept while the menu is open, because the preview's camera changes what the crosshair is on
+    RE::ActorHandle g_target;
+    bool g_selectPresetsTab{false};
+    bool g_selectNpcTab{false};
+
+    void SelectTarget(RE::Actor* a_actor, const bool a_menuOpened = false) {
+        const bool another{a_menuOpened || g_target.get().get() != a_actor};
+        g_target = a_actor->GetHandle();
+        UI::PreviewPanel::OnTargetSelected(another);
+
+        if (another) {
+            UI::PresetsTab::OnTargetSelected();
         }
-        const int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
-        if (length <= 0) {
-            return {};
-        }
-        std::wstring wide(static_cast<std::size_t>(length), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), length);
-        return wide;
     }
-
-    // Unicode-aware lowercase, invariant locale is needed so non-Latin systems don't break on latin letters
-    std::wstring ToLowerWide(const std::wstring& text) {
-        if (text.empty()) {
-            return {};
-        }
-        std::wstring lower(text.size(), L'\0');
-        const int length = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE | LCMAP_LINGUISTIC_CASING, text.data(),
-                                         static_cast<int>(text.size()), lower.data(), static_cast<int>(lower.size()),
-                                         nullptr, nullptr, 0);
-        if (length <= 0) {
-            return text;
-        }
-        lower.resize(static_cast<std::size_t>(length));
-        return lower;
-    }
-
-    // Locale-aware, case-insensitive comparison so that accented letters sort next to their base letter
-    int CompareLinguistic(const std::wstring& a, const std::wstring& b) {
-        const int result =
-            CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS, a.data(),
-                            static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()), nullptr, nullptr, 0);
-        if (result == 0) {
-            return a.compare(b);  // fallback in case the API fails, realistically it shouldn't happen
-        }
-        return result - CSTR_EQUAL;
-    }
-
-    std::vector<PresetMenuEntry> BuildSortedPresetEntries(const PresetManager::PresetSet& presets, const bool ube) {
-        std::vector<PresetMenuEntry> entries;
-        entries.reserve(presets.size());
-
-        for (const auto& preset : presets) {
-            // Make sure "-Refit" presets don't appear
-            if (PresetManager::IsRefitPreset(preset.name)) continue;
-
-            // Only the presets made for the actor's body, UBE or not
-            if (preset.ube != ube) continue;
-
-            const auto trimmed = TrimWhitespace(preset.name);
-            const std::wstring wide = Utf8ToWide(trimmed);
-
-            PresetMenuEntry entry;
-            entry.name = preset.name;
-            entry.displayName = trimmed.empty() ? preset.name : std::string{trimmed};
-            entry.searchText = ToLowerWide(wide);
-
-            // Skip leading characters that aren't letters or digits for ordering,
-            // so "(HIMBO) Foo" and "--((HIMBO) Foo" both sort under H.
-            std::size_t firstAlnum = wide.size();
-            if (!wide.empty()) {
-                std::vector<WORD> types(wide.size());
-                if (GetStringTypeW(CT_CTYPE1, wide.data(), static_cast<int>(wide.size()), types.data())) {
-                    for (std::size_t i = 0; i < types.size(); ++i) {
-                        if (types[i] & (C1_ALPHA | C1_DIGIT)) {
-                            firstAlnum = i;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            entry.hasAlnum = firstAlnum < wide.size();
-            entry.sortKey = entry.hasAlnum ? wide.substr(firstAlnum) : wide;
-
-            entries.push_back(std::move(entry));
-        }
-
-        std::ranges::stable_sort(entries, [](const PresetMenuEntry& a, const PresetMenuEntry& b) {
-            if (a.hasAlnum != b.hasAlnum) {
-                return a.hasAlnum;  // names with letters/digits first, symbol-only names last
-            }
-            if (const int cmp = CompareLinguistic(a.sortKey, b.sortKey); cmp != 0) {
-                return cmp < 0;
-            }
-            return a.name < b.name;
-        });
-
-        return entries;
-    }
-
-    namespace JsonView {
-        const ImGuiMCP::ImVec4 kKey{0.60f, 0.80f, 1.00f, 1.0f};
-        const ImGuiMCP::ImVec4 kString{0.90f, 0.68f, 0.45f, 1.0f};
-        const ImGuiMCP::ImVec4 kNumber{0.70f, 0.90f, 0.60f, 1.0f};
-        const ImGuiMCP::ImVec4 kKeyword{0.78f, 0.60f, 0.95f, 1.0f};  // true / false / null
-        const ImGuiMCP::ImVec4 kPunct{0.62f, 0.62f, 0.66f, 1.0f};
-        const ImGuiMCP::ImVec4 kDim{0.45f, 0.45f, 0.48f, 1.0f};
-
-        // 0 = nothing, 1 = expand all, -1 = collapse all
-        int g_forceOpen = 0;
-
-        void Seg(const std::string& text, const ImGuiMCP::ImVec4& color) {
-            ImGuiMCP::SameLine(0.0f, 0.0f);
-            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, color);
-            ImGuiMCP::TextUnformatted(text.c_str());
-            ImGuiMCP::PopStyleColor();
-        }
-
-        void BeginLeafLine(const char* id) {
-            ImGuiMCP::TreeNodeEx(id, ImGuiMCP::ImGuiTreeNodeFlags_Leaf | ImGuiMCP::ImGuiTreeNodeFlags_NoTreePushOnOpen);
-        }
-
-        void KeyPrefix(const char* key) {
-            if (!key) return;
-            Seg(std::format("\"{}\"", key), kKey);
-            Seg(": ", kPunct);
-        }
-
-        void Comma(bool comma) {
-            if (comma) Seg(",", kPunct);
-        }
-
-        void Scalar(const rapidjson::Value& v) {
-            if (v.IsString())
-                Seg(std::format("\"{}\"", v.GetString()), kString);
-            else if (v.IsBool())
-                Seg(v.GetBool() ? "true" : "false", kKeyword);
-            else if (v.IsNull())
-                Seg("null", kKeyword);
-            else if (v.IsInt64())
-                Seg(std::to_string(v.GetInt64()), kNumber);
-            else if (v.IsUint64())
-                Seg(std::to_string(v.GetUint64()), kNumber);
-            else
-                Seg(std::format("{}", v.GetDouble()), kNumber);
-        }
-
-        void Node(const char* key, const rapidjson::Value& v, bool comma);
-
-        void Children(const rapidjson::Value& v) {
-            if (v.IsObject()) {
-                for (auto it = v.MemberBegin(); it != v.MemberEnd(); ++it) {
-                    ImGuiMCP::PushID(it->name.GetString());
-                    Node(it->name.GetString(), it->value, std::next(it) != v.MemberEnd());
-                    ImGuiMCP::PopID();
-                }
-            } else if (v.IsArray()) {
-                for (rapidjson::SizeType i = 0; i < v.Size(); ++i) {
-                    ImGuiMCP::PushID(static_cast<int>(i));
-                    Node(nullptr, v[i], i + 1 < v.Size());
-                    ImGuiMCP::PopID();
-                }
-            }
-        }
-
-        void Node(const char* key, const rapidjson::Value& v, bool comma) {
-            const bool isObj = v.IsObject();
-            const bool isArr = v.IsArray();
-
-            if ((!isObj && !isArr) || (isObj && v.MemberCount() == 0) || (isArr && v.Empty())) {
-                BeginLeafLine("##leaf");
-                KeyPrefix(key);
-                if (isObj)
-                    Seg("{}", kPunct);
-                else if (isArr)
-                    Seg("[]", kPunct);
-                else
-                    Scalar(v);
-                Comma(comma);
-                return;
-            }
-
-            const char* open = isObj ? "{" : "[";
-            const char* close = isObj ? "}" : "]";
-
-            if (g_forceOpen != 0)
-                ImGuiMCP::SetNextItemOpen(g_forceOpen > 0, ImGuiMCP::ImGuiCond_Always);
-            else
-                ImGuiMCP::SetNextItemOpen(true, ImGuiMCP::ImGuiCond_Once);
-
-            const bool opened = ImGuiMCP::TreeNodeEx("##node", ImGuiMCP::ImGuiTreeNodeFlags_None);
-            KeyPrefix(key);
-            Seg(open, kPunct);
-
-            if (!opened) {
-                const auto count = isObj ? v.MemberCount() : v.Size();
-                Seg(" … ", kDim);
-                Seg(close, kPunct);
-                Comma(comma);
-                Seg(std::format("  // {} {}", count, isObj ? "keys" : "items"), kDim);
-                return;
-            }
-
-            Children(v);
-            ImGuiMCP::TreePop();
-
-            BeginLeafLine("##close");
-            Seg(close, kPunct);
-            Comma(comma);
-        }
-
-        void Render(const rapidjson::Value& root) {
-            if (ImGuiMCP::Button(UI::Translations::Get("obody_expand_all").c_str())) g_forceOpen = 1;
-            ImGuiMCP::SameLine();
-            if (ImGuiMCP::Button(UI::Translations::Get("obody_collapse_all").c_str())) g_forceOpen = -1;
-            ImGuiMCP::SameLine();
-            if (ImGuiMCP::Button(UI::Translations::Get("obody_copy_json").c_str())) {
-                rapidjson::StringBuffer sb;
-                rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
-                writer.SetIndent(' ', 2);
-                root.Accept(writer);
-                ImGuiMCP::SetClipboardText(sb.GetString());
-            }
-            ImGuiMCP::Separator();
-
-            if (ImGuiMCP::BeginChild("##ConfigViewerScroll")) {
-                ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_IndentSpacing, 18.0f);
-
-                const bool isObj = root.IsObject();
-                const bool isArr = root.IsArray();
-
-                if ((isObj && root.MemberCount() > 0) || (isArr && !root.Empty())) {
-                    // Root is a fixed and non-collapsible
-                    BeginLeafLine("##rootOpen");
-                    Seg(isObj ? "{" : "[", kPunct);
-
-                    ImGuiMCP::Indent();
-                    Children(root);
-                    ImGuiMCP::Unindent();
-
-                    BeginLeafLine("##rootClose");
-                    Seg(isObj ? "}" : "]", kPunct);
-                } else {
-                    Node(nullptr, root, false);
-                }
-
-                ImGuiMCP::PopStyleVar();
-            }
-            ImGuiMCP::EndChild();
-
-            g_forceOpen = 0;
-        }
-    }  // namespace JsonView
 }  // namespace
 
 void UI::PresetList::SetHotkeyScanCode(std::uint32_t scanCode) {
     // 0x01 is Esc, we treat that as unbinding/disabling the hotkey
     g_hotkeyScanCode.store(scanCode == 0x01 ? 0 : scanCode);
 }
+
+std::uint32_t UI::PresetList::GetHotkeyScanCode() { return g_hotkeyScanCode.load(); }
+
+void UI::PresetList::SetPreviewEnabled(const bool a_enabled) { g_previewEnabled.store(a_enabled); }
+
+bool UI::PresetList::IsPreviewEnabled() { return g_previewEnabled.load(); }
 
 void UI::Register() {
     if (!SKSEMenuFramework::IsInstalled()) {
@@ -373,157 +205,151 @@ void UI::Register() {
     PresetList::Window = SKSEMenuFramework::AddWindow(PresetList::Render);
 
     static auto* inputHandle = SKSEMenuFramework::AddInputEvent(OnHotkeyInput);
+    static auto* menuEventHandle = SKSEMenuFramework::AddEvent(OnMenuFrameworkEvent, 0.0f);
 }
 
 void __stdcall UI::PresetList::Render() {
-    static char buf[128] = "";
-
     bool isOpen = Window->IsOpen.load();
 
     if (!isOpen) {
+        PreviewPanel::End();
+        RestoreAutoVanity();
         return;
     }
 
+    DisableAutoVanity();
+
     auto* viewport = ImGuiMCP::GetMainViewport();
+
+    PreviewPanel::RenderOverlay(viewport);
+
     const auto center = ImGuiMCP::ImGuiViewportManager::GetCenter(viewport);
+
     ImGuiMCP::SetNextWindowPos(center, ImGuiMCP::ImGuiCond_FirstUseEver, ImGuiMCP::ImVec2{0.5f, 0.5f});
-    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.35f, viewport->Size.y * 0.5f},
+    ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{viewport->Size.x * 0.38f, viewport->Size.y * 0.75f},
                                 ImGuiMCP::ImGuiCond_FirstUseEver);
 
-    if (!ImGuiMCP::Begin("OBody##OBodyPresetWindow", &isOpen)) {
+    PreviewPanel::PlaceWindow(viewport);
+
+    // The Config Editor's page is as tall as its rules, so the window's scrollbar would come and go with the category
+    // and the search, and everything would get narrower and wider with it: on that tab, its room is always kept
+    const ImGuiMCP::ImGuiWindowFlags windowFlags{g_editorTabShown ? ImGuiMCP::ImGuiWindowFlags_AlwaysVerticalScrollbar
+                                                                  : ImGuiMCP::ImGuiWindowFlags_None};
+
+    if (!ImGuiMCP::Begin("OBody##OBodyPresetWindow", &isOpen, windowFlags)) {
         ImGuiMCP::End();
         Window->IsOpen = isOpen;
         return;
     }
 
+    PreviewPanel::TrackWindow();
+
     const bool justOpened = ImGuiMCP::IsWindowAppearing();
 
     if (justOpened) {
-        buf[0] = '\0';
+        g_closeAfterTextInput = false;
         ImGuiMCP::SetScrollY(0.0f);
-        for (auto& cache : g_presetMenuCache) {
-            cache.valid = false;
+        PresetsTab::Reset();
+        ConfigTabs::Reset();
+        ConfigEditor::Reset();
+
+        RE::Actor* crosshairActor{Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get()};
+        if (Util::IsPresetTarget(crosshairActor)) {
+            SelectTarget(crosshairActor, true);
+        } else {
+            SelectTarget(RE::PlayerCharacter::GetSingleton(), true);
         }
+
+        GamepadCamera::OnMenuOpened();
     }
 
-    // Esc closes the menu
-    if (ImGuiMCP::IsWindowFocused(ImGuiMCP::ImGuiFocusedFlags_RootAndChildWindows) &&
-        ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape, false)) {
+    if (g_closeAfterTextInput) {
+        g_closeAfterTextInput = false;
         isOpen = false;
     }
 
-    RE::Actor* actor = nullptr;
+    if ((ImGuiMCP::IsWindowFocused(ImGuiMCP::ImGuiFocusedFlags_RootAndChildWindows) ||
+         PreviewPanel::IsOverlayFocused()) &&
+        ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape, false)) {
+        if (ImGuiMCP::IsPopupOpen("", ImGuiMCP::ImGuiPopupFlags_AnyPopup) || Widgets::WasComboOpen()) {
+            ImGuiMCP::ClearActiveID();
+            Widgets::CloseOpenCombo();
+        } else if (ImGuiMCP::IsAnyItemActive()) {
+            ImGuiMCP::ClearActiveID();
+            g_closeAfterTextInput = true;
+        } else {
+            isOpen = false;
+        }
+    }
+
+    // The NPC picked may have been unloaded or deleted since
+    RE::NiPointer<RE::Actor> target{g_target.get()};
+
+    if (!target) {
+        SelectTarget(RE::PlayerCharacter::GetSingleton());
+        target = g_target.get();
+    }
+    RE::Actor* actor{target.get()};
+
+    PreviewPanel::Manage(actor);
 
     if (ImGuiMCP::BeginTabBar("##OBodyTabs")) {
         // Always open Presets tab by default
+        const bool selectPresetsTab{justOpened || g_selectPresetsTab};
+        g_selectPresetsTab = false;
+
         if (ImGuiMCP::BeginTabItem(
                 UI::Translations::Get("obody_presets_tab").c_str(), nullptr,
-                justOpened ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
-            actor = Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get();
-
-            if (actor == nullptr || !actor->HasKeywordString("ActorTypeNPC") || actor->IsChild()) {
-                actor = RE::PlayerCharacter::GetSingleton();
-            }
-
-            const auto& obody{Body::OBody::GetInstance()};
-
-            auto a_presetName =
-                ActorTracker::Registry::GetInstance().GetPresetNameForActor(actor, Body::OBody::IsFemale(actor));
-
-            const std::string presetLine = UI::Translations::Get("obody_current_preset") + ": " +
-                                           a_presetName.value_or(UI::Translations::Get("obody_none"));
-
-            CenteredText(actor->GetDisplayFullName(), 1.4f);
-            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ImGuiMCP::ImVec4{0.7f, 0.7f, 0.75f, 1.0f});
-            CenteredText(presetLine.c_str(), 1.0f);
-            ImGuiMCP::PopStyleColor();
-
-            ImGuiMCP::Spacing();
-            ImGuiMCP::Spacing();
-
-            if (CenteredButton(UI::Translations::Get("obody_reset_morphs_button").c_str())) {
-                obody.AssignPresetToActor(actor, "", true, false);
-                Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor, "");
-                isOpen = false;
-            }
-
-            ImGuiMCP::Spacing();
-            ImGuiMCP::Spacing();
-            ImGuiMCP::Separator();
-            ImGuiMCP::Spacing();
-
-            ImGuiMCP::TextUnformatted(UI::Translations::Get("obody_search_presets").c_str());
-            ImGuiMCP::SameLine();
-
-            if (ImGuiMCP::IsWindowAppearing()) {
-                ImGuiMCP::SetKeyboardFocusHere();
-            }
-
-            ImGuiMCP::InputText("##Search", buf, sizeof(buf));
-
-            ImGuiMCP::Spacing();
-            ImGuiMCP::Separator();
-            ImGuiMCP::Spacing();
-
-            const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-
-            const auto& presetDistributionConfig{Parser::JSONParser::GetInstance().presetDistributionConfig};
-            const auto showBlacklistedPresetsItr{
-                presetDistributionConfig.FindMember("blacklistedPresetsShowInOBodyMenu")};
-            const auto end{presetDistributionConfig.MemberEnd()};
-
-            bool showBlacklistedPresets{false};
-            if (showBlacklistedPresetsItr != end && showBlacklistedPresetsItr->value.IsBool()) {
-                showBlacklistedPresets = showBlacklistedPresetsItr->value.GetBool();
-            } else {
-                logger::info(
-                    "Failed to read blacklistedPresetsShowInOBodyMenu key. Defaulting to showing the blacklisted "
-                    "presets "
-                    "in OBody menu.");
-            }
-
-            const bool isFemale = Body::OBody::IsFemale(actor);
-            const bool isUBE = Body::OBody::IsUBE(actor);
-            auto& menuCache =
-                g_presetMenuCache[(isUBE ? 4 : 0) + (isFemale ? 2 : 0) + (showBlacklistedPresets ? 1 : 0)];
-
-            if (!menuCache.valid) {
-                const auto& basePresets =
-                    isFemale
-                        ? (showBlacklistedPresets ? presetContainer.allFemalePresets : presetContainer.femalePresets)
-                        : (showBlacklistedPresets ? presetContainer.allMalePresets : presetContainer.malePresets);
-                menuCache.entries = BuildSortedPresetEntries(basePresets, isUBE);
-                menuCache.valid = true;
-            }
-
-            const std::wstring query = ToLowerWide(Utf8ToWide(buf));
-
-            int idx = 0;
-
-            // this is here to later test glyphs sets
-            // ImGuiMCP::Text("你好, 안녕하세요, こんにちは, Привет");
-
-            for (const auto& entry : menuCache.entries) {
-                if (!query.empty() && entry.searchText.find(query) == std::wstring::npos) {
-                    continue;
-                }
-
-                ImGuiMCP::PushID(idx);
-                if (ImGuiMCP::Selectable(entry.displayName.c_str())) {
-                    obody.GenerateBodyByName(actor, entry.name, &obody.specialPapyrusPluginInterface);
-                    Body::OnActorPresetChangedWithoutGeneration.SendEvent(actor, entry.name);
+                selectPresetsTab ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
+            if (PresetsTab::Render(actor)) {
+                // An NPC that isn't loaded can't be seen, the menu goes back to the NPCs to pick the next one
+                if (!actor->Is3DLoaded()) {
+                    g_selectNpcTab = true;
+                } else if (!PreviewPanel::KeepsMenuOpen()) {
                     isOpen = false;
-                    break;
                 }
-                ImGuiMCP::PopID();
-                ++idx;
             }
+            ImGuiMCP::EndTabItem();
+        }
 
+        const bool selectNpcTab{g_selectNpcTab};
+        g_selectNpcTab = false;
+
+        // The nearby NPCs are scanned each time the tab is opened
+        static bool npcTabWasOpen{false};
+
+        if (ImGuiMCP::BeginTabItem(
+                UI::Translations::Get("obody_npcs_tab").c_str(), nullptr,
+                selectNpcTab ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
+            if (auto* const picked{NpcList::Render(actor, !npcTabWasOpen || justOpened)}) {
+                SelectTarget(picked);
+                g_selectPresetsTab = true;
+            }
+            npcTabWasOpen = true;
+            ImGuiMCP::EndTabItem();
+        } else {
+            npcTabWasOpen = false;
+        }
+
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_settings_header").c_str())) {
+            ConfigTabs::RenderSettings();
+            ImGuiMCP::EndTabItem();
+        }
+
+        g_editorTabShown = ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_editor_tab").c_str());
+
+        if (g_editorTabShown) {
+            ConfigEditor::Render(actor);
+            ImGuiMCP::EndTabItem();
+        }
+
+        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_include_files_header").c_str())) {
+            ConfigTabs::RenderIncludeFiles();
             ImGuiMCP::EndTabItem();
         }
 
         if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_config_viewer_tab").c_str())) {
-            JsonView::Render(Parser::JSONParser::GetInstance().presetDistributionConfig);
+            ConfigTabs::RenderViewer();
             ImGuiMCP::EndTabItem();
         }
 
@@ -532,4 +358,10 @@ void __stdcall UI::PresetList::Render() {
 
     ImGuiMCP::End();
     Window->IsOpen = isOpen;
+    Widgets::EndFrame();
+
+    if (!isOpen) {
+        PreviewPanel::End();
+        RestoreAutoVanity();
+    }
 }

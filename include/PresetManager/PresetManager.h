@@ -88,6 +88,16 @@ namespace PresetManager {
 
     using PresetSet = std::vector<Preset>;
     using SparsePresetMapping = std::vector<SparsePresetIndex>;
+    // Presets of PresetContainer::allFemalePresets / allMalePresets, which don't change once they are read
+    using PresetPointers = std::vector<const Preset*>;
+
+    // The presets of one sex, split by the config (see Parser::Config::SplitPresets)
+    struct PresetLists {
+        // Given out at random
+        PresetPointers allowed;
+        // In blacklistedPresetsFromRandomDistribution, and every "-Refit" preset
+        PresetPointers blacklisted;
+    };
 
     class PresetContainer {
     public:
@@ -99,12 +109,9 @@ namespace PresetManager {
 
         std::vector<std::string> defaultSliders;
 
-        PresetSet femalePresets;
-        PresetSet malePresets;
-
-        PresetSet blacklistedFemalePresets;
-        PresetSet blacklistedMalePresets;
-
+        // Every preset read from the BodySlide files, UBE ones in both. These never change once they are read (only
+        // their assignedIndex), so the config can point into them. Which ones are blacklisted is in the config,
+        // because a reload changes it
         PresetSet allFemalePresets;
         PresetSet allMalePresets;
 
@@ -127,7 +134,7 @@ namespace PresetManager {
 
         void AssignPresetIndexes();
 
-        // Whether there are presets that can be given out to actors of this sex and body
+        // Whether there are presets that can be given out to actors of this sex and body, in the config in use
         [[nodiscard]] bool HasPresetsFor(bool a_female, bool a_ube) const;
 
         static PresetContainer& GetInstance();
@@ -149,7 +156,7 @@ namespace PresetManager {
     std::optional<Preset> GetPresetByName(const PresetSet& a_presetSet, std::string_view a_name, bool female,
                                           bool a_ube);
     // A random preset whose body is UBE or not, as a_ube says. Empty if there's none
-    std::optional<Preset> GetRandomPreset(const PresetSet& a_presetSet, bool a_ube);
+    std::optional<Preset> GetRandomPreset(const PresetPointers& a_presets, bool a_ube);
     // A random preset among a_presetNames, skipping the ones that don't exist or whose body doesn't fit a_ube
     std::optional<Preset> GetRandomPresetByName(const PresetSet& a_presetSet,
                                                 std::vector<std::string_view> a_presetNames, bool female, bool a_ube);
@@ -165,8 +172,7 @@ namespace PresetManager {
     // or "UBE Female" / "UBE Male" for UBE bodies, whose sliders are different
     std::string_view SexRefitBaseName(bool a_female, bool a_ube);
 
-    // The refit preset with this name, if its body is the actor's (UBE or not). A refit for another body would only
-    // set sliders the actor's body doesn't have
+    // The refit preset with this name, if it's made for the body it refits (UBE or not)
     const Preset* FindRefitPreset(const PresetSet& a_presets, std::string_view a_name, bool a_ube);
 
     // Builds the differential (refit - base) used while an actor is wearing clothes

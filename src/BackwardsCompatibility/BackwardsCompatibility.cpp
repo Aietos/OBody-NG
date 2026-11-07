@@ -1,7 +1,4 @@
-#pragma once
-
 #include "BackwardsCompatibility/BackwardsCompatibility.h"
-#include "Body/Body.h"
 
 BackwardsCompatibility::State BackwardsCompatibility::State::instance;
 

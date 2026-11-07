@@ -13,8 +13,6 @@ namespace PapyrusBody {
 
     void SetGenitalRand(RE::StaticFunctionTag*, bool a_enabled);
 
-    void SetPerformanceMode(RE::StaticFunctionTag*, bool a_enabled);
-
     void SetLegacyStorageUtilUsageEnabled(RE::StaticFunctionTag*, bool a_enabled);
 
     void SetDistributionKey(RE::StaticFunctionTag*, std::string a_distributionKey);

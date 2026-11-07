@@ -12,6 +12,7 @@ namespace SaveFileState {
     constexpr uint32_t PresetNameIndexMapTypeID = 0xa0B0D9e0;
     constexpr uint32_t BackwardsCompatibilityStateTypeID = 0xa0B0D9bc;
     constexpr uint32_t DistributionKeyTypeID = 0xa0B0D9dc;
+    constexpr uint32_t PreviewSettingsTypeID = 0xa0B0D9f0;
 
     // Making a call for each tiny piece of data and having SKSE copy it into its filestream
     // is the recipe for a mod that makes saves and loads take longer than they should.
@@ -40,6 +41,18 @@ namespace SaveFileState {
 
     bool WriteRecordDataForDistributionKeyV0(SKSE::SerializationInterface* save, const Body::OBody& obody);
     bool ReadRecordDataForDistributionKeyV0(SKSE::SerializationInterface* load, uint32_t length, Body::OBody& obody);
+
+    bool WriteRecordDataForPreviewSettingsV0(SKSE::SerializationInterface* save);
+    bool ReadRecordDataForPreviewSettingsV0(SKSE::SerializationInterface* load, uint32_t length);
+
+    // The preset menu's preview checkboxes
+    struct PreviewSettingsV0 {
+        enum Flag : uint32_t { kLivePreview = 1 << 0, kKeepMenuOpen = 1 << 1 };
+
+        uint32_t flags;
+    };
+
+    static_assert(sizeof(PreviewSettingsV0) == 4);
 
     struct PresetNameIndexMapHeaderV0 {
         PresetManager::SparsePresetIndex nextPresetIndex;

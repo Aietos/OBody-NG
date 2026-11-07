@@ -28,7 +28,7 @@ namespace Body {
         void SetMorph(RE::Actor* a_actor, const char* a_morphName, const char* a_key, float a_value) const;
         float GetMorph(RE::Actor* a_actor, const char* a_morphName) const;
         void NotifyMorphApplied(RE::Actor* actor) const;
-        void ApplyMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer, bool applyProcessedMorph = true) const;
+        void ApplyMorphs(RE::Actor* a_actor, bool applyProcessedMorph = true) const;
 
         void ProcessActorEquipEvent(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_equippedArmor) const;
         void ProcessActorLoaded3D(RE::FormID a_formID) const;
@@ -37,16 +37,26 @@ namespace Body {
         void GenerateActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface,
                                bool a_beforeLoad3D = false) const;
         void GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
-                                ::OBody::API::IPluginInterface* responsibleInterface) const;
-        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset, bool updateMorphsWithoutTimer,
+                                ::OBody::API::IPluginInterface* responsibleInterface,
+                                bool a_beforeLoad3D = false) const;
+        void GenerateBodyByPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
                                   ::OBody::API::IPluginInterface* responsibleInterface,
                                   bool a_beforeLoad3D = false) const;
 
         void ApplySlider(RE::Actor* a_actor, const PresetManager::Slider& a_slider, const char* a_key,
                          float a_weight) const;
         void ApplySliderSet(RE::Actor* a_actor, PresetManager::SliderSet& a_sliders, const char* a_key) const;
+        // a_actorPreset: the preset the refit is picked for, the one assigned to the actor when it's null
         bool ApplyClothePreset(RE::Actor* a_actor, bool a_onlyIfChanged = false, bool a_removingArmor = false,
-                               const RE::TESForm* a_changedArmor = nullptr) const;
+                               const RE::TESForm* a_changedArmor = nullptr,
+                               const PresetManager::Preset* a_actorPreset = nullptr) const;
+
+        // Shows a_preset on the actor without assigning it
+        // Nothing is tracked, saved or sent to listeners, so the preview in the preset menu can show presets
+        // and put the actor's own morphs back afterwards.
+        // a_extraSliders are applied on top, a_clothed adds the refit the actor would get for a_preset
+        void PreviewPreset(RE::Actor* a_actor, PresetManager::Preset& a_preset,
+                           PresetManager::SliderSet& a_extraSliders, bool a_clothed) const;
         void RemoveClothePreset(RE::Actor* a_actor) const;
 
         // Brings the actor's ORefit in line with what they wear, see UpdateClothePreset in Body.cpp
@@ -54,9 +64,20 @@ namespace Body {
 
         // Sets the ORefit morphs for what the actor wears, returns whether they changed
         bool RefreshClothePreset(RE::Actor* a_actor, bool a_removingArmor, const RE::TESForm* a_changedArmor) const;
-        void ClearActorMorphs(RE::Actor* a_actor, bool updateMorphsWithoutTimer,
-                              ::OBody::API::IPluginInterface* responsibleInterface) const;
+        void ClearActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
         void ReapplyActorMorphs(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
+
+        // Takes the actor's preset away and lets the distribution give them one again
+        void RerollActorBody(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
+
+        // Re-rolls the presets of all actors except the ones picked by hand: a_loaded right away, the others the next
+        // time OBody generates their body, when they load. a_notLoaded are the actors in memory that aren't loaded,
+        // for the ones OBody processed without keeping an entry for them. Returns how many of a_loaded were re-rolled
+        std::size_t RerollAllBodies(const std::vector<RE::Actor*>& a_loaded,
+                                    const std::vector<RE::Actor*>& a_notLoaded) const;
+
+        // Clears the actor's preset assignment, and tells the plugins listening if they had one
+        void UnassignPreset(RE::Actor* a_actor, ::OBody::API::IPluginInterface* responsibleInterface) const;
 
         void ForcefullyChangeORefit(RE::Actor* a_actor, bool applied,
                                     ::OBody::API::IPluginInterface* responsibleInterface) const;
@@ -90,8 +111,7 @@ namespace Body {
         bool DetachEventListener(::OBody::API::IActorChangeEventListener& eventListener);
         bool IsEventListenerAttached(::OBody::API::IActorChangeEventListener& eventListener);
 
-        void AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName,
-                                 bool a_forceImmediateApplicationOfMorphs, bool a_doNotApplyMorphs) const;
+        void AssignPresetToActor(RE::Actor* a_actor, const std::string& a_presetName, bool a_doNotApplyMorphs) const;
 
         template <typename PrepareArguments, typename EventMethod>
         __forceinline void SendActorChangeEvent(RE::Actor* a_actor, PrepareArguments&& prepareArguments,
@@ -137,7 +157,6 @@ namespace Body {
         bool setNippleSlidersRefitEnabled = true;
         bool setNippleRand = true;
         bool setGenitalRand = true;
-        bool setPerformanceMode = false;
         bool setLegacyStorageUtilUsageEnabled = false;
         bool setForcePresetApplicationImmediate = true;
 
