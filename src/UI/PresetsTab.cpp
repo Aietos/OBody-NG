@@ -34,11 +34,11 @@ namespace {
 
     void CenteredText(const char* text, float fontScale = 1.0f) {
         const float windowWidth = ImGuiMCP::GetWindowSize().x;
-        ImGuiMCP::SetWindowFontScale(fontScale);
+        UI::Widgets::SetTextScale(fontScale);
         const float textWidth = ImGuiMCP::CalcTextSize(text).x;
         ImGuiMCP::SetCursorPosX((windowWidth - textWidth) * 0.5f);
         ImGuiMCP::Text("%s", text);
-        ImGuiMCP::SetWindowFontScale(1.0f);
+        UI::Widgets::SetTextScale();
     }
 
     void VerticalSpace(const float a_lines) {
@@ -540,7 +540,7 @@ bool UI::PresetsTab::Render(RE::Actor* a_actor) {
     // Presets made for other bodies may not fit a UBE body, they're only listed when asked for
     if (Body::OBody::IsUBE(a_actor)) {
         ImGuiMCP::Spacing();
-        ImGuiMCP::Checkbox(UI::Translations::Get("obody_show_other_bodies").c_str(), &g_showOtherBodies);
+        UI::Widgets::Checkbox(UI::Translations::Get("obody_show_other_bodies").c_str(), &g_showOtherBodies);
 
         if (ImGuiMCP::IsItemHovered()) {
             ImGuiMCP::SetTooltip("%s", UI::Translations::Get("obody_show_other_bodies_hint").c_str());

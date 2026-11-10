@@ -12,6 +12,7 @@ namespace {
 
     std::array<std::vector<Item>, static_cast<std::size_t>(Kind::kTotal)> g_lists;
     bool g_built{false};
+    std::uint32_t g_generation{0};
 
     std::vector<Item>& List(const Kind a_kind) { return g_lists[static_cast<std::size_t>(a_kind)]; }
 
@@ -214,8 +215,8 @@ namespace {
             AddPresets(a_refit, refit);
         };
 
-        add(container.allFemalePresets, Kind::kPresetFemale, Kind::kRefitFemale);
-        add(container.allMalePresets, Kind::kPresetMale, Kind::kRefitMale);
+        add(container.Data().allFemalePresets, Kind::kPresetFemale, Kind::kRefitFemale);
+        add(container.Data().allMalePresets, Kind::kPresetMale, Kind::kRefitMale);
         AddPresets(Kind::kPreset, anySex);
     }
 
@@ -341,6 +342,22 @@ const std::vector<Item>& UI::Lookups::Get(const Kind a_kind) {
 
     return List(a_kind);
 }
+
+void UI::Lookups::RebuildPresets() {
+    if (!g_built) return;
+
+    constexpr std::array presetKinds{Kind::kPreset, Kind::kPresetFemale, Kind::kPresetMale, Kind::kRefitFemale,
+                                     Kind::kRefitMale};
+
+    for (const auto kind : presetKinds) {
+        List(kind).clear();
+    }
+
+    BuildPresets();
+    ++g_generation;
+}
+
+std::uint32_t UI::Lookups::Generation() { return g_generation; }
 
 const RE::TESForm* UI::Lookups::FindRecord(const std::string_view a_plugin, const std::string_view a_formID) {
     auto* const dataHandler{RE::TESDataHandler::GetSingleton()};

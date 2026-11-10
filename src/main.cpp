@@ -149,7 +149,7 @@ namespace {
                 auto& parser{Parser::JSONParser::GetInstance()};
 
                 try {
-                    PresetManager::GeneratePresets();
+                    PresetManager::PresetContainer::GetInstance().Replace(PresetManager::GeneratePresets());
                     parser.bodyslidePresetsParsingValid = true;
                 } catch (const std::runtime_error& re) {
                     logger::info("{} ", re.what());

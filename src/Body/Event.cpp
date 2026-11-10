@@ -150,12 +150,12 @@ RE::BSEventNotifyControl Event::OBodyEventHandler::ProcessEvent(const RE::TESLoa
         RE::DebugMessageBox(UI::Translations::Get("obody_preset_list_failure").c_str());
     }
 
-    if (parser.invalid_presets != 0) {
+    if (const auto unread{PresetManager::PresetContainer::GetInstance().Data().unreadFiles.size()}; unread != 0) {
         char message[256];
         sprintf_s(message, std::size(message),
                   "There was(were) %zu invalid preset(s) with parsing error(s), they won't be loaded in but are "
                   "logged in OBody.log. Look for \"load failed: {filename} [{error description}]\" in the log.",
-                  parser.invalid_presets);  // max length possible: 187
+                  unread);  // max length possible: 187
         RE::DebugMessageBox(message);
     }
 

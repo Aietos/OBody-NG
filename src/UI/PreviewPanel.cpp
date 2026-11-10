@@ -2,6 +2,7 @@
 #include "UI/GamepadCamera.h"
 #include "UI/UI.h"
 #include "UI/Translations.h"
+#include "UI/Widgets.h"
 #include "Preview/Preview.h"
 
 namespace {
@@ -16,6 +17,8 @@ namespace {
     std::optional<std::pair<ImGuiMCP::ImVec2, ImGuiMCP::ImVec2>> g_undockedPlacement;
 
     bool g_overlayFocused{false};
+
+    float g_controlsWidth{0.0f};
 
     std::atomic_bool g_keepMenuOpen{false};
 
@@ -81,8 +84,12 @@ void UI::PreviewPanel::PlaceWindow(const ImGuiMCP::ImGuiViewport* a_viewport) {
         g_docked = true;
         ImGuiMCP::SetNextWindowPos(ImGuiMCP::ImVec2{a_viewport->Pos.x + 16.0f, a_viewport->Pos.y + 16.0f},
                                    ImGuiMCP::ImGuiCond_Always);
-        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{a_viewport->Size.x * 0.36f, a_viewport->Size.y - 32.0f},
-                                    ImGuiMCP::ImGuiCond_Always);
+        const auto* style{ImGuiMCP::GetStyle()};
+        const float content{(std::max)(UI::Widgets::GetTabsFullWidth() * UI::Widgets::GetTextScale(), g_controlsWidth)};
+        const float wanted{content + (style->WindowPadding.x * 2.0f) + style->ScrollbarSize};
+        const float width{std::clamp(wanted, a_viewport->Size.x * 0.36f, a_viewport->Size.x * 0.45f)};
+
+        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{width, a_viewport->Size.y - 32.0f}, ImGuiMCP::ImGuiCond_Always);
     } else if (g_docked && !UI::PresetList::IsPreviewEnabled()) {
         g_docked = false;
         if (g_undockedPlacement) {
@@ -96,6 +103,18 @@ void UI::PreviewPanel::TrackWindow() {
     if (!g_docked) {
         g_undockedPlacement.emplace(ImGuiMCP::GetWindowPos(), ImGuiMCP::GetWindowSize());
     }
+
+    // Actor centering
+    const auto* const viewport{ImGuiMCP::GetMainViewport()};
+    const auto pos{ImGuiMCP::GetWindowPos()};
+    const float left{pos.x - viewport->Pos.x};
+    const float right{left + ImGuiMCP::GetWindowSize().x};
+    const float width{viewport->Size.x};
+
+    if (width <= 0.0f) return;
+
+    const float centre{width - right >= left ? (right + width) * 0.5f : left * 0.5f};
+    Preview::Session::GetInstance().SetScreenPosition(std::clamp((centre / width * 2.0f) - 1.0f, -0.8f, 0.8f));
 }
 
 void UI::PreviewPanel::OnTargetSelected(const bool a_another) {
@@ -129,40 +148,52 @@ void UI::PreviewPanel::Manage(RE::Actor* a_actor) {
 
 void UI::PreviewPanel::RenderControls(RE::Actor* a_actor) {
     auto& preview{Preview::Session::GetInstance()};
+    const bool previewing{preview.IsPreviewing(a_actor)};
+    const std::array labels{UI::Translations::Get("obody_live_preview"), UI::Translations::Get("obody_keep_menu_open"),
+                            UI::Translations::Get("obody_neutral_pose"), UI::Translations::Get("obody_show_clothes"),
+                            UI::Translations::Get("obody_light"),        UI::Translations::Get("obody_bring_to_me")};
 
-    if (bool enabled{UI::PresetList::IsPreviewEnabled()};
-        ImGuiMCP::Checkbox(UI::Translations::Get("obody_live_preview").c_str(), &enabled)) {
-        UI::PresetList::SetPreviewEnabled(enabled);
+    float widest{0.0f};
+
+    for (const auto& label : labels) {
+        widest = (std::max)(widest, UI::Widgets::CheckboxWidth(label.c_str()));
     }
 
-    if (UI::PresetList::IsPreviewEnabled()) {
-        ImGuiMCP::SameLine();
-        if (bool keep{g_keepMenuOpen.load()};
-            ImGuiMCP::Checkbox(UI::Translations::Get("obody_keep_menu_open").c_str(), &keep)) {
-            g_keepMenuOpen.store(keep);
+    g_controlsWidth = 3.0f * (widest + (ImGuiMCP::GetStyle()->CellPadding.x * 2.0f));
+
+    constexpr auto tableFlags{ImGuiMCP::ImGuiTableFlags_SizingStretchSame};
+
+    if (ImGuiMCP::BeginTable("##PreviewOptions", 3, tableFlags)) {
+        ImGuiMCP::TableNextColumn();
+
+        if (bool enabled{UI::PresetList::IsPreviewEnabled()}; UI::Widgets::Checkbox(labels[0].c_str(), &enabled)) {
+            UI::PresetList::SetPreviewEnabled(enabled);
         }
 
-        ImGuiMCP::SameLine();
-        if (bool always{Preview::Session::IsAlwaysCopy()};
-            ImGuiMCP::Checkbox(UI::Translations::Get("obody_neutral_pose").c_str(), &always)) {
-            Preview::Session::SetAlwaysCopy(always);
-        }
-    }
-
-    if (preview.IsPreviewing(a_actor)) {
-        ImGuiMCP::Spacing();
-
-        if (ImGuiMCP::BeginTable("##PreviewControls", 3, ImGuiMCP::ImGuiTableFlags_SizingStretchSame)) {
+        if (UI::PresetList::IsPreviewEnabled()) {
             ImGuiMCP::TableNextColumn();
 
-            if (bool clothed{preview.IsClothed()};
-                ImGuiMCP::Checkbox(UI::Translations::Get("obody_show_clothes").c_str(), &clothed)) {
+            if (bool keep{g_keepMenuOpen.load()}; UI::Widgets::Checkbox(labels[1].c_str(), &keep)) {
+                g_keepMenuOpen.store(keep);
+            }
+
+            ImGuiMCP::TableNextColumn();
+
+            if (bool always{Preview::Session::IsAlwaysCopy()}; UI::Widgets::Checkbox(labels[2].c_str(), &always)) {
+                Preview::Session::SetAlwaysCopy(always);
+            }
+        }
+
+        if (previewing) {
+            ImGuiMCP::TableNextColumn();
+
+            if (bool clothed{preview.IsClothed()}; UI::Widgets::Checkbox(labels[3].c_str(), &clothed)) {
                 preview.SetClothed(clothed);
             }
 
             ImGuiMCP::TableNextColumn();
 
-            if (bool lit{preview.IsLit()}; ImGuiMCP::Checkbox(UI::Translations::Get("obody_light").c_str(), &lit)) {
+            if (bool lit{preview.IsLit()}; UI::Widgets::Checkbox(labels[4].c_str(), &lit)) {
                 preview.SetLit(lit);
             }
 
@@ -173,11 +204,19 @@ void UI::PreviewPanel::RenderControls(RE::Actor* a_actor) {
 
             ImGuiMCP::BeginDisabled(!brought && !preview.CanBringToPlayer());
 
-            if (ImGuiMCP::Checkbox(UI::Translations::Get("obody_bring_to_me").c_str(), &brought)) {
+            if (UI::Widgets::Checkbox(labels[5].c_str(), &brought)) {
                 preview.SetBroughtToPlayer(brought);
             }
             ImGuiMCP::EndDisabled();
+        }
 
+        ImGuiMCP::EndTable();
+    }
+
+    if (previewing) {
+        ImGuiMCP::Dummy(ImGuiMCP::ImVec2{0.0f, ImGuiMCP::GetTextLineHeight() * 0.3f});
+
+        if (ImGuiMCP::BeginTable("##PreviewButtons", 3, tableFlags)) {
             constexpr ImGuiMCP::ImVec2 fullWidth{-FLT_MIN, 0.0f};
 
             ImGuiMCP::TableNextColumn();

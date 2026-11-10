@@ -187,9 +187,9 @@ namespace OBody::API {
 
         bool isFemale = obody.IsFemale(a_actor);
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        auto preset = GetPresetByNameForRandom(
-            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, payload.presetName);
+        const auto& presetData{PresetManager::PresetContainer::GetInstance().Data()};
+        auto preset = GetPresetByNameForRandom(isFemale ? presetData.allFemalePresets : presetData.allMalePresets,
+                                               payload.presetName);
 
         if (!preset) {
             return false;

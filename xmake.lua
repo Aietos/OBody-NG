@@ -7,7 +7,7 @@ includes("xmake/tasks.lua")
 
 -- set project
 set_project("OBody")
-set_version("5.3.0")
+set_version("5.3.1")
 set_license("GPL-3.0")
 
 -- set defaults

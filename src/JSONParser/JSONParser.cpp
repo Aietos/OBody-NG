@@ -43,7 +43,7 @@ namespace Parser {
 
     void Config::SplitPresets() {
         constexpr auto blacklistKey{"blacklistedPresetsFromRandomDistribution"};
-        const auto& container{PresetManager::PresetContainer::GetInstance()};
+        presetData = &PresetManager::PresetContainer::GetInstance().Data();
         const auto blacklistItr{presetDistributionConfig.FindMember(blacklistKey)};
         const bool hasBlacklist{blacklistItr != presetDistributionConfig.MemberEnd() && blacklistItr->value.IsArray()};
 
@@ -56,8 +56,8 @@ namespace Parser {
             }
         };
 
-        split(container.allFemalePresets, femalePresets);
-        split(container.allMalePresets, malePresets);
+        split(presetData->allFemalePresets, femalePresets);
+        split(presetData->allMalePresets, malePresets);
 
         logger::info("Female presets: {}, Male presets: {}", femalePresets.allowed.size(), malePresets.allowed.size());
         logger::info("Blacklisted: Female presets: {}, Male Presets: {}", femalePresets.blacklisted.size(),
@@ -1030,8 +1030,8 @@ namespace Parser {
             return std::nullopt;
         }
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+        const auto& loaded{Presets()};
+        const auto& presetSet{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
         const auto factionItr{presetDistributionConfig.FindMember(female ? "factionFemale" : "factionMale")};
 
@@ -1060,9 +1060,9 @@ namespace Parser {
     std::optional<PresetManager::Preset> Config::GetNPCPreset(const char* actorName,
                                                               const std::vector<RE::FormID>& formIDs, const bool female,
                                                               const bool a_ube) const {
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto& loaded{Presets()};
 
-        const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+        const auto& presetSet{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
         std::vector<std::string_view> characterBodyslidePresets;
 
@@ -1112,9 +1112,9 @@ namespace Parser {
                 logger::info("Checking if actor {} is in mod {}", actorName, mod.GetString());
 
                 if (IsActorInForm(a_actor, mod.GetString())) {
-                    const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+                    const auto& loaded{Presets()};
 
-                    const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+                    const auto& presetSet{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
                     std::vector<std::string_view> presets_copy;
                     presets_copy.reserve(presets[mod].Size());
@@ -1135,9 +1135,9 @@ namespace Parser {
         const char* key{female ? "raceFemale" : "raceMale"};
 
         if (IsSubKeyInJsonConfigKey(key, actorRace)) {
-            const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+            const auto& loaded{Presets()};
 
-            const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+            const auto& presetSet{female ? loaded.allFemalePresets : loaded.allMalePresets};
             std::vector<std::string_view> presets_copy;
             presets_copy.reserve(presetDistributionConfig[key][actorRace].Size());
             for (const auto& item : presetDistributionConfig[key][actorRace].GetArray()) {
@@ -1154,9 +1154,9 @@ namespace Parser {
         const char* key{female ? "classFemale" : "classMale"};
 
         if (IsSubKeyInJsonConfigKey(key, actorClass)) {
-            const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+            const auto& loaded{Presets()};
 
-            const auto& presetSet{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+            const auto& presetSet{female ? loaded.allFemalePresets : loaded.allMalePresets};
             std::vector<std::string_view> presets_copy;
             presets_copy.reserve(presetDistributionConfig[key][actorClass].Size());
             for (const auto& item : presetDistributionConfig[key][actorClass].GetArray()) {
@@ -1282,8 +1282,8 @@ namespace Parser {
             return std::nullopt;
         }
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+        const auto& loaded{Presets()};
+        const auto& allPresets{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
         // Lists written for this specific outfit
         if (const auto lists{CollectOutfitRefitLists(armors, female)}; !lists.empty()) {
@@ -1325,8 +1325,8 @@ namespace Parser {
             return std::nullopt;
         }
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+        const auto& loaded{Presets()};
+        const auto& allPresets{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
         // Defaults written in the lists of this specific outfit
         if (auto preset{FindAdditiveRefitDefault(allPresets, CollectOutfitRefitLists(armors, female), female, a_ube)}) {
@@ -1345,10 +1345,10 @@ namespace Parser {
     }
 
     void Config::ValidateRefitPresetNames() const {
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto& loaded{Presets()};
 
         const auto check = [&](const std::string& a_where, const std::string& a_name, const bool female) {
-            const auto& allPresets{female ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+            const auto& allPresets{female ? loaded.allFemalePresets : loaded.allMalePresets};
 
             if (!PresetManager::IsRefitPreset(a_name)) {
                 logger::warn("{}: '{}' has no '-Refit' in its name, so it is ignored", a_where, a_name);

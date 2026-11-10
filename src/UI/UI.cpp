@@ -244,6 +244,13 @@ void __stdcall UI::PresetList::Render() {
 
     PreviewPanel::TrackWindow();
 
+    const std::array<std::string, 6> tabs{
+        UI::Translations::Get("obody_presets_tab"),          UI::Translations::Get("obody_npcs_tab"),
+        UI::Translations::Get("obody_settings_header"),      UI::Translations::Get("obody_editor_tab"),
+        UI::Translations::Get("obody_include_files_header"), UI::Translations::Get("obody_config_viewer_tab")};
+    Widgets::UpdateTextScale(tabs);
+    Widgets::PushScaledSpacing();
+
     const bool justOpened = ImGuiMCP::IsWindowAppearing();
 
     if (justOpened) {
@@ -293,13 +300,13 @@ void __stdcall UI::PresetList::Render() {
 
     PreviewPanel::Manage(actor);
 
-    if (ImGuiMCP::BeginTabBar("##OBodyTabs")) {
+    if (ImGuiMCP::BeginTabBar("##OBodyTabs", ImGuiMCP::ImGuiTabBarFlags_FittingPolicyScroll)) {
         // Always open Presets tab by default
         const bool selectPresetsTab{justOpened || g_selectPresetsTab};
         g_selectPresetsTab = false;
 
         if (ImGuiMCP::BeginTabItem(
-                UI::Translations::Get("obody_presets_tab").c_str(), nullptr,
+                tabs[0].c_str(), nullptr,
                 selectPresetsTab ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
             if (PresetsTab::Render(actor)) {
                 // An NPC that isn't loaded can't be seen, the menu goes back to the NPCs to pick the next one
@@ -319,7 +326,7 @@ void __stdcall UI::PresetList::Render() {
         static bool npcTabWasOpen{false};
 
         if (ImGuiMCP::BeginTabItem(
-                UI::Translations::Get("obody_npcs_tab").c_str(), nullptr,
+                tabs[1].c_str(), nullptr,
                 selectNpcTab ? ImGuiMCP::ImGuiTabItemFlags_SetSelected : ImGuiMCP::ImGuiTabItemFlags_None)) {
             if (auto* const picked{NpcList::Render(actor, !npcTabWasOpen || justOpened)}) {
                 SelectTarget(picked);
@@ -331,24 +338,24 @@ void __stdcall UI::PresetList::Render() {
             npcTabWasOpen = false;
         }
 
-        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_settings_header").c_str())) {
+        if (ImGuiMCP::BeginTabItem(tabs[2].c_str())) {
             ConfigTabs::RenderSettings();
             ImGuiMCP::EndTabItem();
         }
 
-        g_editorTabShown = ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_editor_tab").c_str());
+        g_editorTabShown = ImGuiMCP::BeginTabItem(tabs[3].c_str());
 
         if (g_editorTabShown) {
             ConfigEditor::Render(actor);
             ImGuiMCP::EndTabItem();
         }
 
-        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_include_files_header").c_str())) {
+        if (ImGuiMCP::BeginTabItem(tabs[4].c_str())) {
             ConfigTabs::RenderIncludeFiles();
             ImGuiMCP::EndTabItem();
         }
 
-        if (ImGuiMCP::BeginTabItem(UI::Translations::Get("obody_config_viewer_tab").c_str())) {
+        if (ImGuiMCP::BeginTabItem(tabs[5].c_str())) {
             ConfigTabs::RenderViewer();
             ImGuiMCP::EndTabItem();
         }
@@ -356,6 +363,7 @@ void __stdcall UI::PresetList::Render() {
         ImGuiMCP::EndTabBar();
     }
 
+    Widgets::PopScaledSpacing();
     ImGuiMCP::End();
     Window->IsOpen = isOpen;
     Widgets::EndFrame();

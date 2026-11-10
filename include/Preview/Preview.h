@@ -73,6 +73,9 @@ namespace Preview {
         // Everything back to how the camera started on this actor
         void ResetView();
 
+        // From -1 (left edge) to 1 (right edge)
+        void SetScreenPosition(float a_across);
+
         // Turns the actor to face the camera, which stays where it is.
         // Their heading is put back when the preview ends
         void FaceCamera();
@@ -319,6 +322,7 @@ namespace Preview {
         View view_;
         View targetView_;
         View defaultView_;
+        float screenPosition_{0.3F};
         std::chrono::steady_clock::time_point lastEase_;
     };
 }  // namespace Preview
