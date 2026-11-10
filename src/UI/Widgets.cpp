@@ -44,6 +44,54 @@ bool UI::Widgets::SearchInput(const char* a_id, char* a_buffer, const std::size_
 }
 
 namespace {
+    float CheckboxSquare() { return std::round(ImGuiMCP::GetFontSize() * 0.8f); }
+}  // namespace
+
+float UI::Widgets::CheckboxWidth(const char* a_label) {
+    return CheckboxSquare() + ImGuiMCP::GetStyle()->ItemInnerSpacing.x + ImGuiMCP::CalcTextSize(a_label).x;
+}
+
+bool UI::Widgets::Checkbox(const char* a_label, bool* a_value) {
+    const auto* style{ImGuiMCP::GetStyle()};
+    const float height{ImGuiMCP::GetFrameHeight()};
+    const float square{CheckboxSquare()};
+    const auto pos{ImGuiMCP::GetCursorScreenPos()};
+
+    const bool clicked{ImGuiMCP::InvisibleButton(a_label, ImGuiMCP::ImVec2{CheckboxWidth(a_label), height})};
+
+    if (clicked) {
+        *a_value = !*a_value;
+    }
+
+    const auto fill{ImGuiMCP::IsItemActive()    ? ImGuiMCP::ImGuiCol_FrameBgActive
+                    : ImGuiMCP::IsItemHovered() ? ImGuiMCP::ImGuiCol_FrameBgHovered
+                                                : ImGuiMCP::ImGuiCol_FrameBg};
+    const ImGuiMCP::ImVec2 min{pos.x, pos.y + std::round((height - square) * 0.5f)};
+    const ImGuiMCP::ImVec2 max{min.x + square, min.y + square};
+    auto* const drawList{ImGuiMCP::GetWindowDrawList()};
+
+    ImGuiMCP::ImDrawListManager::AddRectFilled(drawList, min, max, ImGuiMCP::GetColorU32(fill), style->FrameRounding,
+                                               0);
+
+    if (style->FrameBorderSize > 0.0f) {
+        ImGuiMCP::ImDrawListManager::AddRect(drawList, min, max, ImGuiMCP::GetColorU32(ImGuiMCP::ImGuiCol_Border),
+                                             style->FrameRounding, 0, style->FrameBorderSize);
+    }
+
+    if (*a_value) {
+        const float inset{(std::max)(1.0f, std::floor(square / 6.0f))};
+        ImGuiMCP::RenderCheckMark(drawList, ImGuiMCP::ImVec2{min.x + inset, min.y + inset},
+                                  ImGuiMCP::GetColorU32(ImGuiMCP::ImGuiCol_CheckMark), square - (inset * 2.0f));
+    }
+
+    const float textY{pos.y + ((height - ImGuiMCP::GetTextLineHeight()) * 0.5f)};
+    ImGuiMCP::ImDrawListManager::AddText(drawList, ImGuiMCP::ImVec2{max.x + style->ItemInnerSpacing.x, textY},
+                                         ImGuiMCP::GetColorU32(ImGuiMCP::ImGuiCol_Text), a_label);
+
+    return clicked;
+}
+
+namespace {
     // Set by Esc with a dropdown open, the dropdown that's drawn next closes
     bool g_closeOpenCombo{false};
     // A dropdown was open when the last frame ended
@@ -71,10 +119,63 @@ void UI::Widgets::EndFrame() {
 }
 
 namespace {
+    float g_textScale{1.0f};
+    float g_tabsFullWidth{0.0f};
+
+    // Text lines a screen has to fit for full scale
+    constexpr float kFullScaleLines{32.0f};
+}  // namespace
+
+void UI::Widgets::UpdateTextScale(const std::span<const std::string> a_tabs) {
+    const auto* style{ImGuiMCP::GetStyle()};
+
+    ImGuiMCP::SetWindowFontScale(1.0f);
+
+    const float lines{ImGuiMCP::GetMainViewport()->Size.y / ImGuiMCP::GetFontSize()};
+    g_textScale = std::clamp(lines / kFullScaleLines, kMinTextScale, 1.0f);
+
+    float text{0.0f};
+
+    for (const auto& tab : a_tabs) {
+        text += ImGuiMCP::CalcTextSize(tab.c_str()).x;
+    }
+
+    const auto count{static_cast<float>(a_tabs.size())};
+    const float padding{(count * ((style->FramePadding.x * 2.0f) + 1.0f)) +
+                        ((count - 1.0f) * style->ItemInnerSpacing.x)};
+    g_tabsFullWidth = text + padding;
+
+    ImGuiMCP::SetWindowFontScale(g_textScale);
+}
+
+float UI::Widgets::GetTextScale() { return g_textScale; }
+
+void UI::Widgets::SetTextScale(const float a_relative) { ImGuiMCP::SetWindowFontScale(g_textScale * a_relative); }
+
+void UI::Widgets::PushScaledSpacing() {
+    const auto* style{ImGuiMCP::GetStyle()};
+    const auto scaled{[](const ImGuiMCP::ImVec2 a_value) {
+        return ImGuiMCP::ImVec2{a_value.x * g_textScale, a_value.y * g_textScale};
+    }};
+
+    ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FramePadding,
+                           ImGuiMCP::ImVec2{style->FramePadding.x * g_textScale,
+                                            (std::max)(1.0f, std::round(ImGuiMCP::GetFontSize() * 0.06f))});
+    ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_ItemSpacing, scaled(style->ItemSpacing));
+    ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_ItemInnerSpacing, scaled(style->ItemInnerSpacing));
+}
+
+void UI::Widgets::PopScaledSpacing() { ImGuiMCP::PopStyleVar(3); }
+
+float UI::Widgets::GetTabsFullWidth() { return g_tabsFullWidth; }
+
+namespace {
     constexpr ImGuiMCP::ImVec4 kKeyFill{0.19f, 0.18f, 0.17f, 1.0f};
     constexpr ImGuiMCP::ImVec4 kKeyBorder{0.55f, 0.46f, 0.30f, 1.0f};
     constexpr ImGuiMCP::ImVec4 kKeyText{0.96f, 0.84f, 0.58f, 1.0f};
     constexpr ImGuiMCP::ImVec4 kActionText{0.85f, 0.85f, 0.88f, 1.0f};
+
+    constexpr float kHintScale{0.85f};
 
     struct HintMetrics {
         float keyPadding;
@@ -87,7 +188,7 @@ namespace {
     HintMetrics Metrics() {
         const float line{ImGuiMCP::GetTextLineHeight()};
 
-        return {line * 0.3f, line * 1.25f, line * 0.3f, line * 1.25f, ImGuiMCP::GetStyle()->ItemSpacing.y};
+        return {line * 0.25f, line * 1.15f, line * 0.25f, line * 0.9f, ImGuiMCP::GetStyle()->ItemSpacing.y};
     }
 
     float TextWidth(const std::string& a_text) { return ImGuiMCP::CalcTextSize(a_text.c_str()).x; }
@@ -126,15 +227,22 @@ namespace {
 float UI::Widgets::ControlHintsHeight(const std::vector<ControlHint>& a_hints) {
     if (a_hints.empty()) return 0.0f;
 
+    SetTextScale(kHintScale);
+
     const auto metrics{Metrics()};
     const auto rows{Rows(a_hints, ImGuiMCP::GetContentRegionAvail().x, metrics)};
     const auto count{static_cast<float>(rows.size())};
 
-    return count * metrics.keyHeight + (count - 1.0f) * metrics.rowGap;
+    const float height{(count * metrics.keyHeight) + ((count - 1.0f) * metrics.rowGap)};
+    SetTextScale();
+
+    return height;
 }
 
 void UI::Widgets::ControlHints(const std::vector<ControlHint>& a_hints) {
     if (a_hints.empty()) return;
+
+    SetTextScale(kHintScale);
 
     const auto metrics{Metrics()};
     const float available{ImGuiMCP::GetContentRegionAvail().x};
@@ -188,4 +296,5 @@ void UI::Widgets::ControlHints(const std::vector<ControlHint>& a_hints) {
 
     // The space they take, as an item would
     ImGuiMCP::Dummy(ImGuiMCP::ImVec2{available, y - metrics.rowGap - origin.y});
+    SetTextScale();
 }

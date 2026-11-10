@@ -213,9 +213,9 @@ namespace PapyrusBody {
 
         bool isFemale = Body::OBody::IsFemale(a_actor);
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        auto preset = GetPresetByNameForRandom(
-            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_presetName);
+        const auto& presetData{PresetManager::PresetContainer::GetInstance().Data()};
+        auto preset =
+            GetPresetByNameForRandom(isFemale ? presetData.allFemalePresets : presetData.allMalePresets, a_presetName);
 
         if (!preset) {
             return false;

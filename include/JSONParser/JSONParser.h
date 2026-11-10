@@ -105,6 +105,11 @@ namespace Parser {
         // Whether there are presets that can be given out to actors of this sex and body
         [[nodiscard]] bool HasPresetsFor(bool a_female, bool a_ube) const;
 
+        // The presets this config was built from
+        const PresetManager::PresetData* presetData{nullptr};
+        [[nodiscard]] const PresetManager::PresetData& Presets() const {
+            return presetData ? *presetData : PresetManager::PresetContainer::GetInstance().Data();
+        }
         PresetManager::PresetLists femalePresets;
         PresetManager::PresetLists malePresets;
 
@@ -156,7 +161,6 @@ namespace Parser {
         LoadResult Load();
 
         bool bodyslidePresetsParsingValid{};
-        std::size_t invalid_presets{};
 
     private:
         JSONParser() = default;

@@ -59,10 +59,7 @@ namespace {
     }
 }  // namespace
 
-void UI::Translations::Init() {
-    SKSE::Translation::ParseTranslation("OBody");
-    ReadOwnCopy("OBody");
-}
+void UI::Translations::Init() { ReadOwnCopy("OBody"); }
 
 std::string UI::Translations::Get(const std::string& key) {
     const std::string fullKey{"$" + key};

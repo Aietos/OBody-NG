@@ -449,7 +449,7 @@ namespace Body {
     void OBody::GenerateBodyByName(RE::Actor* a_actor, const std::string& a_name,
                                    ::OBody::API::IPluginInterface* responsibleInterface,
                                    const bool a_beforeLoad3D) const {
-        const auto& presetContainer{PresetContainer::GetInstance()};
+        const auto& presetData{PresetContainer::GetInstance().Data()};
 
         // This is needed to prevent a crash with SynthEBD/Synthesis
         if (synthesisInstalled && a_actor != nullptr) {
@@ -457,8 +457,8 @@ namespace Body {
         }
 
         const bool female{IsFemale(a_actor)};
-        auto preset{GetPresetByName(female ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_name,
-                                    female, IsUBE(a_actor))};
+        auto preset{GetPresetByName(female ? presetData.allFemalePresets : presetData.allMalePresets, a_name, female,
+                                    IsUBE(a_actor))};
         if (!preset) {
             logger::info("No preset fits {}, not changing their body", a_actor->GetName());
             return;
@@ -603,13 +603,13 @@ namespace Body {
 
     bool OBody::ApplyClothePreset(RE::Actor* a_actor, const bool a_onlyIfChanged, const bool a_removingArmor,
                                   const RE::TESForm* a_changedArmor, const PresetManager::Preset* a_actorPreset) const {
-        const auto& presetContainer{PresetContainer::GetInstance()};
+        const auto& presetData{PresetContainer::GetInstance().Data()};
 
         const bool isFemale = IsFemale(a_actor);
         // The additive refits are added to the body itself, so they must be made for the actor's body: UBE bodies
         // use "UBE Female-Refit..." ones
         const bool ube = IsUBE(a_actor);
-        const auto& allPresets{isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets};
+        const auto& allPresets{isFemale ? presetData.allFemalePresets : presetData.allMalePresets};
 
         // "Female-Refit" / "Male-Refit", or "UBE Female-Refit" / "UBE Male-Refit"
         const std::string sexDefaultName{std::string{SexRefitBaseName(isFemale, ube)} + "-Refit"};
@@ -876,7 +876,7 @@ namespace Body {
         const auto isLeftOver = [&](const std::string& a_name) {
             return !a_sliders.contains(a_name) && morphInterface->HasBodyMorph(a_actor, a_name.c_str(), "OClothe");
         };
-        return std::ranges::none_of(PresetContainer::GetInstance().refitSliderNames, isLeftOver) &&
+        return std::ranges::none_of(PresetContainer::GetInstance().Data().refitSliderNames, isLeftOver) &&
                std::ranges::none_of(GenerateClotheSliders(a_actor) | std::views::keys, isLeftOver);
     }
 
@@ -1326,9 +1326,9 @@ namespace Body {
 
         bool isFemale = Body::OBody::IsFemale(a_actor);
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        auto preset = GetPresetByNameForRandom(
-            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, a_presetName);
+        const auto& presetData{PresetManager::PresetContainer::GetInstance().Data()};
+        auto preset =
+            GetPresetByNameForRandom(isFemale ? presetData.allFemalePresets : presetData.allMalePresets, a_presetName);
 
         if (!preset) {
             return;

@@ -7,7 +7,7 @@ using TESForm = RE::TESForm;
 namespace OBody::API {
     class PluginInterface : public IPluginInterface {
     public:
-        PluginInterface(const char* owner, void* context = nullptr);
+        PluginInterface(const char* owner, ::OBody::API::PluginAPIVersion version, void* context = nullptr);
 
         virtual ::OBody::API::PluginAPIVersion PluginAPIVersion() override;
         virtual const char* SetOwner(const char* owner) override;
@@ -37,5 +37,14 @@ namespace OBody::API {
 
         virtual void GetPresetAssignedToActor(Actor* actor, PresetAssignmentInformation& payload) override;
         virtual bool AssignPresetToActor(Actor* actor, AssignPresetPayload& payload) override;
+
+        virtual bool OpenPresetMenu(Actor* actor, const MenuState* state) override;
+        virtual Actor* GetPreviewCopyTarget(Actor* actor) override;
+        virtual size_t GetAllPresetNames(bool female, std::string_view* buffer, size_t bufferLength, size_t offset,
+                                         size_t limit) override;
+
+    private:
+        // The version asked for, every version gets the same methods
+        ::OBody::API::PluginAPIVersion version_;
     };
 }  // namespace OBody::API

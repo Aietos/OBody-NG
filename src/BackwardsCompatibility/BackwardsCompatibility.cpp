@@ -96,7 +96,7 @@ namespace BackwardsCompatibility {
                 // This is a preset name we haven't seen before.
                 ++nextPresetIndex.value;
                 // The sparse-index is mapped to -1 because the preset is absent.
-                (isFemale ? presets.allFemalePresetsByIndex : presets.allMalePresetsByIndex)
+                (isFemale ? presets.Data().allFemalePresetsByIndex : presets.Data().allMalePresetsByIndex)
                     .resize(nextPresetIndex.value, (PresetManager::SparsePresetIndex)-1);
 
                 // Maybe the actor's sex has changed since the preset was assigned?
@@ -110,7 +110,7 @@ namespace BackwardsCompatibility {
                     // This is also a preset name we haven't seen before.
                     ++nextPresetIndexOtherSex.value;
                     // The sparse-index is mapped to -1 because the preset is absent.
-                    (isFemale ? presets.allMalePresetsByIndex : presets.allFemalePresetsByIndex)
+                    (isFemale ? presets.Data().allMalePresetsByIndex : presets.Data().allFemalePresetsByIndex)
                         .resize(nextPresetIndexOtherSex.value, (PresetManager::SparsePresetIndex)-1);
                 }
             }

@@ -16,8 +16,6 @@ namespace Preview {
 
         // How much of the screen's height the body fills when not zoomed
         constexpr float kBodyFill{0.85F};
-        // Where the actor is put across the screen, from -1 (left edge) to 1 (right edge). The menu is on the left
-        constexpr float kScreenPosition{0.3F};
         // The camera goes around the middle of the body, this far up the actor's height
         constexpr float kBodyMiddle{0.5F};
         // The largest object hidden for standing between the camera and the actor, in the radius of its bounds, in
@@ -457,10 +455,48 @@ namespace Preview {
         }
         if (ready.empty()) return;
 
-        logger::info("Preview: the menu closed, doing the {} things that waited for it", ready.size());
-        for (const auto& func : ready | std::views::values) {
-            func();
+        logger::info("Preview: the menu closed, {} things wait for time to run", ready.size());
+
+        {
+            std::lock_guard lock{waitingLock_};
+
+            // Only the last change of each actor is announced, as in RunWhenMenuCloses
+            for (auto& [key, func] : ready) {
+                const auto waiting{std::ranges::find(waitingForTime_, key, &decltype(ready)::value_type::first)};
+
+                if (waiting != waitingForTime_.end()) {
+                    waiting->second = std::move(func);
+                } else {
+                    waitingForTime_.emplace_back(key, std::move(func));
+                }
+            }
+
+            hasWaitingForTime_ = true;
         }
+
+        RunWaitingIfTimeRuns();
+    }
+
+    void Session::RunWaitingIfTimeRuns() {
+        if (!hasWaitingForTime_.load() || RE::Main::GetSingleton()->GetRuntimeData().freezeTime) return;
+
+        std::vector<std::pair<RE::FormID, std::function<void()>>> ready;
+
+        {
+            std::lock_guard lock{waitingLock_};
+            ready.swap(waitingForTime_);
+            hasWaitingForTime_ = false;
+        }
+
+        if (ready.empty()) return;
+
+        SKSE::GetTaskInterface()->AddTask([ready{std::move(ready)}] {
+            logger::info("Time is running again, sending events", ready.size());
+
+            for (const auto& func : ready | std::views::values) {
+                func();
+            }
+        });
     }
 
     void Session::Abandon() {
@@ -469,6 +505,13 @@ namespace Preview {
         // What waited for the menu to close, and the disabled copies, were references that are going away
         onMenuClosed_.clear();
         disabledCopies_.clear();
+
+        {
+            std::lock_guard waitingLock{waitingLock_};
+            waitingForTime_.clear();
+            hasWaitingForTime_ = false;
+        }
+
         if (!sceneActive_) return;
 
         // The frozen time outlives the game that's being loaded. The free camera is switched off before, so the loaded
@@ -740,7 +783,7 @@ namespace Preview {
         return {
             .distance = distance,
             // Moving the camera to the actor's left puts them on the right of the screen. The pan moves it from there
-            .offset = {-kScreenPosition * fov.tanHalfWidth * distance + a_view.panRight, 0.0F, a_view.panUp},
+            .offset = {-screenPosition_ * fov.tanHalfWidth * distance + a_view.panRight, 0.0F, a_view.panUp},
         };
     }
 
@@ -1014,6 +1057,15 @@ namespace Preview {
         targetView_ = defaultView_;
     }
 
+    void Session::SetScreenPosition(const float a_across) {
+        std::lock_guard lock{lock_};
+
+        if (std::abs(a_across - screenPosition_) < 0.001F) return;
+
+        screenPosition_ = a_across;
+        occludersDirty_ = true;
+    }
+
     void Session::Recenter() {
         std::lock_guard lock{lock_};
         if (!presented_) return;
@@ -1176,12 +1228,11 @@ namespace Preview {
 
         auto* const actor{actor_.get()};
         const bool female{Body::OBody::IsFemale(actor)};
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
+        const auto& presetData{PresetManager::PresetContainer::GetInstance().Data()};
 
         // GetPresetByName falls back to a random preset, which isn't what was hovered
-        auto preset{
-            PresetManager::GetPresetByName(female ? presetContainer.allFemalePresets : presetContainer.allMalePresets,
-                                           a_name, female, Body::OBody::IsUBE(actor))};
+        auto preset{PresetManager::GetPresetByName(female ? presetData.allFemalePresets : presetData.allMalePresets,
+                                                   a_name, female, Body::OBody::IsUBE(actor))};
         if (!preset || preset->name != a_name) return;
 
         Body::OBody::GetInstance().PreviewPreset(actor, *preset, extraSliders_,
