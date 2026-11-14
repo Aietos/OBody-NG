@@ -9,6 +9,9 @@ namespace UI::Widgets {
     bool SearchField(const char* a_label, const char* a_id, char* a_buffer, std::size_t a_size, bool a_focus = false);
     bool SearchInput(const char* a_id, char* a_buffer, std::size_t a_size, bool a_focus = false);
 
+    bool Checkbox(const char* a_label, bool* a_value);
+    [[nodiscard]] float CheckboxWidth(const char* a_label);
+
     bool BeginCombo(const char* a_id, const char* a_preview, ImGuiMCP::ImGuiComboFlags a_flags = 0);
     void CloseOpenCombo();
     bool WasComboOpen();
@@ -23,4 +26,15 @@ namespace UI::Widgets {
 
     void ControlHints(const std::vector<ControlHint>& a_hints);
     float ControlHintsHeight(const std::vector<ControlHint>& a_hints);
+
+    // OBody's text gets smaller on short screens
+    inline constexpr float kMinTextScale{0.75f};
+
+    void UpdateTextScale(std::span<const std::string> a_tabs);
+    [[nodiscard]] float GetTextScale();
+    void SetTextScale(float a_relative = 1.0f);
+    // Paddings and spacings at the text scale, popped before the window ends
+    void PushScaledSpacing();
+    void PopScaledSpacing();
+    [[nodiscard]] float GetTabsFullWidth();
 }  // namespace UI::Widgets

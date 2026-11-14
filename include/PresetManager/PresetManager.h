@@ -4,7 +4,7 @@
 #include <boost/unordered/unordered_flat_set.hpp>
 
 namespace PresetManager {
-    enum class BodyType { CBBE, UNP, UBE };
+    enum class BodyType { CBBE, UNP, UBE, Necoco };
 #pragma push_macro("max")
 #pragma push_macro("min")
 #undef max
@@ -88,7 +88,7 @@ namespace PresetManager {
 
     using PresetSet = std::vector<Preset>;
     using SparsePresetMapping = std::vector<SparsePresetIndex>;
-    // Presets of PresetContainer::allFemalePresets / allMalePresets, which don't change once they are read
+    // Presets of a PresetData, which don't change once they are read
     using PresetPointers = std::vector<const Preset*>;
 
     // The presets of one sex, split by the config (see Parser::Config::SplitPresets)
@@ -99,19 +99,8 @@ namespace PresetManager {
         PresetPointers blacklisted;
     };
 
-    class PresetContainer {
-    public:
-        PresetContainer(PresetContainer&&) = delete;
-        PresetContainer(const PresetContainer&) = delete;
-
-        PresetContainer& operator=(PresetContainer&&) = delete;
-        PresetContainer& operator=(const PresetContainer&) = delete;
-
-        std::vector<std::string> defaultSliders;
-
-        // Every preset read from the BodySlide files, UBE ones in both. These never change once they are read (only
-        // their assignedIndex), so the config can point into them. Which ones are blacklisted is in the config,
-        // because a reload changes it
+    // Every preset read from the BodySlide files, UBE ones in both lists
+    struct PresetData {
         PresetSet allFemalePresets;
         PresetSet allMalePresets;
 
@@ -125,6 +114,21 @@ namespace PresetManager {
            likely use more memory in exchange for more expensive lookups. */
         SparsePresetMapping allFemalePresetsByIndex;
         SparsePresetMapping allMalePresetsByIndex;
+
+        // Preset files that failed to parse
+        std::vector<std::string> unreadFiles;
+    };
+
+    class PresetContainer {
+    public:
+        PresetContainer(PresetContainer&&) = delete;
+        PresetContainer(const PresetContainer&) = delete;
+
+        PresetContainer& operator=(PresetContainer&&) = delete;
+        PresetContainer& operator=(const PresetContainer&) = delete;
+
+        std::vector<std::string> defaultSliders;
+
         /* These maps are intended for preset index assignment,
            not general lookups, which are generally case-insensitive. */
         boost::unordered_flat_map<std::string, AssignedPresetIndex> femalePresetIndexByName;
@@ -132,7 +136,12 @@ namespace PresetManager {
         AssignedPresetIndex nextFemalePresetIndex;
         AssignedPresetIndex nextMalePresetIndex;
 
-        void AssignPresetIndexes();
+        [[nodiscard]] PresetData& Data() const { return *data_.load(); }
+
+        void Replace(std::unique_ptr<PresetData> a_data);
+
+        void AssignPresetIndexes(PresetData& a_data);
+        void AssignPresetIndexes() { AssignPresetIndexes(Data()); }
 
         // Whether there are presets that can be given out to actors of this sex and body, in the config in use
         [[nodiscard]] bool HasPresetsFor(bool a_female, bool a_ube) const;
@@ -142,7 +151,10 @@ namespace PresetManager {
     private:
         static PresetContainer instance;
 
-        PresetContainer() = default;
+        PresetContainer();
+
+        std::atomic<PresetData*> data_{nullptr};
+        std::vector<std::unique_ptr<PresetData>> allData_;
     };
 
     bool IsFemalePreset(const Preset& a_preset);
@@ -176,14 +188,20 @@ namespace PresetManager {
     const Preset* FindRefitPreset(const PresetSet& a_presets, std::string_view a_name, bool a_ube);
 
     // Builds the differential (refit - base) used while an actor is wearing clothes
-    // Sliders that are identical, or that the refit preset does not mention don't change
+    // Sliders that only the base preset has are assumed as 0
     SliderSet MakeRefitDifferential(const SliderSet& a_base, const SliderSet& a_refit);
 
-    void GeneratePresets();
-    std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node);
+    using PresetBodyTypes = boost::unordered_flat_map<std::string, BodyType>;
+
+    [[nodiscard]] std::unique_ptr<PresetData> GeneratePresets();
+
+    std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node, const PresetBodyTypes& a_baseBodies);
 
     SliderSet SliderSetFromNode(const pugi::xml_node& a_node, BodyType a_body);
     void AddSliderToSet(SliderSet& a_sliderSet, Slider&& a_slider, bool a_inverted = false);
 
     BodyType GetBodyType(std::string_view a_body);
+
+    // By the preset's set or by its groups when there is no set
+    BodyType GetPresetBodyType(const pugi::xml_node& a_node, std::string_view a_set);
 }  // namespace PresetManager

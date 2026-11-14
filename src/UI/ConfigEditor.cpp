@@ -212,6 +212,7 @@ namespace {
         Kind kind{Kind::kTotal};
         std::string search;
         std::optional<bool> female;
+        std::uint32_t generation{0};
         std::vector<const Item*> items;
     };
     Filtered g_filtered;
@@ -253,9 +254,9 @@ namespace {
 
     void SectionHeader(const std::string& a_text) {
         ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kGoldText);
-        ImGuiMCP::SetWindowFontScale(1.15f);
+        UI::Widgets::SetTextScale(1.15f);
         ImGuiMCP::TextUnformatted(a_text.c_str());
-        ImGuiMCP::SetWindowFontScale(1.0f);
+        UI::Widgets::SetTextScale();
         ImGuiMCP::PopStyleColor();
         VerticalSpace(0.3f);
     }
@@ -587,13 +588,14 @@ namespace {
     }
 
     const std::vector<const Item*>& Filter(const Kind a_kind, const std::optional<bool> a_female) {
-        if (g_filtered.kind == a_kind && g_filtered.search == g_search && g_filtered.female == a_female) {
+        if (g_filtered.kind == a_kind && g_filtered.search == g_search && g_filtered.female == a_female &&
+            g_filtered.generation == UI::Lookups::Generation()) {
             return g_filtered.items;
         }
 
         const auto query{UI::Util::ToLowerWide(UI::Util::Utf8ToWide(g_search))};
 
-        g_filtered = {a_kind, g_search, a_female, {}};
+        g_filtered = {a_kind, g_search, a_female, UI::Lookups::Generation(), {}};
 
         for (const auto& item : UI::Lookups::Get(a_kind)) {
             if (IsOfSex(item, a_female) && (query.empty() || item.search.find(query) != std::wstring::npos)) {
@@ -2009,7 +2011,7 @@ namespace {
                     ImGuiMCP::SameLine();
                     ImGuiMCP::SetCursorPosX(left);
                     foldMark(lineHeight);
-                    ImGuiMCP::SetWindowFontScale(1.2f);
+                    UI::Widgets::SetTextScale(1.2f);
                     ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kDimText);
                     ImGuiMCP::TextUnformatted(std::format("{}.", place + 1).c_str());
                     ImGuiMCP::PopStyleColor();
@@ -2019,7 +2021,7 @@ namespace {
                     ImGuiMCP::TextWrapped("%s", (*header + folding).c_str());
                     ImGuiMCP::PopStyleColor();
                     ImGuiMCP::PopTextWrapPos();
-                    ImGuiMCP::SetWindowFontScale(1.0f);
+                    UI::Widgets::SetTextScale();
                 }
 
                 ImGuiMCP::PopID();

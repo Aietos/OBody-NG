@@ -1,6 +1,8 @@
 #include "API/PluginInterface.h"
 #include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
+#include "Preview/Preview.h"
+#include "UI/UI.h"
 
 #pragma push_macro("max")
 #pragma push_macro("min")
@@ -8,12 +10,13 @@
 #undef min
 
 namespace OBody::API {
-    PluginInterface::PluginInterface(const char* owner, void* context) {
+    PluginInterface::PluginInterface(const char* owner, const ::OBody::API::PluginAPIVersion version, void* context)
+        : version_(version) {
         this->owner = owner;
         this->context = context;
     }
 
-    PluginAPIVersion PluginInterface::PluginAPIVersion() { return PluginAPIVersion::v1; }
+    PluginAPIVersion PluginInterface::PluginAPIVersion() { return version_; }
 
     const char* PluginInterface::SetOwner(const char* a_owner) { return this->owner = a_owner; }
 
@@ -187,9 +190,9 @@ namespace OBody::API {
 
         bool isFemale = obody.IsFemale(a_actor);
 
-        const auto& presetContainer{PresetManager::PresetContainer::GetInstance()};
-        auto preset = GetPresetByNameForRandom(
-            isFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets, payload.presetName);
+        const auto& presetData{PresetManager::PresetContainer::GetInstance().Data()};
+        auto preset = GetPresetByNameForRandom(isFemale ? presetData.allFemalePresets : presetData.allMalePresets,
+                                               payload.presetName);
 
         if (!preset) {
             return false;
@@ -235,6 +238,16 @@ namespace OBody::API {
         registry.SetPresetPickedByHand(a_actor, true);
 
         return true;
+    }
+
+    bool PluginInterface::OpenPresetMenu(RE::Actor* a_actor, const MenuState* a_state) {
+        const bool usable{a_state && a_state->size >= sizeof(MenuState)};
+
+        return UI::PresetList::OpenFor(a_actor, usable ? a_state : nullptr);
+    }
+
+    RE::Actor* PluginInterface::GetPreviewCopyTarget(RE::Actor* a_actor) {
+        return Preview::Session::GetInstance().GetCopyTarget(a_actor);
     }
 }  // namespace OBody::API
 

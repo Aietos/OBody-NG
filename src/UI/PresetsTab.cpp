@@ -1,4 +1,5 @@
 #include "UI/PresetsTab.h"
+#include "API/OSkin.h"
 #include "SKSEMenuFramework.h"
 #include "UI/ConfigTabs.h"
 #include "UI/PreviewPanel.h"
@@ -34,11 +35,11 @@ namespace {
 
     void CenteredText(const char* text, float fontScale = 1.0f) {
         const float windowWidth = ImGuiMCP::GetWindowSize().x;
-        ImGuiMCP::SetWindowFontScale(fontScale);
+        UI::Widgets::SetTextScale(fontScale);
         const float textWidth = ImGuiMCP::CalcTextSize(text).x;
         ImGuiMCP::SetCursorPosX((windowWidth - textWidth) * 0.5f);
         ImGuiMCP::Text("%s", text);
-        ImGuiMCP::SetWindowFontScale(1.0f);
+        UI::Widgets::SetTextScale();
     }
 
     void VerticalSpace(const float a_lines) {
@@ -114,8 +115,9 @@ namespace {
                base->GetFile(0);
     }
 
-    // After the NPC's entry was written to the in-game config file: the config is reloaded to use it
-    void OnConfigEntryChanged(RE::Actor* a_actor, const std::optional<std::string>& a_error, const char* a_doneKey) {
+    // After the in-game config file was written, the config is reloaded to use it
+    void OnConfigEntryChanged(RE::Actor* a_actor, const std::optional<std::string>& a_error,
+                              const std::string& a_done) {
         g_configResult.actor = a_actor->GetFormID();
         g_configResult.saved = false;
 
@@ -126,7 +128,7 @@ namespace {
         }
 
         const auto reload{UI::ConfigTabs::Reload()};
-        const std::string done{a_doneKey ? UI::Translations::Get(a_doneKey) : std::string{}};
+        const auto& done{a_done};
         g_configResult.failed = reload.failed;
 
         // The status line already shows what changed, the reload is only worth telling about when it went wrong
@@ -148,16 +150,27 @@ namespace {
         // What the config finds with that name, it has to be the NPC
         if (RE::TESDataHandler::GetSingleton()->LookupForm(localFormID, plugin) != base) {
             logger::error("{} {} doesn't find {} ({:08X})", plugin, formID, base->GetName(), base->GetFormID());
-            OnConfigEntryChanged(a_actor, std::format("{} {} doesn't find this NPC", plugin, formID), nullptr);
+            OnConfigEntryChanged(a_actor, std::format("{} {} doesn't find this NPC", plugin, formID), {});
             return;
         }
 
         if (a_preset) {
-            OnConfigEntryChanged(a_actor, Parser::SaveNpcPreset(plugin, formID, *a_preset), nullptr);
+            OnConfigEntryChanged(a_actor, Parser::SaveNpcPreset(plugin, formID, *a_preset), {});
             g_configResult.saved = !g_configResult.failed;
         } else {
-            OnConfigEntryChanged(a_actor, Parser::RemoveNpcPreset(plugin, formID), "obody_config_entry_removed");
+            OnConfigEntryChanged(a_actor, Parser::RemoveNpcPreset(plugin, formID),
+                                 UI::Translations::Get("obody_config_entry_removed"));
         }
+    }
+
+    // Blacklists the preset from random distribution, or takes it off the blacklist
+    void ChangePresetBlacklist(RE::Actor* a_actor, const std::string& a_preset, const bool a_blacklist) {
+        auto done{UI::Translations::Get(a_blacklist ? "obody_blacklist_added" : "obody_blacklist_removed")};
+        boost::algorithm::replace_first(done, "{}", a_preset);
+
+        const auto error{a_blacklist ? Parser::BlacklistPreset(a_preset) : Parser::UnblacklistPreset(a_preset)};
+
+        OnConfigEntryChanged(a_actor, error, done);
     }
 
     float ButtonWidth(const std::string& a_label) {
@@ -258,7 +271,10 @@ namespace {
 
     // PresetContainer keeps non-blacklisted presets first and blacklisted ones last, and
     // PresetContainer::AssignPresetIndexes relies on that order, so we must order the presets alphabetically ourselves
-    using PresetMenuEntry = UI::Util::PresetOrder;
+    struct PresetMenuEntry : UI::Util::PresetOrder {
+        // In blacklistedPresetsFromRandomDistribution
+        bool blacklisted{false};
+    };
 
     struct PresetMenuCache {
         std::vector<PresetMenuEntry> entries;
@@ -273,7 +289,8 @@ namespace {
     bool g_showOtherBodies{false};
 
     // a_otherBodies: the presets made for the other bodies are listed too, marked as such
-    std::vector<PresetMenuEntry> BuildSortedPresetEntries(const PresetManager::PresetPointers& presets, const bool ube,
+    std::vector<PresetMenuEntry> BuildSortedPresetEntries(const Parser::Config& a_config,
+                                                          const PresetManager::PresetPointers& presets, const bool ube,
                                                           const bool a_otherBodies) {
         std::vector<PresetMenuEntry> entries;
         entries.reserve(presets.size());
@@ -287,10 +304,16 @@ namespace {
             // Only the presets made for the actor's body, UBE or not
             if (preset.ube != ube && !a_otherBodies) continue;
 
-            auto entry{UI::Util::MakePresetOrder(preset.name)};
+            PresetMenuEntry entry{UI::Util::MakePresetOrder(preset.name)};
+            entry.blacklisted =
+                a_config.IsStringInJsonConfigKey(preset.name, "blacklistedPresetsFromRandomDistribution");
 
             if (preset.ube != ube) {
                 entry.displayName += " " + UI::Translations::Get("obody_preset_other_body");
+            }
+
+            if (entry.blacklisted) {
+                entry.displayName += " " + UI::Translations::Get("obody_preset_blacklisted");
             }
 
             entries.push_back(std::move(entry));
@@ -329,8 +352,8 @@ namespace {
                                             (isFemale ? 2 : 0) + (showBlacklistedPresets ? 1 : 0)];
 
         if (!menuCache.valid || menuCache.configGeneration != config->generation) {
-            menuCache.entries =
-                BuildSortedPresetEntries(config->GetPresets(isFemale, showBlacklistedPresets), isUBE, otherBodies);
+            menuCache.entries = BuildSortedPresetEntries(*config, config->GetPresets(isFemale, showBlacklistedPresets),
+                                                         isUBE, otherBodies);
             menuCache.valid = true;
             menuCache.configGeneration = config->generation;
         }
@@ -349,6 +372,18 @@ namespace {
         }
 
         CenteredText(a_actor->GetDisplayFullName(), 1.4f);
+
+        if (API::OSkin::IsAvailable()) {
+            const auto label{UI::Translations::Get("obody_open_in_oskin")};
+            const float width{ImGuiMCP::CalcTextSize(label.c_str()).x + ImGuiMCP::GetStyle()->FramePadding.x * 2.0f};
+
+            ImGuiMCP::SameLine(ImGuiMCP::GetWindowContentRegionMax().x - width);
+
+            if (ImGuiMCP::SmallButton(label.c_str())) {
+                UI::PresetList::OpenInOSkin(a_actor);
+            }
+        }
+
         ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ImGuiMCP::ImVec4{0.7f, 0.7f, 0.75f, 1.0f});
         CenteredText(presetLine.c_str(), 1.0f);
         ImGuiMCP::PopStyleColor();
@@ -399,6 +434,8 @@ namespace {
         const PresetMenuEntry* hovered{nullptr};
         const PresetMenuEntry* focused{nullptr};
         std::optional<std::string> pickedName;
+        // The preset, and whether it goes on the blacklist or off it
+        std::optional<std::pair<std::string, bool>> blacklistChange;
 
         // this is here to later test glyphs sets
         // ImGuiMCP::Text("你好, 안녕하세요, こんにちは, Привет");
@@ -431,8 +468,24 @@ namespace {
             if (ImGuiMCP::IsItemFocused()) {
                 focused = &entry;
             }
+
+            if (ImGuiMCP::BeginPopupContextItem("##PresetActions")) {
+                const auto label{
+                    UI::Translations::Get(entry.blacklisted ? "obody_blacklist_remove" : "obody_blacklist_add")};
+
+                if (ImGuiMCP::MenuItem(label.c_str())) {
+                    blacklistChange.emplace(entry.name, !entry.blacklisted);
+                }
+
+                ImGuiMCP::EndPopup();
+            }
+
             ImGuiMCP::PopID();
             ++idx;
+        }
+
+        if (blacklistChange) {
+            ChangePresetBlacklist(a_actor, blacklistChange->first, blacklistChange->second);
         }
 
         if (pickedName) {
@@ -540,7 +593,7 @@ bool UI::PresetsTab::Render(RE::Actor* a_actor) {
     // Presets made for other bodies may not fit a UBE body, they're only listed when asked for
     if (Body::OBody::IsUBE(a_actor)) {
         ImGuiMCP::Spacing();
-        ImGuiMCP::Checkbox(UI::Translations::Get("obody_show_other_bodies").c_str(), &g_showOtherBodies);
+        UI::Widgets::Checkbox(UI::Translations::Get("obody_show_other_bodies").c_str(), &g_showOtherBodies);
 
         if (ImGuiMCP::IsItemHovered()) {
             ImGuiMCP::SetTooltip("%s", UI::Translations::Get("obody_show_other_bodies_hint").c_str());

@@ -36,6 +36,9 @@ namespace UI::Lookups {
     // All of them are built the first time one is needed, the log tells how long it took
     const std::vector<Item>& Get(Kind a_kind);
 
+    void RebuildPresets();
+    [[nodiscard]] std::uint32_t Generation();
+
     // The items of a_kind that a_actor has: their record, name, factions, race, class, plugin, worn armors and the
     // armors' keywords, or their preset
     std::vector<const Item*> FromActor(Kind a_kind, RE::Actor* a_actor);

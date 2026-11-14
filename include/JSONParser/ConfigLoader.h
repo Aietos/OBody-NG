@@ -37,6 +37,12 @@ namespace Parser {
     // Takes an NPC's npcFormID entry out of the config
     std::optional<std::string> RemoveNpcPreset(std::string_view a_plugin, std::string_view a_formID);
 
+    // Adds a preset to blacklistedPresetsFromRandomDistribution in the in-game include file
+    std::optional<std::string> BlacklistPreset(std::string_view a_preset);
+
+    // Takes a preset off the blacklist. Other files' entries are taken out through the in-game file's "remove" section
+    std::optional<std::string> UnblacklistPreset(std::string_view a_preset);
+
     // An entry of the config
     struct EntryRef {
         std::string key;

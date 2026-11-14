@@ -39,6 +39,10 @@ namespace Preview {
         void RunWhenMenuCloses(RE::FormID a_key, std::function<void()> a_func);
         void OnMenuClosed();
 
+        // Runs what OnMenuClosed keeps once time isn't frozen anymore. Called on SKSE Menu Framework's events, which
+        // go on for a few frames after the menu closed, until time runs again
+        void RunWaitingIfTimeRuns();
+
         // The copies Live Preview used and disabled are deleted, so the save doesn't keep them
         void OnSave();
 
@@ -73,6 +77,9 @@ namespace Preview {
         // Everything back to how the camera started on this actor
         void ResetView();
 
+        // From -1 (left edge) to 1 (right edge)
+        void SetScreenPosition(float a_across);
+
         // Turns the actor to face the camera, which stays where it is.
         // Their heading is put back when the preview ends
         void FaceCamera();
@@ -91,6 +98,9 @@ namespace Preview {
         // Whether a_form is the copy, or may be while it's being spawned
         [[nodiscard]] bool IsCopy(const RE::TESForm* a_form) const;
         [[nodiscard]] bool IsCopy(RE::FormID a_formID) const;
+        // The actor a_actor copies, when it's the preview's copy
+        [[nodiscard]] RE::Actor* GetCopyTarget(const RE::Actor* a_actor) const;
+
         // The disabled copies still waiting to be deleted, so the NPC lists leave them out.
         // Takes lock_, unlike IsCopy, which the event handlers call
         [[nodiscard]] bool IsAnyCopy(const RE::Actor* a_actor) const;
@@ -248,6 +258,10 @@ namespace Preview {
         // See RunWhenMenuCloses
         std::vector<std::pair<RE::FormID, std::function<void()>>> onMenuClosed_;
 
+        std::mutex waitingLock_;
+        std::vector<std::pair<RE::FormID, std::function<void()>>> waitingForTime_;
+        std::atomic_bool hasWaitingForTime_{false};
+
         // Bring to me is on, the copy is shown where the player stands
         bool bring_{false};
 
@@ -268,8 +282,11 @@ namespace Preview {
 
         // For IsCopy
         std::atomic<RE::FormID> copyID_{0};
+        std::atomic<std::uint64_t> copyOf_{0};
         // A deleted copy is left alone a while longer, its unequip events come after it's gone
         std::atomic<RE::FormID> deletedCopyID_{0};
+        // Like copyOf_, for the deleted copy
+        std::atomic<std::uint64_t> deletedCopyOf_{0};
         std::atomic<std::int64_t> deletedCopyAt_{0};
 
         std::vector<std::pair<RE::NiPointer<RE::Actor>, std::int64_t>> disabledCopies_;
@@ -319,6 +336,7 @@ namespace Preview {
         View view_;
         View targetView_;
         View defaultView_;
+        float screenPosition_{0.3F};
         std::chrono::steady_clock::time_point lastEase_;
     };
 }  // namespace Preview

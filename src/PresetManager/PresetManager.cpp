@@ -26,6 +26,8 @@ namespace PresetManager {
     constexpr std::array UNPDefaultSliders{DefaultSlider{"Neck"sv, 1.0f, 0.0f}};
     constexpr std::array UBEDefaultSliders{DefaultSlider{"NipplesShowUp"sv, 1.0f, 1.0f},
                                            DefaultSlider{"SkinnyMorph"sv, 1.0f, 0.0f}};
+    // Necoco is built over UBE, with NipplesShowUp at 0
+    constexpr std::array NecocoDefaultSliders{DefaultSlider{"SkinnyMorph"sv, 1.0f, 0.0f}};
 
     std::span<const DefaultSlider> GetDefaultSliders(const BodyType a_body) {
         switch (a_body) {
@@ -33,6 +35,8 @@ namespace PresetManager {
                 return UNPDefaultSliders;
             case BodyType::UBE:
                 return UBEDefaultSliders;
+            case BodyType::Necoco:
+                return NecocoDefaultSliders;
             default:
                 return CBBEDefaultSliders;
         }
@@ -40,15 +44,53 @@ namespace PresetManager {
 
     PresetContainer& PresetContainer::GetInstance() { return instance; }
 
-    void GeneratePresets() {
+    PresetContainer::PresetContainer() {
+        allData_.push_back(std::make_unique<PresetData>());
+        data_ = allData_.back().get();
+    }
+
+    // Only called at startup and from the menu, never at the same time
+    void PresetContainer::Replace(std::unique_ptr<PresetData> a_data) {
+        allData_.push_back(std::move(a_data));
+        data_ = allData_.back().get();
+    }
+
+    // Necoco builds to UBE's body files, and its own sliders are named "Necoco_..."
+    bool HasNecocoFemaleBody() {
+        RE::BSResourceNiBinaryStream stream{R"(Meshes\!UBE\Body\femalebody_tangent.tri)"};
+
+        if (!stream.good()) return false;
+
+        constexpr std::string_view marker{"Necoco_"};
+        std::string data;
+        char buffer[65536];
+
+        while (true) {
+            std::uint64_t read{0};
+            stream.stream->DoRead(buffer, sizeof(buffer), read);
+
+            if (read == 0) return false;
+
+            data.append(buffer, static_cast<std::size_t>(read));
+
+            if (data.find(marker) != std::string::npos) return true;
+
+            // Kept so a name split between two reads is still found
+            if (data.size() >= marker.size()) {
+                data.erase(0, data.size() - marker.size() + 1);
+            }
+        }
+    }
+
+    std::unique_ptr<PresetData> GeneratePresets() {
         const fs::path root_path(R"(Data\CalienteTools\BodySlide\SliderPresets)");
 
-        auto& container{PresetManager::PresetContainer::GetInstance()};
+        auto data{std::make_unique<PresetData>()};
+        auto& allFemalePresets{data->allFemalePresets};
+        auto& allMalePresets{data->allMalePresets};
 
-        auto& allFemalePresets{container.allFemalePresets};
-        auto& allMalePresets{container.allMalePresets};
-
-        auto& parser{Parser::JSONParser::GetInstance()};
+        std::vector<std::unique_ptr<pugi::xml_document>> docs;
+        std::vector<pugi::xml_node> nodes;
 
         for (const auto& entry : fs::directory_iterator(root_path)) {
             const auto& path{entry.path()};
@@ -56,29 +98,58 @@ namespace PresetManager {
             // Files with a "clothed" keyword in their name are still opened, but only their "-Refit" presets are kept.
             const bool clothedFile{IsClothedSet(path.wstring())};
 
-            pugi::xml_document doc;
-            if (auto result = doc.load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
+            auto doc{std::make_unique<pugi::xml_document>()};
+            if (auto result = doc->load_file(path.c_str(), pugi::parse_default, pugi::encoding_auto); !result) {
                 wchar_t buffer[2048];
                 swprintf_s(buffer, std::size(buffer), L"load failed: %s [%hs]", path.c_str(), result.description());
                 SPDLOG_WARN(buffer);
-                parser.invalid_presets++;
+                const auto name{path.filename().u8string()};
+                data->unreadFiles.emplace_back(name.begin(), name.end());
                 continue;
             }
 
-            auto presets = doc.child("SliderPresets");
-            for (const auto& node : presets) {
+            for (const auto& node : doc->child("SliderPresets")) {
                 if (clothedFile && !IsRefitPreset(node.attribute("name").value())) continue;
 
-                auto preset = GeneratePreset(node);
-                if (!preset) continue;
+                nodes.push_back(node);
+            }
 
-                // The same UBE presets shape both sexes, so they go in both lists
-                if (preset->ube || IsFemalePreset(*preset)) {
-                    allFemalePresets.push_back(*preset);
+            docs.push_back(std::move(doc));
+        }
+
+        const bool necoco{HasNecocoFemaleBody()};
+
+        if (necoco) {
+            logger::info("The female UBE body is Necoco, female UBE presets will use its slider defaults");
+        }
+
+        PresetBodyTypes baseBodies;
+
+        for (const auto& node : nodes) {
+            const std::string_view name{node.attribute("name").value()};
+
+            if (IsRefitPreset(name) || IsClothedSet(name)) continue;
+
+            std::string lower{name};
+            boost::algorithm::to_lower(lower);
+            const auto body{IsUBEPreset(node) ? BodyType::UBE : GetPresetBodyType(node, node.attribute("set").value())};
+            baseBodies.try_emplace(std::move(lower), body);
+        }
+
+        for (const auto& node : nodes) {
+            auto preset = GeneratePreset(node, baseBodies);
+            if (!preset) continue;
+
+            // The same UBE presets shape both sexes, so they go in both lists
+            if (preset->ube || IsFemalePreset(*preset)) {
+                allFemalePresets.push_back(*preset);
+
+                if (preset->ube && necoco) {
+                    allFemalePresets.back().sliders = SliderSetFromNode(node, BodyType::Necoco);
                 }
-                if (preset->ube || !IsFemalePreset(*preset)) {
-                    allMalePresets.push_back(*preset);
-                }
+            }
+            if (preset->ube || !IsFemalePreset(*preset)) {
+                allMalePresets.push_back(*preset);
             }
         }
 
@@ -87,20 +158,50 @@ namespace PresetManager {
                 if (!IsRefitPreset(preset.name)) continue;
 
                 for (const auto& sliderName : preset.sliders | std::views::keys) {
-                    container.refitSliderNames.insert(sliderName);
+                    data->refitSliderNames.insert(sliderName);
+                }
+
+                // Differential refits also reset the base preset's sliders
+                const auto baseName{GetRefitBaseName(preset.name)};
+                const auto base{std::ranges::find_if(*presets, [&](const Preset& a_preset) {
+                    return !IsRefitPreset(a_preset.name) && stl::cmp(a_preset.name, baseName);
+                })};
+
+                if (base == presets->end()) continue;
+
+                for (const auto& sliderName : base->sliders | std::views::keys) {
+                    data->refitSliderNames.insert(sliderName);
                 }
             }
         }
 
         logger::info("Read {} female presets and {} male presets, UBE ones in both: {}", allFemalePresets.size(),
                      allMalePresets.size(), std::ranges::count_if(allFemalePresets, &Preset::ube));
+
+        return data;
     }
 
     bool PresetContainer::HasPresetsFor(const bool a_female, const bool a_ube) const {
         return Parser::JSONParser::GetInstance().GetConfig()->HasPresetsFor(a_female, a_ube);
     }
 
-    std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node) {
+    BodyType GetPresetBodyType(const pugi::xml_node& a_node, const std::string_view a_set) {
+        constexpr std::array cbbe{"cbbe"sv, "3ba"sv};
+
+        if (GetBodyType(a_set) == BodyType::UNP) return BodyType::UNP;
+
+        if (stl::contains(a_set, cbbe)) return BodyType::CBBE;
+
+        for (auto& node : a_node) {
+            if (!stl::cmp(node.name(), "Group")) continue;
+
+            if (GetBodyType(node.attribute("name").value()) == BodyType::UNP) return BodyType::UNP;
+        }
+
+        return BodyType::CBBE;
+    }
+
+    std::optional<Preset> GeneratePreset(const pugi::xml_node& a_node, const PresetBodyTypes& a_baseBodies) {
         const std::string_view name{a_node.attribute("name").value()};
 
         if (IsClothedSet(name) && !IsRefitPreset(name)) return {};
@@ -108,12 +209,29 @@ namespace PresetManager {
         const std::string_view body{a_node.attribute("set").value()};
 
         const bool ube{IsUBEPreset(a_node)};
-        Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, ube ? BodyType::UBE : GetBodyType(body))};
+        auto bodyType{ube ? BodyType::UBE : GetPresetBodyType(a_node, body)};
+
+        // A differential refit must be read for the same body as its base preset
+        if (!ube && IsRefitPreset(name)) {
+            std::string baseName{GetRefitBaseName(name)};
+            boost::algorithm::to_lower(baseName);
+
+            if (const auto it{a_baseBodies.find(baseName)};
+                it != a_baseBodies.end() && it->second != BodyType::UBE && it->second != bodyType) {
+                logger::info("Refit preset {} is read as {}, like its base preset (its set '{}' and groups tell {})",
+                             name, it->second == BodyType::UNP ? "UNP" : "CBBE", body,
+                             bodyType == BodyType::UNP ? "UNP" : "CBBE");
+                bodyType = it->second;
+            }
+        }
+
+        Preset preset{name.data(), body.data(), SliderSetFromNode(a_node, bodyType)};
         preset.ube = ube;
+
         return preset;
     }
 
-    void PresetContainer::AssignPresetIndexes() {
+    void PresetContainer::AssignPresetIndexes(PresetData& a_data) {
         auto assignIndexes = [&](PresetSet& allLoadedPresets, auto& presetIndexMap, auto& sparseIndexMap,
                                  auto& nextPresetIndex) {
             // We ensure that absent presets have an index of -1 to signify their absence.
@@ -137,19 +255,17 @@ namespace PresetManager {
             }
         };
 
-        assignIndexes(this->allFemalePresets, this->femalePresetIndexByName, this->allFemalePresetsByIndex,
-                      this->nextFemalePresetIndex);
-        assignIndexes(this->allMalePresets, this->malePresetIndexByName, this->allMalePresetsByIndex,
-                      this->nextMalePresetIndex);
+        assignIndexes(a_data.allFemalePresets, femalePresetIndexByName, a_data.allFemalePresetsByIndex,
+                      nextFemalePresetIndex);
+        assignIndexes(a_data.allMalePresets, malePresetIndexByName, a_data.allMalePresetsByIndex, nextMalePresetIndex);
 
         logger::info("Assigned indexes to all the loaded presets.");
     }
 
     Preset* AssignedPresetIndex::GetPreset(bool actorIsFemale) const {
-        auto& presetContainer{PresetContainer::GetInstance()};
+        auto& data{PresetContainer::GetInstance().Data()};
 
-        const auto& sparseMap =
-            actorIsFemale ? presetContainer.allFemalePresetsByIndex : presetContainer.allMalePresetsByIndex;
+        const auto& sparseMap = actorIsFemale ? data.allFemalePresetsByIndex : data.allMalePresetsByIndex;
 
         // If the actor's sex has not changed, then this index must be in bounds, but an actor's sex may have changed.
         if (value >= sparseMap.size()) {
@@ -157,7 +273,7 @@ namespace PresetManager {
         }
 
         auto denseIndex = sparseMap[value];
-        auto& presets = actorIsFemale ? presetContainer.allFemalePresets : presetContainer.allMalePresets;
+        auto& presets = actorIsFemale ? data.allFemalePresets : data.allMalePresets;
 
         // The user may have removed this preset since it was assigned,
         // if they did the sparse-map will have mapped it to -1.
@@ -273,12 +389,16 @@ namespace PresetManager {
         }
 
         SliderSet differential;
+        boost::unordered_flat_set<std::string> refitLowerNames;
+        refitLowerNames.reserve(a_refit.size());
+
         for (const auto& refitSlider : a_refit | std::views::values) {
             std::string lower{refitSlider.name};
             boost::algorithm::to_lower(lower);
 
             // A slider the base preset doesn't have is treated as 0
             const auto baseItr{baseByLowerName.find(lower)};
+            refitLowerNames.insert(std::move(lower));
             const float baseMin{baseItr != baseByLowerName.end() ? baseItr->second->min : 0.0F};
             const float baseMax{baseItr != baseByLowerName.end() ? baseItr->second->max : 0.0F};
 
@@ -291,6 +411,14 @@ namespace PresetManager {
             }
 
             differential[refitSlider.name] = Slider{refitSlider.name.c_str(), deltaMin, deltaMax};
+        }
+
+        for (const auto& [lower, baseSlider] : baseByLowerName) {
+            if (refitLowerNames.contains(lower)) continue;
+
+            if (std::abs(baseSlider->min) < epsilon && std::abs(baseSlider->max) < epsilon) continue;
+
+            differential[baseSlider->name] = Slider{baseSlider->name.c_str(), -baseSlider->min, -baseSlider->max};
         }
 
         return differential;

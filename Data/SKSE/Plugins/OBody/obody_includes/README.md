@@ -78,7 +78,7 @@ Place `.json` files in `Data/SKSE/Plugins/OBody/obody_includes/` to assign BodyS
 The OBody menu can change the config without editing any file. These changes are saved to an include file of their own, `~ZZZOBody_Ingame.json`, which is created the first time you save a change. They apply right away, with no reload needed.
 
 - **Config Editor tab**: shows the rules of each category (presets for NPCs, factions, classes, plugins and races, blacklists, outfits and ORefit) from all the files, with the file each rule comes from, and lets you add rules. A rule from another file can be switched off or changed: the in-game file then removes it or replaces it (with a `"remove"` section, see below), and the other file stays as it is. Each category shows the JSON key it writes to
-- **Preset Selection tab**: **Save preset to config** writes the NPC's current preset to the in-game file (`npcFormID`), so the config always gives it to them. **Remove from config** takes it out again. It isn't available for NPCs spawned from leveled lists, which the config can't name
+- **Presets tab**: **Save preset to config** writes the NPC's current preset to the in-game file (`npcFormID`), so the config always gives it to them. **Remove from config** takes it out again. It isn't available for NPCs spawned from leveled lists, which the config can't name. Right-click a preset in the list to add it to the blacklist (`blacklistedPresetsFromRandomDistribution`), so random distribution stops giving it out, or to take it off again. Blacklisted presets are marked in the list when `blacklistedPresetsShowInOBodyMenu` is on, and hidden otherwise
 - **Settings tab**: `blacklistedPresetsShowInOBodyMenu` and `disablePresetDistribution` are saved to the main `OBody_presetDistributionConfig.json`, since include files can't have them. **Re-roll all NPCs** gives every NPC a new preset by the config's rules, except the presets that were picked manually
 - **Include Files tab**: the include files in load order and the folder each one is in
 
@@ -90,9 +90,10 @@ Important notes:
 
 ## Reloading
 
-Changes to the config files apply without restarting the game. Open the OBody menu, go to the Include Files or JSON Config Viewer tab and press **Reload config**. If a file has an error, the reload fails and the config that was in use stays in use, the error is shown in the menu and written to `OBody.log`.
+Changes to the config files and to the BodySlide presets apply without restarting the game. Open the OBody menu, go to the Include Files or JSON Viewer tab and press **Reload config and presets**. If a file has an error, the reload fails and the config that was in use stays in use, the error is shown in the menu and written to `OBody.log`.
 
-- NPCs that already got a body keep it, the new config only applies to the NPCs that get their body after the reload (the same as after restarting the game). To give NPCs a preset by the new config, use **Re-roll preset** (Preset Selection tab) for one NPC, or **Re-roll all NPCs** (Settings tab)
+- NPCs that already got a body keep it, the new config only applies to the NPCs that get their body after the reload (the same as after restarting the game). To give NPCs a preset by the new config, use **Re-roll preset** (Presets tab) for one NPC, or **Re-roll all NPCs** (Settings tab)
+- New and changed presets, -Refit ones included, are read again. An NPC whose preset changed gets the new shape when their preset is applied again, for example by picking it in the menu. A -Refit preset is used the next time an outfit is put on or taken off
 - With Mod Organizer 2, include files added while the game runs are found too, in Overwrite or in a mod's `obody_includes` folder that already had a file in it. `OBody.log` shows which folder each include file really comes from
 
 ## Merge Behavior
