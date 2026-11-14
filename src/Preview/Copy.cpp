@@ -83,6 +83,34 @@ namespace Preview {
         return a_formID == deletedCopyID_ && NowMs() - deletedCopyAt_ < kDeletedCopyMs;
     }
 
+    RE::Actor* Session::GetCopyTarget(const RE::Actor* a_actor) const {
+        if (!a_actor) return nullptr;
+
+        const auto formID{a_actor->GetFormID()};
+        const auto copyOf{copyOf_.load()};
+
+        if (formID != 0 && static_cast<RE::FormID>(copyOf >> 32) == formID) {
+            return RE::TESForm::LookupByID<RE::Actor>(static_cast<RE::FormID>(copyOf));
+        }
+
+        const auto deletedCopyOf{deletedCopyOf_.load()};
+
+        if (formID != 0 && static_cast<RE::FormID>(deletedCopyOf >> 32) == formID &&
+            NowMs() - deletedCopyAt_ < kDeletedCopyMs) {
+            return RE::TESForm::LookupByID<RE::Actor>(static_cast<RE::FormID>(deletedCopyOf));
+        }
+
+        const auto* const base{spawningBase_.load()};
+        const auto spawning{spawningFrom_.load()};
+
+        if (base && spawning != 0 && formID != spawning && a_actor->IsDynamicForm() &&
+            a_actor->GetActorBase() == base) {
+            return RE::TESForm::LookupByID<RE::Actor>(spawning);
+        }
+
+        return nullptr;
+    }
+
     bool Session::IsAnyCopy(const RE::Actor* a_actor) const {
         if (IsCopy(a_actor)) return true;
 
@@ -163,9 +191,15 @@ namespace Preview {
             spawningFrom_ = target->GetFormID();
             spawningBase_ = base;
             const auto placed{target->PlaceObjectAtMe(base, false)};
+            auto* const copy{placed ? placed->As<RE::Actor>() : nullptr};
+
+            if (copy) {
+                copyID_ = copy->GetFormID();
+                copyOf_ = static_cast<std::uint64_t>(copy->GetFormID()) << 32 | target->GetFormID();
+            }
+
             spawningBase_ = nullptr;
 
-            auto* const copy{placed ? placed->As<RE::Actor>() : nullptr};
             if (!copy) {
                 logger::warn("Preview: couldn't spawn a copy of {}, previewing them instead",
                              target->GetDisplayFullName());
@@ -174,7 +208,7 @@ namespace Preview {
                 bring_ = false;
                 return;
             }
-            copyID_ = copy->GetFormID();
+
             spawningFrom_ = 0;
             copy_ = RE::NiPointer<RE::Actor>{copy};
 
@@ -416,12 +450,15 @@ namespace Preview {
         // A queued spawn or dressing does nothing now
         ++copyRequest_;
         auto copy{std::move(copy_)};
+
+        if (copy) {
+            deletedCopyAt_ = NowMs();
+            deletedCopyOf_ = copyOf_.load();
+            deletedCopyID_ = copy->GetFormID();
+        }
+
         ResetCopy();
         if (!copy) return;
-
-        // Still the copy for the event handlers, from now until a while after it's gone
-        deletedCopyID_ = copy->GetFormID();
-        deletedCopyAt_ = NowMs();
 
         // In the game's task phase, as the game removes references. Disabling it queues the game's own tasks for it
         // If deleted right away, the game may crash
@@ -458,6 +495,7 @@ namespace Preview {
 
     void Session::ResetCopy() {
         copyID_ = 0;
+        copyOf_ = 0;
         copy_.reset();
         copySpawnQueued_ = false;
         copyDressQueued_ = false;

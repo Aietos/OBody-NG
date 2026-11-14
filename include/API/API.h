@@ -84,8 +84,25 @@ namespace OBody::API {
         These version numbers signify how this API is to be used.
         New versions will be introduced when breaking changes are made to the API, so that it's feasible to
         update the API without breaking SKSE plugins that were compiled for older versions.
+
+        v2 appends `OpenPresetMenu` and `GetPreviewCopyTarget` to `IPluginInterface`. Request v2 to use them
     */
-    enum class PluginAPIVersion { Invalid = 0, v1 = 1, Latest = v1 };
+    enum class PluginAPIVersion { Invalid = 0, v1 = 1, v2 = 2, Latest = v2 };
+
+    /** Added in v2. How another mod's menu showed the NPC it opens OBody's preset menu on, so OBody's preview
+        shows them the same way. `size` is `sizeof(MenuState)`, so fields can be added at the end. */
+    struct MenuState {
+        uint32_t size = sizeof(MenuState);
+        /** The preview showed a copy of the NPC where the player stands. */
+        bool broughtToPlayer = false;
+        /** The preview showed the NPC in their clothes. */
+        bool clothed = true;
+        /** The preview lit the NPC. */
+        bool lit = false;
+        /** The mouse cursor, in the game window's pixels, negative when not known. */
+        float cursorX = -1.0F;
+        float cursorY = -1.0F;
+    };
 
     class IActorChangeEventListener;
     struct PresetCounts;
@@ -252,6 +269,22 @@ namespace OBody::API {
             This returns whether a preset with the supplied name was found or not.
             If the supplied preset name was empty or null this will return `true`. */
         virtual bool AssignPresetToActor(Actor* actor, AssignPresetPayload& payload) = 0;
+
+        /** Added in v2, request `PluginAPIVersion::v2` or later to use it.
+
+            This opens OBody's preset menu on the actor, the way it opens on the NPC in the crosshair.
+            `state` is how your menu showed them, or null. When it returns true, close your menu in the same frame.
+            It returns false when the menu can't be opened, such as when SKSE Menu Framework isn't installed, or for an
+            actor OBody doesn't change (a child, a creature, OSkin's preview copy).
+            Call it from the main thread, such as from an SKSE Menu Framework window. */
+        virtual bool OpenPresetMenu(Actor* actor, const MenuState* state) = 0;
+
+        /** Added in v2, request `PluginAPIVersion::v2` or later to use it.
+
+            When the actor is the copy that OBody's preset menu spawned to preview an NPC, this returns that NPC.
+            Otherwise it returns null. A mod that changes actors as they load can give the copy what the NPC has.
+            This method is thread safe. */
+        virtual Actor* GetPreviewCopyTarget(Actor* actor) = 0;
     };
 
     /** This is an interface for receiving events from OBody regarding

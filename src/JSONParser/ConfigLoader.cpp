@@ -8,6 +8,7 @@ namespace {
     constexpr auto IncludesDir{"Data/SKSE/Plugins/OBody/obody_includes"};
     constexpr auto RemoveKey{"remove"};
     constexpr auto NpcFormIDKey{"npcFormID"};
+    constexpr auto PresetBlacklistKey{"blacklistedPresetsFromRandomDistribution"};
 
     using Allocator = rapidjson::Document::AllocatorType;
 
@@ -977,6 +978,22 @@ namespace {
 
         return std::nullopt;
     }
+
+    std::optional<std::string> IsListedByOtherFiles(const char* a_key, const std::string_view a_entry, bool& a_listed) {
+        rapidjson::Document others;
+        std::vector<Parser::IncludeFileInfo> files;
+
+        if (auto error{MergeConfig(others, files, InGameFile::kLeftOut, false)}) return error;
+
+        const auto* const list{FindMemberValue(others, a_key)};
+        a_listed =
+            list && list->IsArray() && std::find(list->Begin(), list->End(), StringValue(a_entry)) != list->End();
+
+        logger::info("{} {} in {} of a file other than {}", a_entry, a_listed ? "is" : "isn't", a_key,
+                     Parser::InGameConfigFileName);
+
+        return std::nullopt;
+    }
 }  // namespace
 
 std::optional<std::string> Parser::LoadConfig(rapidjson::Document& a_config,
@@ -1247,6 +1264,38 @@ std::optional<std::string> Parser::RemoveNpcPreset(const std::string_view a_plug
         }
 
         if (!hadEntry && !setByOthers) return "No config file gives this NPC a preset";
+
+        return std::nullopt;
+    });
+}
+
+std::optional<std::string> Parser::BlacklistPreset(const std::string_view a_preset) {
+    return EditInGameConfig([&](rapidjson::Document& a_config) -> std::optional<std::string> {
+        const EntryRef ref{PresetBlacklistKey, {}, std::string{a_preset}};
+
+        InGameEdit::SetEntry(a_config, ref, nullptr);
+
+        InGameEdit::DeleteRemoval(a_config, ref);
+
+        return std::nullopt;
+    });
+}
+
+std::optional<std::string> Parser::UnblacklistPreset(const std::string_view a_preset) {
+    bool listedByOthers{false};
+
+    if (auto error{IsListedByOtherFiles(PresetBlacklistKey, a_preset, listedByOthers)}) return error;
+
+    return EditInGameConfig([&](rapidjson::Document& a_config) -> std::optional<std::string> {
+        const EntryRef ref{PresetBlacklistKey, {}, std::string{a_preset}};
+
+        const bool hadEntry{InGameEdit::DeleteEntry(a_config, ref)};
+
+        if (listedByOthers) {
+            InGameEdit::AddRemoval(a_config, ref);
+        }
+
+        if (!hadEntry && !listedByOthers) return "No config file blacklists this preset";
 
         return std::nullopt;
     });

@@ -1,3 +1,4 @@
+#include "API/OSkin.h"
 #include "BackwardsCompatibility/BackwardsCompatibility.h"
 #include "Body/Body.h"
 #include "Body/Event.h"
@@ -71,11 +72,13 @@ namespace {
                 auto requestedVersion = request->version;
 
                 switch (requestedVersion) {
-                    case Version::v1: {
+                    // Version 2 only adds methods at the end, so it's the same interface
+                    case Version::v1:
+                    case Version::v2: {
                         auto& obody{Body::OBody::GetInstance()};
                         auto& readinessListener = *request->readinessEventListener;
 
-                        *request->pluginInterface = new OBody::API::PluginInterface(a_msg->sender);
+                        *request->pluginInterface = new OBody::API::PluginInterface(a_msg->sender, requestedVersion);
 
                         obody.AttachEventListener(readinessListener);
 
@@ -139,6 +142,8 @@ namespace {
                 if (!RequestMorphInterface(obody)) {
                     logger::warn("Racemenu's BodyMorph interface is asked for again once the game data is loaded");
                 }
+
+                API::OSkin::Request();
 
                 return;
             }

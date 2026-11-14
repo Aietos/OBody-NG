@@ -1,5 +1,6 @@
 #include "Body/Event.h"
 
+#include "API/OSkin.h"
 #include "Body/Body.h"
 #include "JSONParser/JSONParser.h"
 #include "Preview/Preview.h"
@@ -11,6 +12,11 @@ constinit Event::OBodyEventHandler Event::OBodyEventHandler::singleton;
 
 bool Event::IsDistributionTarget(RE::Actor* a_actor) {
     if (!a_actor->HasKeywordString("ActorTypeNPC") || a_actor->IsChild()) {
+        return false;
+    }
+
+    // OSkin's preview copy got the body of the NPC it copies
+    if (API::OSkin::GetPreviewCopyTarget(a_actor)) {
         return false;
     }
 

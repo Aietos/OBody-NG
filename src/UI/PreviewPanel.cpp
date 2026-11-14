@@ -127,8 +127,53 @@ void UI::PreviewPanel::OnTargetSelected(const bool a_another) {
     }
 }
 
+namespace {
+    using StartAs = std::optional<std::pair<RE::FormID, OBody::API::MenuState>>;
+
+    StartAs g_startAs;
+
+    void ApplyStartAs(RE::Actor* a_actor, const StartAs& a_startAs) {
+        if (!a_startAs || a_startAs->first != a_actor->GetFormID()) return;
+
+        auto& preview{Preview::Session::GetInstance()};
+        const auto& state{a_startAs->second};
+
+        preview.SetClothed(state.clothed);
+        preview.SetLit(state.lit);
+
+        if (state.broughtToPlayer && preview.CanBringToPlayer()) {
+            preview.SetBroughtToPlayer(true);
+        }
+
+        logger::info("Preview: {} shown as the other menu had them, {}, {}{}", a_actor->GetDisplayFullName(),
+                     state.clothed ? "dressed" : "undressed", state.lit ? "lit" : "not lit",
+                     state.broughtToPlayer ? ", brought to the player" : "");
+    }
+}  // namespace
+
+OBody::API::MenuState UI::PreviewPanel::GetShownState(RE::Actor* a_actor) {
+    auto& preview{Preview::Session::GetInstance()};
+    OBody::API::MenuState state;
+
+    if (a_actor && preview.IsPreviewing(a_actor)) {
+        state.broughtToPlayer = preview.IsBroughtToPlayer();
+        state.clothed = preview.IsClothed();
+        state.lit = preview.IsLit();
+    }
+
+    return state;
+}
+
+void UI::PreviewPanel::StartNextAs(RE::Actor* a_actor, const OBody::API::MenuState& a_state) {
+    if (a_actor) {
+        g_startAs = std::pair{a_actor->GetFormID(), a_state};
+    }
+}
+
 void UI::PreviewPanel::Manage(RE::Actor* a_actor) {
     auto& preview{Preview::Session::GetInstance()};
+
+    const auto startAs{std::exchange(g_startAs, std::nullopt)};
 
     if (!UI::PresetList::IsPreviewEnabled() || !a_actor->Is3DLoaded()) {
         End();
@@ -138,6 +183,7 @@ void UI::PreviewPanel::Manage(RE::Actor* a_actor) {
     if (!preview.IsPreviewing(a_actor) && g_previewFailedFor != a_actor->GetFormID()) {
         if (preview.Begin(a_actor)) {
             g_dockWindow = true;
+            ApplyStartAs(a_actor, startAs);
         } else {
             g_previewFailedFor = a_actor->GetFormID();
         }

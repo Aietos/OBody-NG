@@ -455,10 +455,48 @@ namespace Preview {
         }
         if (ready.empty()) return;
 
-        logger::info("Preview: the menu closed, doing the {} things that waited for it", ready.size());
-        for (const auto& func : ready | std::views::values) {
-            func();
+        logger::info("Preview: the menu closed, {} things wait for time to run", ready.size());
+
+        {
+            std::lock_guard lock{waitingLock_};
+
+            // Only the last change of each actor is announced, as in RunWhenMenuCloses
+            for (auto& [key, func] : ready) {
+                const auto waiting{std::ranges::find(waitingForTime_, key, &decltype(ready)::value_type::first)};
+
+                if (waiting != waitingForTime_.end()) {
+                    waiting->second = std::move(func);
+                } else {
+                    waitingForTime_.emplace_back(key, std::move(func));
+                }
+            }
+
+            hasWaitingForTime_ = true;
         }
+
+        RunWaitingIfTimeRuns();
+    }
+
+    void Session::RunWaitingIfTimeRuns() {
+        if (!hasWaitingForTime_.load() || RE::Main::GetSingleton()->GetRuntimeData().freezeTime) return;
+
+        std::vector<std::pair<RE::FormID, std::function<void()>>> ready;
+
+        {
+            std::lock_guard lock{waitingLock_};
+            ready.swap(waitingForTime_);
+            hasWaitingForTime_ = false;
+        }
+
+        if (ready.empty()) return;
+
+        SKSE::GetTaskInterface()->AddTask([ready{std::move(ready)}] {
+            logger::info("Time is running again, sending events", ready.size());
+
+            for (const auto& func : ready | std::views::values) {
+                func();
+            }
+        });
     }
 
     void Session::Abandon() {
@@ -467,6 +505,13 @@ namespace Preview {
         // What waited for the menu to close, and the disabled copies, were references that are going away
         onMenuClosed_.clear();
         disabledCopies_.clear();
+
+        {
+            std::lock_guard waitingLock{waitingLock_};
+            waitingForTime_.clear();
+            hasWaitingForTime_ = false;
+        }
+
         if (!sceneActive_) return;
 
         // The frozen time outlives the game that's being loaded. The free camera is switched off before, so the loaded

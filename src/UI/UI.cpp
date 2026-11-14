@@ -9,6 +9,8 @@
 #include "UI/Util.h"
 #include "UI/Widgets.h"
 #include "Body/Event.h"
+#include "API/OSkin.h"
+#include "Preview/Preview.h"
 
 namespace {
     std::atomic<std::uint32_t> g_hotkeyScanCode{0x18};
@@ -165,6 +167,47 @@ namespace {
         if (a_type == SKSEMenuFramework::Model::EventType::kCloseMenu) {
             UI::PreviewPanel::OnMenuClosed();
         }
+
+        Preview::Session::GetInstance().RunWaitingIfTimeRuns();
+    }
+
+    RE::ActorHandle g_openFor;
+
+    // The actor to open OSkin's menu on
+    RE::ActorHandle g_switchTo;
+
+    struct CursorRestore {
+        float x{0.0f};
+        float y{0.0f};
+        int frames{0};
+    };
+
+    std::optional<CursorRestore> g_cursorRestore;
+
+    HWND GetGameWindow() {
+        const auto* const renderer{RE::BSGraphics::Renderer::GetSingleton()};
+
+        return renderer ? reinterpret_cast<HWND>(renderer->GetRuntimeData().renderWindows[0].hWnd) : nullptr;
+    }
+
+    void RestoreCursor() {
+        if (!g_cursorRestore) return;
+
+        auto& restore{*g_cursorRestore};
+
+        ImGuiMCP::ImGuiIOManager::AddMousePosEvent(ImGuiMCP::GetIO(), restore.x, restore.y);
+
+        if (auto* const window{GetGameWindow()}) {
+            POINT point{std::lround(restore.x), std::lround(restore.y)};
+
+            if (ClientToScreen(window, &point)) {
+                SetCursorPos(point.x, point.y);
+            }
+        }
+
+        if (--restore.frames <= 0) {
+            g_cursorRestore.reset();
+        }
     }
 
     bool g_editorTabShown{false};
@@ -192,6 +235,37 @@ void UI::PresetList::SetHotkeyScanCode(std::uint32_t scanCode) {
 }
 
 std::uint32_t UI::PresetList::GetHotkeyScanCode() { return g_hotkeyScanCode.load(); }
+
+bool UI::PresetList::OpenFor(RE::Actor* a_actor, const OBody::API::MenuState* a_state) {
+    if (!Window || !Util::IsPresetTarget(a_actor)) {
+        logger::info("Another mod asked to open the preset menu on {}",
+                     a_actor ? a_actor->GetDisplayFullName() : "nobody");
+        return false;
+    }
+
+    g_openFor = a_actor->GetHandle();
+    Window->IsOpen = true;
+    logger::info("The preset menu opens on {} for another mod", a_actor->GetDisplayFullName());
+
+    if (a_state) {
+        PreviewPanel::StartNextAs(a_actor, *a_state);
+
+        if (a_state->cursorX >= 0.0f && a_state->cursorY >= 0.0f) {
+            g_cursorRestore = CursorRestore{.x = a_state->cursorX, .y = a_state->cursorY, .frames = 3};
+            logger::info("Menu: the cursor goes back to ({:.0f}, {:.0f}), where the other menu had it",
+                         a_state->cursorX, a_state->cursorY);
+        }
+    }
+
+    return true;
+}
+
+void UI::PresetList::OpenInOSkin(RE::Actor* a_actor) {
+    // Render writes the window's state back as it ends, so the switch happens there
+    if (a_actor) {
+        g_switchTo = a_actor->GetHandle();
+    }
+}
 
 void UI::PresetList::SetPreviewEnabled(const bool a_enabled) { g_previewEnabled.store(a_enabled); }
 
@@ -252,6 +326,11 @@ void __stdcall UI::PresetList::Render() {
     Widgets::PushScaledSpacing();
 
     const bool justOpened = ImGuiMCP::IsWindowAppearing();
+    RestoreCursor();
+
+    const auto openForHandle{std::exchange(g_openFor, RE::ActorHandle{}).get()};
+    RE::Actor* const openFor{openForHandle && Util::IsPresetTarget(openForHandle.get()) ? openForHandle.get()
+                                                                                        : nullptr};
 
     if (justOpened) {
         g_closeAfterTextInput = false;
@@ -261,13 +340,21 @@ void __stdcall UI::PresetList::Render() {
         ConfigEditor::Reset();
 
         RE::Actor* crosshairActor{Event::OBodyEventHandler::GetSingleton()->GetCurrentCrosshairActor().get()};
-        if (Util::IsPresetTarget(crosshairActor)) {
+        if (openFor) {
+            SelectTarget(openFor, true);
+        } else if (Util::IsPresetTarget(crosshairActor)) {
             SelectTarget(crosshairActor, true);
         } else {
             SelectTarget(RE::PlayerCharacter::GetSingleton(), true);
         }
 
         GamepadCamera::OnMenuOpened();
+    } else if (openFor) {
+        SelectTarget(openFor);
+    }
+
+    if (openFor) {
+        g_selectPresetsTab = true;
     }
 
     if (g_closeAfterTextInput) {
@@ -365,6 +452,22 @@ void __stdcall UI::PresetList::Render() {
 
     Widgets::PopScaledSpacing();
     ImGuiMCP::End();
+
+    // OSkin's menu was asked for
+    const auto switchTo{std::exchange(g_switchTo, RE::ActorHandle{}).get()};
+    OBody::API::MenuState handOff;
+
+    if (switchTo) {
+        // Taken before the preview ends, OSkin's preview starts the same way
+        handOff = PreviewPanel::GetShownState(switchTo.get());
+
+        const auto mouse{ImGuiMCP::GetMousePos()};
+        handOff.cursorX = mouse.x;
+        handOff.cursorY = mouse.y;
+
+        isOpen = false;
+    }
+
     Window->IsOpen = isOpen;
     Widgets::EndFrame();
 
@@ -372,4 +475,15 @@ void __stdcall UI::PresetList::Render() {
         PreviewPanel::End();
         RestoreAutoVanity();
     }
+
+    if (!switchTo) return;
+
+    if (API::OSkin::OpenMenu(switchTo.get(), handOff)) {
+        logger::info("Switched to OSkin's menu on {}", switchTo->GetDisplayFullName());
+        return;
+    }
+
+    // The preview begins again next frame
+    logger::warn("OSkin's menu didn't open on {}", switchTo->GetDisplayFullName());
+    Window->IsOpen = true;
 }
