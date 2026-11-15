@@ -175,7 +175,8 @@ namespace Body {
 
         // This `IPluginInterface` instance is a special one used to signal to plugin-API event-listeners
         // that a change was effected by OBody's Papyrus functions (the OBodyNative script).
-        mutable ::OBody::API::PluginInterface specialPapyrusPluginInterface{"_Papyrus"};
+        mutable ::OBody::API::PluginInterface specialPapyrusPluginInterface{"_Papyrus",
+                                                                            ::OBody::API::PluginAPIVersion::Latest};
 
     private:
         static OBody instance_;

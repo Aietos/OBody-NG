@@ -1,5 +1,7 @@
 #include "UI/Util.h"
 
+#include "API/OSkin.h"
+
 std::string_view UI::Util::TrimWhitespace(std::string_view text) {
     constexpr std::string_view whitespace{" \t\r\n\f\v"};
     const auto first = text.find_first_not_of(whitespace);
@@ -49,7 +51,14 @@ int UI::Util::CompareLinguistic(const std::wstring& a, const std::wstring& b) {
 }
 
 bool UI::Util::IsPresetTarget(RE::Actor* a_actor) {
-    return a_actor && a_actor->HasKeywordString("ActorTypeNPC") && !a_actor->IsChild();
+    if (!a_actor || !a_actor->HasKeywordString("ActorTypeNPC") || a_actor->IsChild()) return false;
+
+    const auto lifeState{a_actor->AsActorState()->GetLifeState()};
+
+    if (lifeState == RE::ACTOR_LIFE_STATE::kDead || lifeState == RE::ACTOR_LIFE_STATE::kDying) return false;
+
+    // OSkin's preview copy has the body of the NPC
+    return !API::OSkin::GetPreviewCopyTarget(a_actor);
 }
 
 UI::Util::PresetOrder UI::Util::MakePresetOrder(const std::string& a_name) {

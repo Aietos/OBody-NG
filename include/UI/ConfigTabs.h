@@ -7,7 +7,7 @@ namespace UI::ConfigTabs {
     // The Include Files tab: the include files in the order they're loaded
     void RenderIncludeFiles();
 
-    // The JSON Config Viewer tab: the reload button, then the config in use
+    // The JSON Viewer tab
     void RenderViewer();
 
     // When the menu is opened: the result of the last reload isn't shown anymore
@@ -19,6 +19,6 @@ namespace UI::ConfigTabs {
         bool filesSkipped{false};
     };
 
-    // Reloads the config, after a change written to its files
-    ReloadResult Reload();
+    // Reloads the config, after a change written to its files. a_presets: the BodySlide presets are read again first
+    ReloadResult Reload(bool a_presets = false);
 }  // namespace UI::ConfigTabs

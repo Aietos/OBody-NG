@@ -1,4 +1,5 @@
 #pragma once
+#include "API/PluginInterface.h"
 #include "SKSEMenuFramework.h"
 #include "UI/Widgets.h"
 
@@ -18,6 +19,12 @@ namespace UI::PreviewPanel {
     void RenderControls(RE::Actor* a_actor);
 
     bool KeepsMenuOpen();
+
+    // How the preview shows the actor, handed to the other mod's menu when switching to it
+    [[nodiscard]] OBody::API::MenuState GetShownState(RE::Actor* a_actor);
+
+    // The next preview of the actor starts the way the other mod's menu showed them
+    void StartNextAs(RE::Actor* a_actor, const OBody::API::MenuState& a_state);
 
     // The Keep menu open checkbox itself, for the cosave. KeepsMenuOpen also needs the live preview on
     void SetKeepMenuOpen(bool a_keep);

@@ -5,6 +5,7 @@
 #include "Preview/Preview.h"
 #include "SKSEMenuFramework.h"
 #include "UI/JsonView.h"
+#include "UI/Lookups.h"
 #include "UI/PreviewPanel.h"
 #include "UI/Translations.h"
 #include "UI/Widgets.h"
@@ -45,8 +46,8 @@ namespace {
         ImGuiMCP::Dummy(ImGuiMCP::ImVec2{0.0f, ImGuiMCP::GetTextLineHeight() * a_lines});
     }
 
-    void Reload(const Tab a_tab, const std::string& a_prefix) {
-        const auto result{UI::ConfigTabs::Reload()};
+    void Reload(const Tab a_tab, const std::string& a_prefix, const bool a_presets = false) {
+        const auto result{UI::ConfigTabs::Reload(a_presets)};
 
         g_resultTab = a_tab;
         g_failed = result.failed;
@@ -73,7 +74,11 @@ namespace {
 
     void RenderReloadButton(const Tab a_tab) {
         if (ImGuiMCP::Button(UI::Translations::Get("obody_reload_config").c_str())) {
-            Reload(a_tab, "");
+            Reload(a_tab, "", true);
+        }
+
+        if (ImGuiMCP::IsItemHovered()) {
+            ImGuiMCP::SetTooltip("%s", UI::Translations::Get("obody_reload_config_tooltip").c_str());
         }
 
         ImGuiMCP::SameLine();
@@ -179,9 +184,9 @@ namespace {
 
     void SectionHeader(const std::string& a_text) {
         ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, kGoldText);
-        ImGuiMCP::SetWindowFontScale(1.15f);
+        UI::Widgets::SetTextScale(1.15f);
         ImGuiMCP::TextUnformatted(a_text.c_str());
-        ImGuiMCP::SetWindowFontScale(1.0f);
+        UI::Widgets::SetTextScale();
         ImGuiMCP::PopStyleColor();
         VerticalSpace(0.3f);
     }
@@ -322,7 +327,7 @@ void UI::ConfigTabs::RenderSettings() {
     VerticalSpace(0.5f);
     SectionHeader(UI::Translations::Get("obody_settings_section_config"));
 
-    if (ImGuiMCP::Checkbox(UI::Translations::Get("obody_settings_show_blacklisted").c_str(), &show)) {
+    if (UI::Widgets::Checkbox(UI::Translations::Get("obody_settings_show_blacklisted").c_str(), &show)) {
         OnSettingSaved(Parser::SetMasterConfigValue(ShowBlacklistedKey, show));
     }
 
@@ -385,18 +390,45 @@ void UI::ConfigTabs::Reset() {
     g_rerollResult.clear();
 }
 
-UI::ConfigTabs::ReloadResult UI::ConfigTabs::Reload() {
+UI::ConfigTabs::ReloadResult UI::ConfigTabs::Reload(const bool a_presets) {
+    std::vector<std::string> unreadPresets;
+
+    if (a_presets) {
+        try {
+            auto& container{PresetManager::PresetContainer::GetInstance()};
+            auto data{PresetManager::GeneratePresets()};
+            unreadPresets = data->unreadFiles;
+
+            container.AssignPresetIndexes(*data);
+            container.Replace(std::move(data));
+            UI::Lookups::RebuildPresets();
+        } catch (const std::exception& e) {
+            logger::error("The BodySlide presets couldn't be read again: {}", e.what());
+
+            return {.message = UI::Translations::Get("obody_reload_presets_failed"), .failed = true};
+        }
+    }
+
     const auto loaded{Parser::JSONParser::GetInstance().Load()};
     ReloadResult result{.failed = loaded.error.has_value(),
                         .filesSkipped = !loaded.error && !loaded.skippedFiles.empty()};
 
+    const char* const doneKey{a_presets ? "obody_reload_presets_done" : "obody_reload_config_done"};
     result.message = loaded.error ? UI::Translations::Get("obody_reload_config_failed") + " " + *loaded.error
-                                  : UI::Translations::Get("obody_reload_config_done");
+                                  : UI::Translations::Get(doneKey);
 
     if (!loaded.error && !loaded.skippedFiles.empty()) {
         result.message += "\n" + UI::Translations::Get("obody_reload_config_skipped");
 
         for (const auto& file : loaded.skippedFiles) {
+            result.message += "\n" + file;
+        }
+    }
+
+    if (!loaded.error && !unreadPresets.empty()) {
+        result.message += "\n" + UI::Translations::Get("obody_reload_presets_unread");
+
+        for (const auto& file : unreadPresets) {
             result.message += "\n" + file;
         }
     }
